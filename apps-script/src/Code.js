@@ -20,6 +20,7 @@ function doGet(e) {
   try {
     if (p.action === 'availability') return json_(getAvailability_());
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
+    if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_());
     return json_({ ok: true, service: 'shorashim-booking' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
@@ -42,6 +43,35 @@ function doPost(e) {
     console.error(err && err.stack ? err.stack : err);
     return json_({ ok: false, error: 'server_error' });
   }
+}
+
+/** Timings of the slow parts, for troubleshooting. Needs a fresh signed timestamp. */
+function diagnose_() {
+  var out = {};
+  var t = Date.now();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  out.lockWaitMs = Date.now() - t;
+  try {
+    t = Date.now();
+    invalidateAvailability_();
+    getAvailability_();
+    out.availabilityMs = Date.now() - t;
+    t = Date.now();
+    refreshAvailabilitySnapshot_();
+    out.snapshotWriteMs = Date.now() - t;
+    t = Date.now();
+    syncAdminSheet_();
+    out.adminSheetSyncMs = Date.now() - t;
+  } catch (err) {
+    out.error = String(err);
+  } finally {
+    lock.releaseLock();
+  }
+  out.triggers = ScriptApp.getProjectTriggers().map(function (tr) {
+    return tr.getHandlerFunction() + ':' + tr.getEventType();
+  });
+  return out;
 }
 
 function json_(obj) {
@@ -183,6 +213,31 @@ function refreshMirrors_() {
   } finally {
     lock.releaseLock();
   }
+}
+
+var MIRROR_TRIGGER = 'onMirrorsDue';
+
+/**
+ * Refreshing both spreadsheets takes about 6 seconds, too long to make a visitor wait. This queues it
+ * as a one-off trigger that runs within about a minute; the 5-minute timer catches up if that fails.
+ */
+function scheduleMirrorRefresh_() {
+  try {
+    var queued = ScriptApp.getProjectTriggers().some(function (trigger) {
+      return trigger.getHandlerFunction() === MIRROR_TRIGGER;
+    });
+    if (!queued) ScriptApp.newTrigger(MIRROR_TRIGGER).timeBased().after(1000).create();
+  } catch (err) {
+    console.error('could not queue the spreadsheet refresh; the timer will catch up', err);
+  }
+}
+
+/** One-off trigger queued by scheduleMirrorRefresh_. */
+function onMirrorsDue() {
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    if (trigger.getHandlerFunction() === MIRROR_TRIGGER) ScriptApp.deleteTrigger(trigger);
+  });
+  refreshMirrors_();
 }
 
 /** Installable trigger: any change in the booking calendars, including Saray's own edits. */
@@ -466,7 +521,7 @@ function onSheetEdit(e) {
     ss.toast('קודם בחרי "אישור" או "דחייה" בעמודת פעולה, ואז סמני ביצוע.', 'שורשים', 8);
     return;
   }
-  var result = decideAndRecord_(choice === ACTION_APPROVE ? 'approve' : 'decline', id);
+  var result = decideAndRecord_(choice === ACTION_APPROVE ? 'approve' : 'decline', id, true);
   if (!result.ok) {
     e.range.setValue(false);
     var messages = { not_found: 'הבקשה כבר טופלה.', unavailable: 'חלק מהלילות כבר תפוסים, אי אפשר לאשר.' };
@@ -484,18 +539,36 @@ function onSheetEdit(e) {
 // ---------------------------------------------------------------------------
 // Requests
 
+var IN_PROGRESS = 'in_progress';
+
 /**
- * Google sometimes fails the redirect that delivers a web app's response, after the script
- * has already run. Clients therefore retry with the same requestId, and get the stored result
- * instead of a second request (which would conflict with its own hold).
+ * Google sometimes loses a web app's response, even after the script has finished, so clients retry
+ * with the same requestId. A retry that arrives while the first attempt is still running gets
+ * in_progress; a later one gets the stored result. The work, including the one-time reCAPTCHA
+ * check, runs only once.
  */
 function createRequest_(body) {
   var requestId = /^[\w-]{8,64}$/.test(String(body.requestId || '')) ? 'req:' + body.requestId : '';
+  if (!requestId) return createRequestOnce_(body);
   var cache = CacheService.getScriptCache();
-  var previous = requestId && cache.get(requestId);
-  if (previous) return JSON.parse(previous);
-  var result = createRequestOnce_(body);
-  if (requestId && (result.ok || result.error === 'unavailable')) cache.put(requestId, JSON.stringify(result), 3600);
+  // The user lock only guards this check-and-claim; the booking lock stays free for real work.
+  var claim = LockService.getUserLock();
+  claim.waitLock(10000);
+  try {
+    var previous = cache.get(requestId);
+    if (previous) return previous === IN_PROGRESS ? { ok: false, error: IN_PROGRESS } : JSON.parse(previous);
+    cache.put(requestId, IN_PROGRESS, 300);
+  } finally {
+    claim.releaseLock();
+  }
+  var result;
+  try {
+    result = createRequestOnce_(body);
+  } catch (err) {
+    cache.remove(requestId);
+    throw err;
+  }
+  cache.put(requestId, JSON.stringify(result), 3600);
   return result;
 }
 
@@ -531,7 +604,7 @@ function createRequestOnce_(body) {
     lock.releaseLock();
   }
 
-  refreshMirrors_();
+  scheduleMirrorRefresh_();
   try {
     notifyOwner_(ev, req);
   } catch (err) {
@@ -689,10 +762,11 @@ function decisionState_(id, sig) {
  */
 function decide(action, id, sig) {
   if (!validSig_(id, sig)) return { ok: false, error: 'forbidden' };
-  return decideAndRecord_(action, id);
+  return decideAndRecord_(action, id, false);
 }
 
-function decideAndRecord_(action, id) {
+/** syncMirrors: refresh the spreadsheets before returning (the sheet's own checkbox) or shortly after. */
+function decideAndRecord_(action, id, syncMirrors) {
   if (action !== 'approve' && action !== 'decline') return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache();
   var key = 'decided:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(id)));
@@ -704,7 +778,8 @@ function decideAndRecord_(action, id) {
   var result = decideOnce_(action, id);
   if (result.ok) {
     cache.put(key, JSON.stringify({ action: action, result: result }), 3600);
-    refreshMirrors_();
+    if (syncMirrors) refreshMirrors_();
+    else scheduleMirrorRefresh_();
   }
   return result;
 }

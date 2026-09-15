@@ -12,7 +12,7 @@ import {
   type BookingRequestSuccess,
 } from '../lib/bookingApi';
 import { recaptchaToken } from '../lib/recaptcha';
-import { daysBetween, formatHebrewDate, isWeddingStay, type StayType } from '../lib/stay';
+import { daysBetween, formatHebrewDate, isWeddingStay, nightsOf, stayRange, type StayType } from '../lib/stay';
 
 interface BookingSectionProps {
   initialStayType?: StayType;
@@ -198,7 +198,9 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     if (result.ok) {
       const { ref, holdHours } = result as BookingRequestSuccess;
       setSubmission({ state: 'sent', ref, holdHours });
-      loadAvailability();
+      // The public availability sheet catches up within about a minute; grey out the held nights now.
+      const held = stayRange(stayType, checkIn, checkOut);
+      setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]) });
       return;
     }
     // The tsconfig is not strict, so `result.ok` does not narrow the union by itself.
@@ -225,7 +227,9 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
       message:
         failure.error === 'rate_limited'
           ? 'נשלחו מכם כבר כמה בקשות. נשמח להמשיך את השיחה ב-WhatsApp.'
-          : 'לא הצלחנו לשלוח את הבקשה כרגע. אפשר לשלוח אותה אלינו ב-WhatsApp.',
+          : failure.error === 'network'
+            ? 'לא הצלחנו לוודא שהבקשה נקלטה. אם לא נחזור אליכם בקרוב, כתבו לנו ב-WhatsApp.'
+            : 'לא הצלחנו לשלוח את הבקשה כרגע. אפשר לשלוח אותה אלינו ב-WhatsApp.',
     });
   };
 

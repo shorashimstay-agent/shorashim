@@ -12,18 +12,45 @@ export interface Availability {
   blocked: Set<string>;
 }
 
+interface RetryPolicy {
+  attempts: number;
+  /** Give up on a single attempt after this long; Google sometimes never answers. */
+  timeoutMs: number;
+  /** Stop retrying once this much time has passed in total. */
+  deadlineMs: number;
+  delayMs: (attempt: number) => number;
+}
+
+const READ_POLICY: RetryPolicy = { attempts: 4, timeoutMs: 25_000, deadlineMs: 60_000, delayMs: (a) => 700 * a };
+const WRITE_POLICY: RetryPolicy = { attempts: 12, timeoutMs: 40_000, deadlineMs: 120_000, delayMs: (a) => Math.min(1500 * a, 5000) };
+
+async function fetchWithTimeout(url: string, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Google's redirects in front of Apps Script occasionally fail: the response is an HTML error
- * page, or a POST arrives as a GET and returns the script's default reply. Every call is
- * retried until the response has the expected shape. Requests are safe to repeat because they
- * carry a requestId the server deduplicates on.
+ * page, a POST arrives as a GET and returns the script's default reply, or nothing comes back at
+ * all. Every call is retried until the response has the expected shape. Requests are safe to repeat
+ * because they carry a requestId: the server runs the work once, answers in_progress while it is
+ * still running, and returns the stored result afterwards.
  */
-async function callApi(isExpected: (data: any) => boolean, init?: RequestInit, query = ''): Promise<any> {
+async function callApi(isExpected: (data: any) => boolean, policy: RetryPolicy, init?: RequestInit, query = ''): Promise<any> {
+  const started = Date.now();
   let lastError: unknown = new Error('unexpected response');
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt) await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+  for (let attempt = 0; attempt < policy.attempts; attempt++) {
+    if (attempt) {
+      if (Date.now() - started > policy.deadlineMs) break;
+      await new Promise((resolve) => setTimeout(resolve, policy.delayMs(attempt)));
+    }
     try {
-      const res = await fetch(`${BOOKING_API_URL}${query}`, init);
+      const res = await fetchWithTimeout(`${BOOKING_API_URL}${query}`, init, policy.timeoutMs);
       const data = await res.json();
       if (isExpected(data)) return data;
     } catch (err) {
@@ -77,7 +104,7 @@ function parseCsv(text: string): string[][] {
  * a header row, then from, to, generatedAt and the comma-separated blocked nights.
  */
 async function fetchSnapshot(): Promise<Availability> {
-  const res = await fetch(AVAILABILITY_SNAPSHOT_URL, { cache: 'no-store' });
+  const res = await fetchWithTimeout(AVAILABILITY_SNAPSHOT_URL, { cache: 'no-store' }, 8000);
   if (!res.ok) throw new Error(`snapshot ${res.status}`);
   const row = parseCsv(await res.text()).find((cells) => DATE_RE.test(cells[0] ?? ''));
   if (!row) throw new Error('snapshot unreadable');
@@ -95,7 +122,7 @@ export async function fetchAvailability(): Promise<Availability> {
       // Fall back to asking the backend directly.
     }
   }
-  const data = await callApi((d) => (d?.ok === true && Array.isArray(d.blocked)) || d?.ok === false, undefined, '?action=availability');
+  const data = await callApi((d) => (d?.ok === true && Array.isArray(d.blocked)) || d?.ok === false, READ_POLICY, undefined, '?action=availability');
   if (!data.ok) throw new Error(data.error);
   return { from: data.from, to: data.to, blocked: new Set<string>(data.blocked) };
 }
@@ -133,7 +160,8 @@ export async function submitBookingRequest(request: BookingRequest): Promise<Boo
   try {
     // No custom headers: a text/plain body keeps this a simple CORS request, which Apps Script can answer.
     return await callApi(
-      (d) => (d?.ok === true && typeof d.ref === 'string') || (d?.ok === false && typeof d.error === 'string'),
+      (d) => (d?.ok === true && typeof d.ref === 'string') || (d?.ok === false && typeof d.error === 'string' && d.error !== 'in_progress'),
+      WRITE_POLICY,
       { method: 'POST', body: JSON.stringify({ action: 'request', requestId, ...request }) }
     );
   } catch {
