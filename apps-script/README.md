@@ -14,6 +14,24 @@ Each booking is an all-day event from the check-in date to the check-out date. G
 
 A bride day or "night before + bride day" on wedding date D holds the night before (D-1) and the wedding night (D).
 
+## Google Drive folder
+
+Everything for the site lives in the Drive folder **shorashim-webpage** of the Shorashim account:
+
+| File | Sharing | Contents |
+|---|---|---|
+| **Shorashim Booking** (Apps Script) | Private | The booking backend |
+| **שורשים – ניהול הזמנות** | Private | Tabs בקשות / הזמנות / ערוצים mirroring the calendars, with approve/decline |
+| **שורשים – זמינות לאתר** | Anyone with the link (view) | A header row, then from, to, generatedAt and blocked nights. Dates only, no guest details |
+
+The availability data is a separate file on purpose. The public file contains nothing but dates, so no sharing or publishing mistake can expose the guest details in the admin sheet. **Never share the admin sheet.**
+
+The website reads the availability sheet's CSV export first, because Google answers it in well under a second. A cold call to the web app often takes 10 seconds or more. If the sheet is unreachable or its data is older than 30 minutes, the site asks the web app directly. The server re-checks every request, so stale availability can't cause a double booking.
+
+Both spreadsheets are rewritten after every request or decision, whenever a booking calendar changes, and on a timer. Apps Script calendar change triggers only work on an account's primary calendar, and the booking calendars are secondary calendars. So `setup` falls back to a timer every 5 minutes, and Saray's own edits in Google Calendar reach the sheet and the website within about 5 minutes. The timer also lets expired holds drop out.
+
+Calendars cannot be stored in Drive folders; they stay in Google Calendar.
+
 ## Day to day (Saray)
 
 - **Close dates or add a phone booking:** create an event in **שורשים – הזמנות**. The website shows those nights as taken within about two minutes.
@@ -21,6 +39,7 @@ A bride day or "night before + bride day" on wedding date D holds the night befo
   - **Approve** moves the stay into הזמנות. If the guest gave an email address, they get a Google Calendar invitation.
   - **Decline** removes the request and frees the dates.
   - Both screens offer a ready-made WhatsApp message to the guest.
+- **Or decide from the sheet:** in **שורשים – ניהול הזמנות**, tab בקשות, choose אישור or דחייה in the **פעולה** column, then tick **ביצוע**. The tick is the confirmation, and it works in the Sheets phone app too. Decided requests stay at the bottom of the tab for 3 days with a WhatsApp link to the guest.
 - **Unanswered requests** stop holding their dates after 24 hours and are marked ⌛ פג תוקף. They can still be approved while the dates are free.
 - **Cancel a booking:** delete its event.
 
@@ -33,5 +52,5 @@ python3 apps-script/deploy.py "note"   # push code and update the web app deploy
 
 - **`deploy.py`** uses the OAuth token in `<local path>`. It reads IDs and secrets from `<local path>`: calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
 - **The web app URL stays the same** across deploys. It goes in `src/data/bookingConfig.ts`.
-- **Adding OAuth scopes:** if a change adds scopes to `appsscript.json`, the account owner must open the web app URL once, signed in as shorashimzichron@gmail.com, to re-authorize it.
+- **Adding OAuth scopes:** push with `deploy.py --content-only`, have the owner run `setup` in the editor (signed in as shorashimzichron@gmail.com) to authorize the new scopes, then run `deploy.py` normally to release. Releasing first would break the live web app until the owner re-authorizes. `setup` is safe to re-run: it reinstalls the triggers and rewrites both spreadsheets.
 - **Rules are shared by the script and the site:** `rules.js` is plain global functions, because Apps Script has no modules. The Node tests load it with `vm`. `src/lib/stay.ts` mirrors the date rules for the site; the server remains authoritative.

@@ -3,6 +3,10 @@
  * - bookings: confirmed stays and manual blocks (anything here blocks its nights)
  * - requests: website requests, holding their nights for HOLD_HOURS
  * - channels: bookings imported from OTAs
+ * Two spreadsheets mirror the calendars. The admin sheet is private: tabs בקשות / הזמנות / ערוצים
+ * with all details and approve/decline. The availability sheet is a separate file, viewable by
+ * anyone with the link, holding blocked dates only; the website reads it because it answers fast.
+ * Keeping them apart means guest details can never be exposed through the public file.
  * CONFIG comes from Config.js, which deploy.py generates and which is never committed.
  */
 
@@ -137,6 +141,347 @@ function getAvailability_() {
 }
 
 // ---------------------------------------------------------------------------
+// Availability snapshot: a separate spreadsheet, viewable by anyone with the link. The website
+// reads it first because it answers in well under a second, while this web app often takes
+// 10+ seconds to start. It holds dates only, never guest details.
+
+var SNAPSHOT_COLUMNS = ['from', 'to', 'generatedAt', 'blocked'];
+
+function refreshAvailabilitySnapshot_() {
+  invalidateAvailability_();
+  var data = getAvailability_();
+  if (!CONFIG.availabilitySheetId) return data;
+  var sheet = SpreadsheetApp.openById(CONFIG.availabilitySheetId).getSheets()[0];
+  // Plain-text cells, so Sheets does not turn the ISO dates into its own date values.
+  sheet
+    .getRange(1, 1, 2, SNAPSHOT_COLUMNS.length)
+    .setNumberFormat('@')
+    .setValues([SNAPSHOT_COLUMNS, [data.from, data.to, data.generatedAt, data.blocked.join(',')]]);
+  return data;
+}
+
+/** Rewrites the availability snapshot and the admin sheet. Failures are logged, never thrown. */
+function refreshMirrors_() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (err) {
+    console.error('mirror refresh skipped: lock busy');
+    return;
+  }
+  try {
+    try {
+      refreshAvailabilitySnapshot_();
+    } catch (err) {
+      console.error('snapshot refresh failed', err);
+    }
+    try {
+      syncAdminSheet_();
+    } catch (err) {
+      console.error('admin sheet sync failed', err);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Installable trigger: any change in the booking calendars, including Saray's own edits. */
+function onCalendarChange() {
+  refreshMirrors_();
+}
+
+/** Installable trigger: every 10 minutes, so expired holds and the rolling date window stay current. */
+function onSnapshotTimer() {
+  refreshMirrors_();
+}
+
+/**
+ * Run once from the Apps Script editor as the owner: formats the spreadsheet, writes every tab and
+ * installs the triggers. Safe to re-run. Each step logs, so a failure in the editor log names its step.
+ */
+function setup() {
+  if (Session.getActiveUser().getEmail() !== CONFIG.ownerEmail) {
+    throw new Error('Run setup from the Apps Script editor, signed in as ' + CONFIG.ownerEmail);
+  }
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    ScriptApp.deleteTrigger(trigger);
+  });
+  console.log('1/4 old triggers removed');
+
+  if (CONFIG.adminSheetId) {
+    prepareAdminSheet_();
+    ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(CONFIG.adminSheetId).onEdit().create();
+    console.log('2/4 spreadsheet formatted, edit trigger installed');
+  }
+
+  // Calendar change triggers make Saray's own calendar edits show up at once. Google does not allow
+  // them on every calendar, so a failure only means waiting for the timer instead.
+  var calendarTriggers = 0;
+  ['bookings', 'requests', 'channels'].forEach(function (key) {
+    try {
+      ScriptApp.newTrigger('onCalendarChange').forUserCalendar(CONFIG.calendars[key]).onEventUpdated().create();
+      calendarTriggers++;
+    } catch (err) {
+      console.warn('calendar trigger not available for ' + key + ': ' + err.message);
+    }
+  });
+  var minutes = calendarTriggers === 3 ? 10 : 5;
+  ScriptApp.newTrigger('onSnapshotTimer').timeBased().everyMinutes(minutes).create();
+  console.log('3/4 calendar triggers: ' + calendarTriggers + ' of 3; timer every ' + minutes + ' minutes');
+
+  refreshMirrors_();
+  console.log('4/4 tabs written. Setup done.');
+}
+
+// ---------------------------------------------------------------------------
+// Admin sheet: one tab per calendar. Pending requests are decided by choosing אישור/דחייה in
+// the פעולה column and then ticking ביצוע (the tick is the confirmation, and works on phones).
+
+var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: 'ערוצים' };
+var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה'];
+var BOOKING_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות', 'מקור', 'סוג אירוח', 'אורחים', 'טלפון', 'אימייל', 'הערות', 'מספר', 'WhatsApp'];
+var CHANNEL_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות'];
+var ACTION_COL = 14;
+var CONFIRM_COL = 15;
+var ID_COL = 17;
+var ACTION_APPROVE = 'אישור';
+var ACTION_DECLINE = 'דחייה';
+var DECISIONS_KEY = 'recentDecisions';
+var DECISION_DAYS = 3;
+
+function prepareAdminSheet_() {
+  var ss = SpreadsheetApp.openById(CONFIG.adminSheetId);
+  ss.setSpreadsheetLocale('iw_IL');
+  ss.setSpreadsheetTimeZone(TZ);
+  [
+    [ADMIN_TABS.requests, REQUEST_COLUMNS],
+    [ADMIN_TABS.bookings, BOOKING_COLUMNS],
+    [ADMIN_TABS.channels, CHANNEL_COLUMNS],
+  ].forEach(function (tab, index) {
+    var sheet = adminTab_(ss, tab[0], tab[1]);
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(index + 1);
+  });
+  var keep = [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels];
+  ss.getSheets().forEach(function (sheet) {
+    if (keep.indexOf(sheet.getName()) === -1) ss.deleteSheet(sheet);
+  });
+  var requests = ss.getSheetByName(ADMIN_TABS.requests);
+  requests.hideColumns(ID_COL);
+  requests.getRange(1, ACTION_COL).setNote('בחרי "אישור" או "דחייה", ואז סמני את תיבת הביצוע בעמודה הבאה.');
+  requests.getRange(1, CONFIRM_COL).setNote('הסימון מבצע את הפעולה שנבחרה. זה שלב האישור.');
+  ss.setActiveSheet(requests);
+}
+
+function adminTab_(ss, name, columns) {
+  var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
+  sheet.setRightToLeft(true);
+  sheet.getRange(1, 1, 1, columns.length).setValues([columns]).setFontWeight('bold').setBackground('#F3ECE0');
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+/** Guest-supplied text is written as literal text, so nothing can turn into a formula or a number. */
+function text_(value) {
+  return value === '' || value == null ? '' : "'" + String(value);
+}
+
+function sheetLink_(url, label) {
+  return url ? '=HYPERLINK("' + url + '","' + label + '")' : '';
+}
+
+function eventRange_(ev) {
+  var d = toRuleEvent_(ev);
+  var start = d.start.slice(0, 10);
+  var end = d.end.slice(0, 10);
+  return { start: start, end: end, nights: Math.max(daysBetween(start, end), 0) };
+}
+
+function recordDecision_(result, req, whatsapp) {
+  var props = PropertiesService.getScriptProperties();
+  var cutoff = Date.now() - DECISION_DAYS * 86400000;
+  var list = JSON.parse(props.getProperty(DECISIONS_KEY) || '[]').filter(function (d) {
+    return Date.parse(d.at) > cutoff;
+  });
+  list.unshift({
+    at: new Date().toISOString(),
+    result: result,
+    ref: req.ref,
+    name: req.name,
+    phone: req.phone,
+    stayType: req.stayType,
+    start: req.start,
+    end: req.end,
+    whatsapp: whatsapp,
+  });
+  props.setProperty(DECISIONS_KEY, JSON.stringify(list.slice(0, 25)));
+}
+
+function writeTab_(sheet, width, rows) {
+  var old = sheet.getMaxRows() - 1;
+  if (old > 0) sheet.getRange(2, 1, old, width).clearDataValidations().clearContent().setBackground(null);
+  if (rows.length) sheet.getRange(2, 1, rows.length, width).setValues(rows);
+}
+
+function syncAdminSheet_() {
+  if (!CONFIG.adminSheetId) return;
+  var ss = SpreadsheetApp.openById(CONFIG.adminSheetId);
+  var today = today_();
+  var from = localDate_(addDays(today, -30));
+  var to = localDate_(addDays(today, HORIZON_DAYS + 1));
+  var now = Date.now();
+
+  // Requests: keep a choice made in פעולה that has not been confirmed yet.
+  var requests = adminTab_(ss, ADMIN_TABS.requests, REQUEST_COLUMNS);
+  var chosen = {};
+  if (requests.getLastRow() > 1) {
+    requests
+      .getRange(2, 1, requests.getLastRow() - 1, ID_COL)
+      .getValues()
+      .forEach(function (row) {
+        if (row[ID_COL - 1] && row[ACTION_COL - 1]) chosen[row[ID_COL - 1]] = row[ACTION_COL - 1];
+      });
+  }
+  var pending = calendar_('requests')
+    .getEvents(from, to)
+    .map(function (ev) {
+      var req = JSON.parse(ev.getTag('request') || '{}');
+      var range = eventRange_(ev);
+      var holding = ev.getTag('status') === 'pending' && isHoldActive(ev.getTag('createdAt'), now);
+      var createdAt = ev.getTag('createdAt');
+      return [
+        text_(req.ref),
+        holding ? 'ממתינה – התאריכים שמורים' : 'ממתינה – פג תוקף השמירה',
+        STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
+        text_(heDate_(range.start)),
+        text_(heDate_(range.end)),
+        range.nights,
+        req.adults || '',
+        text_(req.name || ev.getTitle()),
+        text_(req.phone),
+        text_(req.email),
+        text_(req.notes),
+        req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US')) : '',
+        createdAt ? text_(fmt_(new Date(createdAt), 'dd.MM.yyyy HH:mm')) : '',
+        chosen[ev.getId()] || '',
+        false,
+        req.phone ? sheetLink_(waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים'), 'WhatsApp') : '',
+        ev.getId(),
+      ];
+    });
+  var cutoff = now - DECISION_DAYS * 86400000;
+  var decided = JSON.parse(PropertiesService.getScriptProperties().getProperty(DECISIONS_KEY) || '[]')
+    .filter(function (d) {
+      return Date.parse(d.at) > cutoff;
+    })
+    .map(function (d) {
+      var approved = d.result === 'approved';
+      return [
+        text_(d.ref),
+        approved ? 'אושרה ✓' : 'נדחתה ✗',
+        STAY_TYPES[d.stayType] ? STAY_TYPES[d.stayType].label : '',
+        text_(heDate_(d.start)),
+        text_(heDate_(d.end)),
+        daysBetween(d.start, d.end),
+        '',
+        text_(d.name),
+        text_(d.phone),
+        '',
+        '',
+        '',
+        text_('טופלה ' + fmt_(new Date(d.at), 'dd.MM.yyyy HH:mm')),
+        '',
+        '',
+        sheetLink_(d.whatsapp, approved ? 'שליחת אישור ב-WhatsApp' : 'שליחת דחייה ב-WhatsApp'),
+        '',
+      ];
+    });
+  writeTab_(requests, REQUEST_COLUMNS.length, pending.concat(decided));
+  if (pending.length) {
+    requests
+      .getRange(2, ACTION_COL, pending.length, 1)
+      .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList([ACTION_APPROVE, ACTION_DECLINE], true).setAllowInvalid(false).build());
+    requests.getRange(2, CONFIRM_COL, pending.length, 1).insertCheckboxes();
+  }
+  if (decided.length) requests.getRange(pending.length + 2, 1, decided.length, REQUEST_COLUMNS.length).setBackground('#F4F1EC');
+
+  // Bookings: website bookings carry the request details; manual events only have a title.
+  var bookings = adminTab_(ss, ADMIN_TABS.bookings, BOOKING_COLUMNS);
+  writeTab_(
+    bookings,
+    BOOKING_COLUMNS.length,
+    calendar_('bookings')
+      .getEvents(from, to)
+      .map(function (ev) {
+        var req = JSON.parse(ev.getTag('request') || '{}');
+        var range = eventRange_(ev);
+        return [
+          text_(ev.getTitle()),
+          text_(heDate_(range.start)),
+          text_(heDate_(range.end)),
+          range.nights,
+          ev.getTag('source') === 'website' ? 'אתר' : 'ידני',
+          STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
+          req.adults || '',
+          text_(req.phone),
+          text_(req.email),
+          text_(req.notes),
+          text_(req.ref),
+          req.phone ? sheetLink_(waLink_(req.phone, 'שלום ' + req.name + ', '), 'WhatsApp') : '',
+        ];
+      })
+  );
+
+  var channels = adminTab_(ss, ADMIN_TABS.channels, CHANNEL_COLUMNS);
+  writeTab_(
+    channels,
+    CHANNEL_COLUMNS.length,
+    calendar_('channels')
+      .getEvents(from, to)
+      .map(function (ev) {
+        var range = eventRange_(ev);
+        return [text_(ev.getTitle()), text_(heDate_(range.start)), text_(heDate_(range.end)), range.nights];
+      })
+  );
+}
+
+/** Installable trigger on the admin sheet: ticking ביצוע runs the action chosen in פעולה. */
+function onSheetEdit(e) {
+  if (!e || !e.range || typeof e.range.getSheet !== 'function') return;
+  var sheet = e.range.getSheet();
+  var ss = sheet.getParent();
+  if (ss.getId() !== CONFIG.adminSheetId || sheet.getName() !== ADMIN_TABS.requests) return;
+  if (e.range.getColumn() !== CONFIRM_COL || e.range.getNumRows() !== 1 || e.range.getRow() < 2) return;
+  if (e.range.getValue() !== true) return;
+
+  var row = sheet.getRange(e.range.getRow(), 1, 1, ID_COL).getValues()[0];
+  var id = row[ID_COL - 1];
+  var choice = row[ACTION_COL - 1];
+  if (!id) {
+    e.range.setValue(false);
+    return;
+  }
+  if (choice !== ACTION_APPROVE && choice !== ACTION_DECLINE) {
+    e.range.setValue(false);
+    ss.toast('קודם בחרי "אישור" או "דחייה" בעמודת פעולה, ואז סמני ביצוע.', 'שורשים', 8);
+    return;
+  }
+  var result = decideAndRecord_(choice === ACTION_APPROVE ? 'approve' : 'decline', id);
+  if (!result.ok) {
+    e.range.setValue(false);
+    var messages = { not_found: 'הבקשה כבר טופלה.', unavailable: 'חלק מהלילות כבר תפוסים, אי אפשר לאשר.' };
+    ss.toast(messages[result.error] || 'משהו השתבש, נסי שוב.', 'שורשים', 10);
+    refreshMirrors_();
+    return;
+  }
+  ss.toast(
+    result.result === 'approved' ? 'ההזמנה אושרה ועברה ללשונית הזמנות.' : 'הבקשה נדחתה והתאריכים נפתחו.',
+    'שורשים',
+    8
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Requests
 
 /**
@@ -186,6 +531,7 @@ function createRequestOnce_(body) {
     lock.releaseLock();
   }
 
+  refreshMirrors_();
   try {
     notifyOwner_(ev, req);
   } catch (err) {
@@ -343,6 +689,10 @@ function decisionState_(id, sig) {
  */
 function decide(action, id, sig) {
   if (!validSig_(id, sig)) return { ok: false, error: 'forbidden' };
+  return decideAndRecord_(action, id);
+}
+
+function decideAndRecord_(action, id) {
   if (action !== 'approve' && action !== 'decline') return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache();
   var key = 'decided:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(id)));
@@ -352,7 +702,10 @@ function decide(action, id, sig) {
     return stored.action === action ? stored.result : { ok: false, error: 'not_found' };
   }
   var result = decideOnce_(action, id);
-  if (result.ok) cache.put(key, JSON.stringify({ action: action, result: result }), 3600);
+  if (result.ok) {
+    cache.put(key, JSON.stringify({ action: action, result: result }), 3600);
+    refreshMirrors_();
+  }
   return result;
 }
 
@@ -368,11 +721,9 @@ function decideOnce_(action, id) {
     if (action === 'decline') {
       ev.deleteEvent();
       invalidateAvailability_();
-      return {
-        ok: true,
-        result: 'declined',
-        whatsapp: waLink_(req.phone, 'שלום ' + req.name + ', תודה על הפנייה לשורשים. לצערנו התאריכים שביקשת אינם פנויים. נשמח לעזור למצוא מועד אחר.'),
-      };
+      var declineLink = waLink_(req.phone, 'שלום ' + req.name + ', תודה על הפנייה לשורשים. לצערנו התאריכים שביקשת אינם פנויים. נשמח לעזור למצוא מועד אחר.');
+      recordDecision_('declined', req, declineLink);
+      return { ok: true, result: 'declined', whatsapp: declineLink };
     }
 
     var conflicts = conflictsFor_(req.start, req.end, { excludeId: id });
@@ -388,12 +739,9 @@ function decideOnce_(action, id) {
     booking.setTag('source', 'website');
     ev.deleteEvent();
     invalidateAvailability_();
-    return {
-      ok: true,
-      result: 'approved',
-      invited: !!req.email,
-      whatsapp: waLink_(req.phone, 'שלום ' + req.name + ', ההזמנה שלך בשורשים אושרה (' + stayDatesShort_(req) + '). מחכים לכם!'),
-    };
+    var approveLink = waLink_(req.phone, 'שלום ' + req.name + ', ההזמנה שלך בשורשים אושרה (' + stayDatesShort_(req) + '). מחכים לכם!');
+    recordDecision_('approved', req, approveLink);
+    return { ok: true, result: 'approved', invited: !!req.email, whatsapp: approveLink };
   } finally {
     lock.releaseLock();
   }

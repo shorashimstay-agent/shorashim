@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Push apps-script/ to the Shorashim Apps Script project and point the web app deployment at it.
 
-Usage: python3 apps-script/deploy.py ["description"]
+Usage: python3 apps-script/deploy.py [--content-only] ["description"]
+
+--content-only updates the project code without releasing it to the web app. Use it before
+adding OAuth scopes: the owner authorizes them by running `setup` in the editor, and only then
+is the new version released, so the live web app never runs with unauthorized scopes.
 
 IDs and secrets live in <local path>, never in this public
 repo. They are written into a generated Config.js file that exists only inside the Apps Script
@@ -18,7 +22,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 CRED_DIR = pathlib.Path.home() / "<local path>"
 CONFIG_PATH = CRED_DIR / "booking-config.json"
 API = "https://script.googleapis.com/v1"
-CONFIG_KEYS = ("calendars", "hmacSecret", "ownerEmail", "webAppUrl", "recaptchaSecret")
+CONFIG_KEYS = ("calendars", "hmacSecret", "ownerEmail", "webAppUrl", "recaptchaSecret", "adminSheetId", "availabilitySheetId")
 
 
 def session():
@@ -58,7 +62,10 @@ def push_version(s, cfg, description):
 
 
 def main():
-    description = sys.argv[1] if len(sys.argv) > 1 else "deploy"
+    args = sys.argv[1:]
+    content_only = "--content-only" in args
+    args = [a for a in args if a != "--content-only"]
+    description = args[0] if args else "deploy"
     cfg = json.loads(CONFIG_PATH.read_text())
     s = session()
 
@@ -80,6 +87,12 @@ def main():
             f"https://script.google.com/macros/s/{dep['deploymentId']}/exec",
         )
         save(cfg)
+
+    if content_only:
+        call(s, "PUT", f"{API}/projects/{cfg['scriptId']}/content", json={"files": project_files(cfg)})
+        print("Updated project code only (not released to the web app).")
+        print(f"Editor:  https://script.google.com/d/{cfg['scriptId']}/edit")
+        return
 
     version = push_version(s, cfg, description)
     call(
