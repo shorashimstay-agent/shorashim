@@ -27,3 +27,47 @@
   background: #B3A899;
 }
 
+
+/* Availability calendar (react-day-picker) */
+.shorashim-calendar {
+  --rdp-accent-color: #8B6B48;
+  --rdp-accent-background-color: #F3ECE0;
+  --rdp-today-color: #8B6B48;
+  --rdp-day-width: 36px;
+  --rdp-day-height: 36px;
+  --rdp-day_button-width: 34px;
+  --rdp-day_button-height: 34px;
+  --rdp-disabled-opacity: 1;
+  font-size: 0.875rem;
+  color: #2C2926;
+}
+@media (min-width: 640px) {
+  .shorashim-calendar {
+    --rdp-day-width: 48px;
+    --rdp-day-height: 44px;
+    --rdp-day_button-width: 42px;
+    --rdp-day_button-height: 42px;
+    font-size: 0.95rem;
+  }
+}
+.shorashim-calendar .rdp-disabled .rdp-day_button {
+  color: #CFC6B9;
+  cursor: default;
+}
+.shorashim-calendar .stay-booked .rdp-day_button {
+  color: #B3A899;
+  text-decoration: line-through;
+}
+.shorashim-calendar .stay-middle {
+  background: #F3ECE0;
+}
+.shorashim-calendar .stay-edge .rdp-day_button {
+  background: #8B6B48;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* The reCAPTCHA notice is shown as text under the booking button instead. */
+.grecaptcha-badge {
+  visibility: hidden;
+}

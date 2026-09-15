@@ -91,7 +91,7 @@ export default function ZichronGuide() {
                   <Quote className="w-4 h-4 text-[#8B6B48] shrink-0 mt-1 rotate-180" />
                   <div className="text-xs sm:text-sm text-[#453D32] leading-relaxed">
                     <span className="font-semibold text-[#8B6B48] block mb-0.5">
-                      {place.recommendationBy} ממליצה:
+                      {place.recommendationBy} {place.recommendationBy === 'יואב' ? 'ממליץ' : 'ממליצה'}:
                     </span>
                     {place.tip}
                   </div>

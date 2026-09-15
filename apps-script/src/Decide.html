@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; background: #FAF7F2; color: #2C2926; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.7; }
+      main { max-width: 520px; margin: 24px auto; padding: 24px; background: #fff; border: 1px solid #E5DCD0; border-radius: 20px; }
+      h1 { margin: 0 0 12px; font-size: 22px; color: #8B6B48; }
+      .warn { background: #FFF4E0; border: 1px solid #E8C98E; border-radius: 12px; padding: 10px 14px; }
+      .bad { background: #FCE8E6; border-color: #E6A39A; }
+      .actions { display: flex; gap: 12px; margin-top: 20px; }
+      button, .link { flex: 1; padding: 14px; border-radius: 14px; border: 0; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; }
+      .approve { background: #8B6B48; color: #fff; }
+      .decline { background: #fff; color: #8B6B48; border: 1px solid #8B6B48; }
+      .whatsapp { background: #25D366; color: #fff; display: block; margin-top: 12px; }
+      button:disabled { opacity: 0.5; cursor: default; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <? if (state.status === 'forbidden') { ?>
+        <h1>הקישור אינו תקין</h1>
+        <p>פתחי את הקישור ישירות מהמייל של הבקשה.</p>
+      <? } else if (state.status === 'not_found') { ?>
+        <h1>הבקשה כבר טופלה</h1>
+        <p>הבקשה אושרה, נדחתה או נמחקה מהיומן.</p>
+      <? } else { ?>
+        <h1>בקשת הזמנה <?= state.ref ?></h1>
+        <? state.lines.forEach(function (line) { ?>
+          <div><?= line ?></div>
+        <? }); ?>
+        <? if (state.expired) { ?>
+          <p class="warn">עברו 24 שעות, והתאריכים כבר לא שמורים לבקשה. אפשר עדיין לאשר אם הם פנויים.</p>
+        <? } ?>
+        <? if (state.conflicts.length) { ?>
+          <p class="warn bad">הלילות האלה כבר תפוסים ביומן: <?= state.conflicts.join(', ') ?>. אי אפשר לאשר את הבקשה.</p>
+        <? } ?>
+        <div id="result"></div>
+        <div class="actions" id="actions">
+          <button class="approve" id="approve" <?!= state.conflicts.length ? 'disabled' : '' ?>>אישור ההזמנה</button>
+          <button class="decline" id="decline">דחיית הבקשה</button>
+        </div>
+        <script>
+          var args = <?!= argsJson ?>;
+          var messages = {
+            forbidden: 'הקישור אינו תקין.',
+            not_found: 'הבקשה כבר טופלה.',
+            unavailable: 'חלק מהלילות כבר תפוסים, אי אפשר לאשר.',
+          };
+          function setBusy(busy) {
+            document.getElementById('approve').disabled = busy;
+            document.getElementById('decline').disabled = busy;
+          }
+          function show(html) {
+            document.getElementById('result').innerHTML = html;
+          }
+          function run(action) {
+            if (action === 'decline' && !confirm('לדחות את הבקשה ולפנות את התאריכים?')) return;
+            setBusy(true);
+            show('<p>רגע...</p>');
+            google.script.run
+              .withSuccessHandler(function (res) {
+                if (!res.ok) {
+                  setBusy(false);
+                  show('<p class="warn bad">' + (messages[res.error] || 'משהו השתבש, נסי שוב.') + '</p>');
+                  return;
+                }
+                document.getElementById('actions').style.display = 'none';
+                var approved = res.result === 'approved';
+                var text = approved
+                  ? 'ההזמנה אושרה ונוספה ליומן ההזמנות.' + (res.invited ? ' האורח/ת קיבל/ה זימון ליומן במייל.' : '')
+                  : 'הבקשה נדחתה והתאריכים נפתחו שוב.';
+                var wa = document.createElement('a');
+                wa.className = 'link whatsapp';
+                wa.target = '_blank';
+                wa.href = res.whatsapp;
+                wa.textContent = approved ? 'שליחת אישור ההזמנה לאורח/ת ב-WhatsApp' : 'שליחת הודעת דחייה לאורח/ת ב-WhatsApp';
+                show('<p class="warn">' + text + '</p>');
+                document.getElementById('result').appendChild(wa);
+              })
+              .withFailureHandler(function () {
+                setBusy(false);
+                show('<p class="warn bad">משהו השתבש, נסי שוב.</p>');
+              })
+              .decide(action, args.id, args.sig);
+          }
+          document.getElementById('approve').onclick = function () { run('approve'); };
+          document.getElementById('decline').onclick = function () { run('decline'); };
+        </script>
+      <? } ?>
+    </main>
+  </body>
+</html>
