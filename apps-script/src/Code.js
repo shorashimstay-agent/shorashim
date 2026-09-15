@@ -112,41 +112,121 @@ function invalidateAvailability_() {
   CacheService.getScriptCache().remove(AVAILABILITY_CACHE_KEY);
 }
 
-function toRuleEvent_(ev) {
-  if (ev.isAllDayEvent()) {
-    // getAllDayEndDate() is midnight after the last day, i.e. already exclusive.
-    return { allDay: true, start: fmt_(ev.getAllDayStartDate(), 'yyyy-MM-dd'), end: fmt_(ev.getAllDayEndDate(), 'yyyy-MM-dd') };
+// ---------------------------------------------------------------------------
+// Calendar REST API. CalendarApp needs a round trip per event and per tag; the REST API creates an
+// event together with its private properties in one call, and UrlFetchApp.fetchAll lists several
+// calendars in parallel. CalendarApp's tags are the event's *shared* extended properties, and an
+// event's iCalUID is what CalendarApp's getId() returns, so both APIs see the same events.
+
+var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties),nextPageToken';
+
+function calendarRequest_(key, method, path, query, payload) {
+  var url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CONFIG.calendars[key]) + '/events' + (path || '');
+  var params = Object.keys(query || {}).map(function (name) {
+    return encodeURIComponent(name) + '=' + encodeURIComponent(query[name]);
+  });
+  var request = {
+    url: params.length ? url + '?' + params.join('&') : url,
+    method: method,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+  };
+  if (payload) {
+    request.contentType = 'application/json';
+    request.payload = JSON.stringify(payload);
   }
-  return { allDay: false, start: fmt_(ev.getStartTime(), "yyyy-MM-dd'T'HH:mm"), end: fmt_(ev.getEndTime(), "yyyy-MM-dd'T'HH:mm") };
+  return request;
+}
+
+function calendarResponse_(res) {
+  var code = res.getResponseCode();
+  if (code === 204) return {};
+  if (code >= 300) throw new Error('Calendar API ' + code + ': ' + res.getContentText().slice(0, 300));
+  return JSON.parse(res.getContentText());
+}
+
+function calendarCall_(request) {
+  var params = {};
+  Object.keys(request).forEach(function (name) {
+    if (name !== 'url') params[name] = request[name];
+  });
+  return calendarResponse_(UrlFetchApp.fetch(request.url, params));
+}
+
+/** Events per calendar key between two Dates, with the calendars fetched in parallel. */
+function listEvents_(keys, from, to) {
+  var query = { timeMin: from.toISOString(), timeMax: to.toISOString(), singleEvents: 'true', maxResults: '2500', fields: CALENDAR_EVENTS_FIELDS };
+  var responses = UrlFetchApp.fetchAll(
+    keys.map(function (key) {
+      return calendarRequest_(key, 'get', '', query);
+    })
+  );
+  var out = {};
+  keys.forEach(function (key, i) {
+    var page = calendarResponse_(responses[i]);
+    var items = page.items || [];
+    while (page.nextPageToken) {
+      page = calendarCall_(calendarRequest_(key, 'get', '', Object.assign({}, query, { pageToken: page.nextPageToken })));
+      items = items.concat(page.items || []);
+    }
+    out[key] = items;
+  });
+  return out;
+}
+
+/** The event's tags: shared extended properties, which is where CalendarApp.setTag stores them. */
+function eventProps_(item) {
+  var ext = item.extendedProperties || {};
+  var out = {};
+  [ext.private || {}, ext.shared || {}].forEach(function (props) {
+    Object.keys(props).forEach(function (name) {
+      out[name] = props[name];
+    });
+  });
+  return out;
+}
+
+/** All-day events carry dates (end exclusive); timed events are converted to local date-times. */
+function itemRuleEvent_(item) {
+  if (item.start.date) return { allDay: true, start: item.start.date, end: item.end.date };
+  return {
+    allDay: false,
+    start: fmt_(new Date(item.start.dateTime), "yyyy-MM-dd'T'HH:mm"),
+    end: fmt_(new Date(item.end.dateTime), "yyyy-MM-dd'T'HH:mm"),
+  };
+}
+
+function itemRange_(item) {
+  var d = itemRuleEvent_(item);
+  var start = d.start.slice(0, 10);
+  var end = d.end.slice(0, 10);
+  return { start: start, end: end, nights: Math.max(daysBetween(start, end), 0) };
 }
 
 /** Events that can block nights in [start, end): all bookings and channel events, plus active request holds. */
 function blockingEvents_(start, end, opts) {
   opts = opts || {};
-  var from = localDate_(addDays(start, -2));
-  var to = localDate_(addDays(end, 2));
-  var out = [];
-  ['bookings', 'channels'].forEach(function (key) {
-    calendar_(key)
-      .getEvents(from, to)
-      .forEach(function (ev) {
-        out.push(toRuleEvent_(ev));
-      });
-  });
+  var lists = listEvents_(['bookings', 'channels', 'requests'], localDate_(addDays(start, -2)), localDate_(addDays(end, 2)));
+  var out = lists.bookings.concat(lists.channels).map(itemRuleEvent_);
   var now = Date.now();
-  calendar_('requests')
-    .getEvents(from, to)
-    .forEach(function (ev) {
-      if (ev.getId() === opts.excludeId || ev.getTag('status') !== 'pending') return;
-      if (isHoldActive(ev.getTag('createdAt'), now)) out.push(toRuleEvent_(ev));
-      else if (opts.expireStale) markExpired_(ev);
-    });
+  lists.requests.forEach(function (item) {
+    var props = eventProps_(item);
+    if (item.iCalUID === opts.excludeId || props.status !== 'pending') return;
+    if (isHoldActive(props.createdAt, now)) out.push(itemRuleEvent_(item));
+    else if (opts.expireStale) markExpired_(item);
+  });
   return out;
 }
 
-function markExpired_(ev) {
-  ev.setTag('status', 'expired');
-  ev.setTitle(ev.getTitle().replace(/^⏳\s*/, '⌛ פג תוקף · '));
+function markExpired_(item) {
+  var props = eventProps_(item);
+  props.status = 'expired';
+  calendarCall_(
+    calendarRequest_('requests', 'patch', '/' + encodeURIComponent(item.id), { fields: 'id' }, {
+      summary: String(item.summary || '').replace(/^⏳\s*/, '⌛ פג תוקף · '),
+      extendedProperties: { shared: props },
+    })
+  );
 }
 
 function conflictsFor_(start, end, opts) {
@@ -216,6 +296,7 @@ function refreshMirrors_() {
 }
 
 var MIRROR_TRIGGER = 'onMirrorsDue';
+var MIRROR_QUEUED_KEY = 'mirrorRefreshQueuedAt';
 
 /**
  * Refreshing both spreadsheets takes about 6 seconds, too long to make a visitor wait. This queues it
@@ -223,10 +304,11 @@ var MIRROR_TRIGGER = 'onMirrorsDue';
  */
 function scheduleMirrorRefresh_() {
   try {
-    var queued = ScriptApp.getProjectTriggers().some(function (trigger) {
-      return trigger.getHandlerFunction() === MIRROR_TRIGGER;
-    });
-    if (!queued) ScriptApp.newTrigger(MIRROR_TRIGGER).timeBased().after(1000).create();
+    // A property read is much faster than listing the project's triggers.
+    var props = PropertiesService.getScriptProperties();
+    if (Date.now() - Number(props.getProperty(MIRROR_QUEUED_KEY) || 0) < 3 * 60 * 1000) return;
+    props.setProperty(MIRROR_QUEUED_KEY, String(Date.now()));
+    ScriptApp.newTrigger(MIRROR_TRIGGER).timeBased().after(1000).create();
   } catch (err) {
     console.error('could not queue the spreadsheet refresh; the timer will catch up', err);
   }
@@ -234,6 +316,7 @@ function scheduleMirrorRefresh_() {
 
 /** One-off trigger queued by scheduleMirrorRefresh_. */
 function onMirrorsDue() {
+  PropertiesService.getScriptProperties().deleteProperty(MIRROR_QUEUED_KEY);
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() === MIRROR_TRIGGER) ScriptApp.deleteTrigger(trigger);
   });
@@ -245,9 +328,19 @@ function onCalendarChange() {
   refreshMirrors_();
 }
 
-/** Installable trigger: every 10 minutes, so expired holds and the rolling date window stay current. */
+/** Installable trigger: every 5 minutes, so expired holds, calendar edits and the rolling date window stay current. */
 function onSnapshotTimer() {
+  keepWarm_();
   refreshMirrors_();
+}
+
+/** Calls the web app so Google keeps it warm between visitors; a cold start adds several seconds. */
+function keepWarm_() {
+  try {
+    UrlFetchApp.fetch(CONFIG.webAppUrl + '?action=ping', { muteHttpExceptions: true });
+  } catch (err) {
+    console.warn('keep-warm ping failed', err);
+  }
 }
 
 /**
@@ -325,7 +418,24 @@ function prepareAdminSheet_() {
   requests.hideColumns(ID_COL);
   requests.getRange(1, ACTION_COL).setNote('בחרי "אישור" או "דחייה", ואז סמני את תיבת הביצוע בעמודה הבאה.');
   requests.getRange(1, CONFIRM_COL).setNote('הסימון מבצע את הפעולה שנבחרה. זה שלב האישור.');
+  protectAdminTabs_(ss);
   ss.setActiveSheet(requests);
+}
+
+/** Only פעולה and ביצוע in בקשות are editable by others; everything else is rewritten from the calendars. */
+function protectAdminTabs_(ss) {
+  [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels].forEach(function (name) {
+    var sheet = ss.getSheetByName(name);
+    sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (protection) {
+      protection.remove();
+    });
+    var protection = sheet.protect().setDescription('נכתב אוטומטית מהיומנים. אפשר לערוך רק פעולה וביצוע בלשונית בקשות.');
+    if (name === ADMIN_TABS.requests) {
+      protection.setUnprotectedRanges([sheet.getRange(2, ACTION_COL, sheet.getMaxRows() - 1, CONFIRM_COL - ACTION_COL + 1)]);
+    }
+    protection.removeEditors(protection.getEditors());
+    if (protection.canDomainEdit()) protection.setDomainEdit(false);
+  });
 }
 
 function adminTab_(ss, name, columns) {
@@ -343,13 +453,6 @@ function text_(value) {
 
 function sheetLink_(url, label) {
   return url ? '=HYPERLINK("' + url + '","' + label + '")' : '';
-}
-
-function eventRange_(ev) {
-  var d = toRuleEvent_(ev);
-  var start = d.start.slice(0, 10);
-  var end = d.end.slice(0, 10);
-  return { start: start, end: end, nights: Math.max(daysBetween(start, end), 0) };
 }
 
 function recordDecision_(result, req, whatsapp) {
@@ -385,6 +488,7 @@ function syncAdminSheet_() {
   var from = localDate_(addDays(today, -30));
   var to = localDate_(addDays(today, HORIZON_DAYS + 1));
   var now = Date.now();
+  var lists = listEvents_(['requests', 'bookings', 'channels'], from, to);
 
   // Requests: keep a choice made in פעולה that has not been confirmed yet.
   var requests = adminTab_(ss, ADMIN_TABS.requests, REQUEST_COLUMNS);
@@ -397,13 +501,12 @@ function syncAdminSheet_() {
         if (row[ID_COL - 1] && row[ACTION_COL - 1]) chosen[row[ID_COL - 1]] = row[ACTION_COL - 1];
       });
   }
-  var pending = calendar_('requests')
-    .getEvents(from, to)
-    .map(function (ev) {
-      var req = JSON.parse(ev.getTag('request') || '{}');
-      var range = eventRange_(ev);
-      var holding = ev.getTag('status') === 'pending' && isHoldActive(ev.getTag('createdAt'), now);
-      var createdAt = ev.getTag('createdAt');
+  var pending = lists.requests.map(function (item) {
+      var props = eventProps_(item);
+      var req = JSON.parse(props.request || '{}');
+      var range = itemRange_(item);
+      var holding = props.status === 'pending' && isHoldActive(props.createdAt, now);
+      var createdAt = props.createdAt;
       return [
         text_(req.ref),
         holding ? 'ממתינה – התאריכים שמורים' : 'ממתינה – פג תוקף השמירה',
@@ -412,16 +515,16 @@ function syncAdminSheet_() {
         text_(heDate_(range.end)),
         range.nights,
         req.adults || '',
-        text_(req.name || ev.getTitle()),
+        text_(req.name || item.summary),
         text_(req.phone),
         text_(req.email),
         text_(req.notes),
         req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US')) : '',
         createdAt ? text_(fmt_(new Date(createdAt), 'dd.MM.yyyy HH:mm')) : '',
-        chosen[ev.getId()] || '',
+        chosen[item.iCalUID] || '',
         false,
         req.phone ? sheetLink_(waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים'), 'WhatsApp') : '',
-        ev.getId(),
+        item.iCalUID,
       ];
     });
   var cutoff = now - DECISION_DAYS * 86400000;
@@ -465,17 +568,16 @@ function syncAdminSheet_() {
   writeTab_(
     bookings,
     BOOKING_COLUMNS.length,
-    calendar_('bookings')
-      .getEvents(from, to)
-      .map(function (ev) {
-        var req = JSON.parse(ev.getTag('request') || '{}');
-        var range = eventRange_(ev);
+    lists.bookings.map(function (item) {
+        var props = eventProps_(item);
+        var req = JSON.parse(props.request || '{}');
+        var range = itemRange_(item);
         return [
-          text_(ev.getTitle()),
+          text_(item.summary),
           text_(heDate_(range.start)),
           text_(heDate_(range.end)),
           range.nights,
-          ev.getTag('source') === 'website' ? 'אתר' : 'ידני',
+          props.source === 'website' ? 'אתר' : 'ידני',
           STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
           req.adults || '',
           text_(req.phone),
@@ -491,11 +593,9 @@ function syncAdminSheet_() {
   writeTab_(
     channels,
     CHANNEL_COLUMNS.length,
-    calendar_('channels')
-      .getEvents(from, to)
-      .map(function (ev) {
-        var range = eventRange_(ev);
-        return [text_(ev.getTitle()), text_(heDate_(range.start)), text_(heDate_(range.end)), range.nights];
+    lists.channels.map(function (item) {
+        var range = itemRange_(item);
+        return [text_(item.summary), text_(heDate_(range.start)), text_(heDate_(range.end)), range.nights];
       })
   );
 }
@@ -576,41 +676,61 @@ function createRequestOnce_(body) {
   // Honeypot field: bots get a plausible success and nothing is stored.
   if (body.website) return { ok: true, ref: newRef_(), holdHours: HOLD_HOURS };
 
+  // Milliseconds per step, returned with the result so slow requests can be diagnosed.
+  var timings = {};
+  var started = Date.now();
+  var last = started;
+  function mark(step) {
+    var now = Date.now();
+    timings[step] = now - last;
+    last = now;
+  }
+
   var check = validateRequest(body, today_());
   if (!check.ok) return { ok: false, error: 'invalid', fields: check.errors };
   var req = check.value;
+  mark('validate');
 
   if (CONFIG.recaptchaSecret && !verifyRecaptcha_(body.recaptchaToken)) return { ok: false, error: 'captcha' };
+  mark('recaptcha');
   if (!withinRateLimit_(req.phone)) return { ok: false, error: 'rate_limited' };
+  mark('rateLimit');
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  var ev;
+  mark('lockWait');
+  var eventId;
   try {
     var conflicts = conflictsFor_(req.start, req.end, { expireStale: true });
+    mark('conflictCheck');
     if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
     req.ref = newRef_();
-    ev = calendar_('requests').createAllDayEvent(
-      '⏳ ' + req.name + ' · ' + STAY_TYPES[req.stayType].label,
-      localDate_(req.start),
-      localDate_(req.end),
-      { description: ownerLines_(req).join('\n') }
-    );
-    ev.setTag('request', JSON.stringify(req));
-    ev.setTag('createdAt', new Date().toISOString());
-    ev.setTag('status', 'pending');
+    eventId = calendarCall_(
+      calendarRequest_('requests', 'post', '', { fields: 'iCalUID' }, {
+        summary: '⏳ ' + req.name + ' · ' + STAY_TYPES[req.stayType].label,
+        description: ownerLines_(req).join('\n'),
+        start: { date: req.start },
+        end: { date: req.end },
+        extendedProperties: { shared: { request: JSON.stringify(req), createdAt: new Date().toISOString(), status: 'pending' } },
+      })
+    ).iCalUID;
+    mark('createEvent');
     invalidateAvailability_();
   } finally {
     lock.releaseLock();
   }
 
   scheduleMirrorRefresh_();
+  mark('scheduleRefresh');
   try {
-    notifyOwner_(ev, req);
+    notifyOwner_(eventId, req);
   } catch (err) {
     console.error('owner notification failed', err);
   }
-  return { ok: true, ref: req.ref, holdHours: HOLD_HOURS, start: req.start, end: req.end };
+  mark('email');
+  timings.total = Date.now() - started;
+  console.log('request timings ' + JSON.stringify(timings));
+  return { ok: true, ref: req.ref, holdHours: HOLD_HOURS, start: req.start, end: req.end, timings: timings };
 }
 
 function newRef_() {
@@ -635,11 +755,15 @@ function withinRateLimit_(phone) {
   var cache = CacheService.getScriptCache();
   var hourKey = 'rl:all:' + fmt_(new Date(), 'yyyyMMddHH');
   var phoneKey = 'rl:phone:' + whatsappNumber(phone);
-  var all = Number(cache.get(hourKey) || 0);
-  var perPhone = Number(cache.get(phoneKey) || 0);
+  var counts = cache.getAll([hourKey, phoneKey]);
+  var all = Number(counts[hourKey] || 0);
+  var perPhone = Number(counts[phoneKey] || 0);
   if (all >= 30 || perPhone >= 5) return false;
-  cache.put(hourKey, String(all + 1), 3600);
-  cache.put(phoneKey, String(perPhone + 1), 21600);
+  var updated = {};
+  updated[hourKey] = String(all + 1);
+  updated[phoneKey] = String(perPhone + 1);
+  // The hour key is unique per hour, so the longer lifetime does not stretch its window.
+  cache.putAll(updated, 21600);
   return true;
 }
 
@@ -700,11 +824,11 @@ function validSig_(id, sig) {
   return !!id && !!sig && sign_(id) === String(sig);
 }
 
-function decideUrl_(ev) {
-  return CONFIG.webAppUrl + '?action=decide&id=' + encodeURIComponent(ev.getId()) + '&sig=' + sign_(ev.getId());
+function decideUrl_(eventId) {
+  return CONFIG.webAppUrl + '?action=decide&id=' + encodeURIComponent(eventId) + '&sig=' + sign_(eventId);
 }
 
-function notifyOwner_(ev, req) {
+function notifyOwner_(eventId, req) {
   var rows = ownerLines_(req)
     .map(function (line) {
       return '<div>' + esc_(line) + '</div>';
@@ -716,14 +840,14 @@ function notifyOwner_(ev, req) {
     '<h2 style="color:#8B6B48;margin:0 0 8px">בקשת הזמנה חדשה מהאתר</h2>' +
     '<p style="margin:0 0 12px">התאריכים שמורים ל-' + HOLD_HOURS + ' שעות. אם הבקשה לא תאושר עד אז, הם ייפתחו שוב.</p>' +
     rows +
-    '<p style="margin:20px 0"><a href="' + esc_(decideUrl_(ev)) + '" style="' + button + 'background:#8B6B48;color:#fff">לאישור או דחייה</a></p>' +
+    '<p style="margin:20px 0"><a href="' + esc_(decideUrl_(eventId)) + '" style="' + button + 'background:#8B6B48;color:#fff">לאישור או דחייה</a></p>' +
     '<p><a href="' + esc_(waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים')) + '" style="color:#1E6B37">WhatsApp ל' + esc_(req.name) + '</a>' +
     ' · <a href="tel:' + esc_(req.phone.replace(/[^\d+]/g, '')) + '" style="color:#8B6B48">התקשרות</a></p>' +
     '</div>';
   MailApp.sendEmail({
     to: CONFIG.ownerEmail,
     subject: 'בקשת הזמנה ' + req.ref + ': ' + stayDatesShort_(req) + ' · ' + req.name,
-    body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + decideUrl_(ev),
+    body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + decideUrl_(eventId),
     htmlBody: html,
     name: 'שורשים – הזמנות',
   });
@@ -804,14 +928,16 @@ function decideOnce_(action, id) {
     var conflicts = conflictsFor_(req.start, req.end, { excludeId: id });
     if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts.map(heDate_) };
 
-    var options = { description: guestDescription_(req), location: ADDRESS };
-    if (req.email) {
-      options.guests = req.email;
-      options.sendInvites = true;
-    }
-    var booking = calendar_('bookings').createAllDayEvent('שורשים · ' + req.name, localDate_(req.start), localDate_(req.end), options);
-    booking.setTag('request', ev.getTag('request'));
-    booking.setTag('source', 'website');
+    var booking = {
+      summary: 'שורשים · ' + req.name,
+      description: guestDescription_(req),
+      location: ADDRESS,
+      start: { date: req.start },
+      end: { date: req.end },
+      extendedProperties: { shared: { request: ev.getTag('request'), source: 'website' } },
+    };
+    if (req.email) booking.attendees = [{ email: req.email }];
+    calendarCall_(calendarRequest_('bookings', 'post', '', { sendUpdates: req.email ? 'all' : 'none', fields: 'id' }, booking));
     ev.deleteEvent();
     invalidateAvailability_();
     var approveLink = waLink_(req.phone, 'שלום ' + req.name + ', ההזמנה שלך בשורשים אושרה (' + stayDatesShort_(req) + '). מחכים לכם!');

@@ -11,7 +11,7 @@ import {
   type BookingRequestFailure,
   type BookingRequestSuccess,
 } from '../lib/bookingApi';
-import { recaptchaToken } from '../lib/recaptcha';
+import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
 import { daysBetween, formatHebrewDate, isWeddingStay, nightsOf, stayRange, type StayType } from '../lib/stay';
 
 interface BookingSectionProps {
@@ -100,6 +100,26 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
   };
 
   useEffect(loadAvailability, []);
+
+  // Load reCAPTCHA as the booking section comes into view, so submitting does not wait for it.
+  useEffect(() => {
+    const section = document.getElementById('booking');
+    if (!section || !('IntersectionObserver' in window)) {
+      preloadRecaptcha();
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          preloadRecaptcha();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '600px' }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
 
   const estimate = (() => {
     if (stayType === 'bride_day') return BRAND_DATA.brideDayPrice;
@@ -240,6 +260,20 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
   };
 
   const sending = submission.state === 'sending';
+
+  // A request takes a few seconds; say what is happening while the button waits.
+  const [sendingSeconds, setSendingSeconds] = useState(0);
+  useEffect(() => {
+    if (!sending) {
+      setSendingSeconds(0);
+      return;
+    }
+    const started = Date.now();
+    const timer = setInterval(() => setSendingSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [sending]);
+  const sendingLabel =
+    sendingSeconds < 3 ? 'שולחים את הבקשה...' : sendingSeconds < 8 ? 'בודקים זמינות ושומרים ביומן...' : 'עוד רגע, מסיימים...';
 
   return (
     <section id="booking" className="py-24 bg-[#FAF7F2] relative">
@@ -501,7 +535,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   className="w-full py-4 px-6 rounded-2xl bg-[#8B6B48] hover:bg-[#765A3C] disabled:opacity-70 text-white font-medium text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer disabled:cursor-wait"
                 >
                   {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  <span>{sending ? 'שולחים את הבקשה...' : 'שליחת בקשת הזמנה'}</span>
+                  <span>{sending ? sendingLabel : 'שליחת בקשת הזמנה'}</span>
                 </button>
 
                 {submission.state === 'failed' && (

@@ -26,6 +26,11 @@ function loadRecaptcha(): Promise<void> {
   return loading;
 }
 
+/** Starts loading reCAPTCHA ahead of time, so submitting does not wait for the script. */
+export function preloadRecaptcha(): void {
+  if (RECAPTCHA_SITE_KEY) loadRecaptcha().catch(() => {});
+}
+
 /** A reCAPTCHA v3 token for `action`, or '' when no site key is configured. */
 export async function recaptchaToken(action: string): Promise<string> {
   if (!RECAPTCHA_SITE_KEY) return '';

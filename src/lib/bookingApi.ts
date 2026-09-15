@@ -21,8 +21,11 @@ interface RetryPolicy {
   delayMs: (attempt: number) => number;
 }
 
-const READ_POLICY: RetryPolicy = { attempts: 4, timeoutMs: 25_000, deadlineMs: 60_000, delayMs: (a) => 700 * a };
-const WRITE_POLICY: RetryPolicy = { attempts: 12, timeoutMs: 40_000, deadlineMs: 120_000, delayMs: (a) => Math.min(1500 * a, 5000) };
+// The script itself answers in about 2 seconds, but Google sometimes drops a reply without closing
+// the connection. Short per-attempt timeouts recover quickly; retries are safe because the server
+// answers in_progress or the stored result for a request it has already seen.
+const READ_POLICY: RetryPolicy = { attempts: 5, timeoutMs: 10_000, deadlineMs: 45_000, delayMs: (a) => 500 * a };
+const WRITE_POLICY: RetryPolicy = { attempts: 15, timeoutMs: 10_000, deadlineMs: 90_000, delayMs: (a) => Math.min(1000 * a, 3000) };
 
 async function fetchWithTimeout(url: string, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
