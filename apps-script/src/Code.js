@@ -38,6 +38,9 @@ function doPost(e) {
   try {
     if (body.action === 'request') return json_(createRequest_(body));
     if (body.action === 'approve' || body.action === 'decline') return json_(decide(body.action, body.id, body.sig));
+    if (body.action === 'pruneDecisions' && validSig_('prune:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(pruneDecisions_(body.refs));
+    }
     return json_({ ok: false, error: 'bad_request' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
@@ -473,6 +476,28 @@ function recordDecision_(result, req, whatsapp) {
     whatsapp: whatsapp,
   });
   props.setProperty(DECISIONS_KEY, JSON.stringify(list.slice(0, 25)));
+}
+
+/** Removes the given request numbers from the recent-decisions list (e.g. test requests) and rewrites the sheets. */
+function pruneDecisions_(refs) {
+  var remove = {};
+  (refs || []).forEach(function (ref) {
+    remove[String(ref)] = true;
+  });
+  var props = PropertiesService.getScriptProperties();
+  var list = JSON.parse(props.getProperty(DECISIONS_KEY) || '[]');
+  var kept = list.filter(function (d) {
+    return !remove[d.ref];
+  });
+  props.setProperty(DECISIONS_KEY, JSON.stringify(kept));
+  refreshMirrors_();
+  return {
+    ok: true,
+    removed: list.length - kept.length,
+    kept: kept.map(function (d) {
+      return d.ref + ' ' + d.name + ' ' + d.result;
+    }),
+  };
 }
 
 function writeTab_(sheet, width, rows) {
