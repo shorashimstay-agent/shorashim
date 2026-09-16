@@ -9,3 +9,11 @@ coverage/
 
 # Original AI Studio export download
 *.zip
+
+# Built from the master images by scripts/optimize-images.mjs
+src/assets/images/optimized/
+src/data/generatedImages.ts
+public/og-image.jpg
+
+# Python bytecode from local tooling
+__pycache__/

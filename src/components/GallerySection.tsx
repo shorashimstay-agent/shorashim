@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, ZoomIn, Image as ImageIcon } from 'lucide-react';
 import { GALLERY_ITEMS } from '../data/shorashimData';
 import { GalleryItem } from '../types';
+import Picture from './Picture';
 
 export default function GallerySection() {
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -63,11 +64,11 @@ export default function GallerySection() {
               className="group relative rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 bg-white border border-[#E8E1D5] cursor-pointer"
             >
               <div className="aspect-4/3 w-full overflow-hidden relative">
-                <img
-                  src={item.imageUrl}
+                <Picture
+                  image={item.image}
                   alt={item.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                 />
                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <div className="bg-white/90 backdrop-blur-xs text-[#2C2926] p-3 rounded-full shadow-md">
@@ -114,11 +115,11 @@ export default function GallerySection() {
             </button>
 
             <div className="max-h-[75vh] overflow-hidden flex items-center justify-center bg-black/10">
-              <img
-                src={activeLightboxItem.imageUrl}
+              <Picture
+                image={activeLightboxItem.image}
                 alt={activeLightboxItem.title}
                 className="max-h-[75vh] w-auto object-contain"
-                referrerPolicy="no-referrer"
+                sizes="90vw"
               />
             </div>
 

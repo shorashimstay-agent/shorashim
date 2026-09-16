@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Calendar, Heart, ArrowDown, MapPin } from 'lucide-react';
 import { BRAND_DATA, IMAGES } from '../data/shorashimData';
+import Picture from './Picture';
 
 interface HeroProps {
   onOpenBooking: () => void;
@@ -21,11 +22,12 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
     <section id="home" className="relative min-h-[92vh] flex flex-col justify-between pt-28 pb-12 overflow-hidden bg-[#241E1A]">
       {/* Background Photography with atmospheric overlay */}
       <div className="absolute inset-0 z-0">
-        <img
-          src={IMAGES.courtyard}
+        <Picture
+          image={IMAGES.courtyard}
           alt="חצר בית הבוטיק שורשים בזכרון יעקב"
           className="w-full h-full object-cover object-center brightness-60 scale-105 transition-transform duration-1000 ease-out"
-          referrerPolicy="no-referrer"
+          sizes="100vw"
+          priority
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#201A16] via-[#201A16]/55 to-[#201A16]/40" />
       </div>

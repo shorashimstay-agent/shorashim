@@ -20,6 +20,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { BRAND_DATA, AMENITIES, IMAGES } from '../data/shorashimData';
+import Picture from './Picture';
 
 interface StaySectionProps {
   onOpenBooking: () => void;
@@ -134,11 +135,11 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
           <div className="lg:col-span-6 grid grid-cols-2 gap-4">
             <div className="space-y-4">
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
-                <img
-                  src={IMAGES.interior}
+                <Picture
+                  image={IMAGES.interior}
                   alt="מטבח מאובזר ואי רחב בשורשים"
                   className="w-full h-64 sm:h-72 object-cover object-center group-hover:scale-103 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs">
                   אי המטבח המרווח
@@ -146,11 +147,11 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </div>
 
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
-                <img
-                  src={IMAGES.bedroom}
+                <Picture
+                  image={IMAGES.bedroom}
                   alt="חדר שינה נפרד ושקט"
                   className="w-full h-44 sm:h-52 object-cover group-hover:scale-103 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs">
                   חדר שינה נפרד ושקט
@@ -160,11 +161,11 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
 
             <div className="space-y-4 pt-6">
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
-                <img
-                  src={IMAGES.rooftop}
+                <Picture
+                  image={IMAGES.rooftop}
                   alt="מרפסת גג פרטית עם ערסל"
                   className="w-full h-44 sm:h-52 object-cover group-hover:scale-103 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs">
                   מרפסת גג פרטית וערסל
@@ -172,11 +173,11 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </div>
 
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
-                <img
-                  src={IMAGES.courtyard}
+                <Picture
+                  image={IMAGES.courtyard}
                   alt="החצר ועצי הפיקוס הוותיקים"
                   className="w-full h-64 sm:h-72 object-cover object-center group-hover:scale-103 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  sizes="(min-width: 1024px) 25vw, 50vw"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs">
                   החצר ועצי הפיקוס

@@ -7,18 +7,23 @@ Usage: python3 apps-script/deploy.py [--content-only] ["description"]
 adding OAuth scopes: the owner authorizes them by running `setup` in the editor, and only then
 is the new version released, so the live web app never runs with unauthorized scopes.
 
+The booking rules come from shared/rules.js, the same module the website imports; the `export `
+keyword is stripped on the way up so Apps Script sees plain globals.
+
 IDs and secrets live in <local path>, never in this public
 repo. They are written into a generated Config.js file that exists only inside the Apps Script
 project. The first run creates the project and a web app deployment whose URL then stays fixed.
 """
 import json
 import pathlib
+import re
 import sys
 
 from google.auth.transport.requests import AuthorizedSession, Request
 from google.oauth2.credentials import Credentials
 
 HERE = pathlib.Path(__file__).resolve().parent
+SHARED = HERE.parent / "shared"
 CRED_DIR = pathlib.Path.home() / "<local path>"
 CONFIG_PATH = CRED_DIR / "booking-config.json"
 API = "https://script.googleapis.com/v1"
@@ -43,8 +48,16 @@ def save(cfg):
     CONFIG_PATH.chmod(0o600)
 
 
+def apps_script_source(module_text):
+    """Apps Script has no modules: every file shares one global scope. Dropping the `export `
+    keyword turns shared/rules.js back into the plain globals the script expects, which is why it
+    is written with `var` and function declarations and no export list."""
+    return re.sub(r"^export ", "", module_text, flags=re.M)
+
+
 def project_files(cfg):
     files = [{"name": "appsscript", "type": "JSON", "source": (HERE / "appsscript.json").read_text()}]
+    files.append({"name": "rules", "type": "SERVER_JS", "source": apps_script_source((SHARED / "rules.js").read_text())})
     for path in sorted((HERE / "src").iterdir()):
         kind = {".js": "SERVER_JS", ".html": "HTML"}.get(path.suffix)
         if kind:

@@ -1,11 +1,4 @@
-import courtyardImg from '../assets/images/shorashim_courtyard_1788683290490.jpg';
-import interiorImg from '../assets/images/shorashim_interior_1788683306294.jpg';
-import brideImg from '../assets/images/shorashim_bride_1788683322321.jpg';
-import bedroomImg from '../assets/images/shorashim_bedroom_1788683338454.jpg';
-import rooftopImg from '../assets/images/shorashim_rooftop_1788683358443.jpg';
-import heritageImg from '../assets/images/shorashim_heritage_1788683373238.jpg';
-import bathroomImg from '../assets/images/shorashim_bathroom_1788683389088.jpg';
-
+import { GENERATED_IMAGES } from './generatedImages';
 import { Amenity, BridePackage, FaqItem, GalleryItem, LocalPlace } from '../types';
 
 export const BRAND_DATA = {
@@ -22,22 +15,9 @@ export const BRAND_DATA = {
   capacity: 'אירוח בוטיק למבוגרים בלבד | לזוגות ועד 3 אורחים',
   checkIn: '15:00',
   checkOut: '11:00',
-  basePricePerNight: 950,
-  thirdGuestSurcharge: 200,
-  brideDayPrice: 1800,
-  brideNightDayPrice: 2800,
-  weddingNightPrice: 1200,
 };
 
-export const IMAGES = {
-  courtyard: courtyardImg,
-  interior: interiorImg,
-  bride: brideImg,
-  bedroom: bedroomImg,
-  rooftop: rooftopImg,
-  heritage: heritageImg,
-  bathroom: bathroomImg,
-};
+export const IMAGES = GENERATED_IMAGES;
 
 export const AMENITIES: Amenity[] = [
   { id: '1', name: 'חדר שינה נפרד', category: 'comfort', icon: 'BedDouble', description: 'מיטה מרווחת, מזרן איכותי, מצעי כותנה טבעיים ומיזוג אוויר נפרד' },
@@ -182,7 +162,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'החצר הירוקה ועצי הפיקוס',
     category: 'courtyard',
     categoryLabel: 'החצר',
-    imageUrl: IMAGES.courtyard,
+    image: IMAGES.courtyard,
     description: 'חצר משפחתית מוקפת עצי פיקוס היסטוריים שנטעו לפני דורות, פינות ישיבה מוצלות ושלווה מוחלטת.',
   },
   {
@@ -190,7 +170,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'חלל האירוח המרכזי והאי הרחב',
     category: 'house',
     categoryLabel: 'הבית',
-    imageUrl: IMAGES.interior,
+    image: IMAGES.interior,
     description: 'כ-80 מ״ר של עיצוב חם המשלב אבן טבעית, מטבח מאובזר, אי ישיבה וסלון מרווח.',
   },
   {
@@ -198,7 +178,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'התארגנות כלה בשורשים',
     category: 'bride',
     categoryLabel: 'כלה בשורשים',
-    imageUrl: IMAGES.bride,
+    image: IMAGES.bride,
     description: 'בוקר רגוע, אור טבעי שוטף ופינות פוטוגניות לשמלה, לצילומים ולאווירה נטולת לחץ.',
   },
   {
@@ -206,7 +186,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'חדר שינה נפרד ושקט',
     category: 'house',
     categoryLabel: 'הבית',
-    imageUrl: IMAGES.bedroom,
+    image: IMAGES.bedroom,
     description: 'מיטת קינג מפנקת עם מצעי פשתן רכים, קירות אבן אותנטיים וסביבה נטולת רעשים.',
   },
   {
@@ -214,7 +194,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'מרפסת גג פרטית עם ערסל',
     category: 'courtyard',
     categoryLabel: 'החצר והגג',
-    imageUrl: IMAGES.rooftop,
+    image: IMAGES.rooftop,
     description: 'לעלות לגג עם כוס יין מול השקיעה, לשכב על הערסל ולהרגיש את הבריזה של זכרון.',
   },
   {
@@ -222,7 +202,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'חדר רחצה ומקלחון ראש גשם',
     category: 'details',
     categoryLabel: 'הפרטים',
-    imageUrl: IMAGES.bathroom,
+    image: IMAGES.bathroom,
     description: 'מקלחון מרווח, חלוקי רחצה רכים, מוצרי טיפוח איכותיים ותשומת לב לכל מגע.',
   },
   {
@@ -230,7 +210,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     title: 'שורשים משפחתיים מזמארין 1882',
     category: 'details',
     categoryLabel: 'הסיפור שלנו',
-    imageUrl: IMAGES.heritage,
+    image: IMAGES.heritage,
     description: 'משפחת פויזנר - חמישה דורות של חקלאות, אדמה ואירוח שהתחילו כאן.',
   },
 ];

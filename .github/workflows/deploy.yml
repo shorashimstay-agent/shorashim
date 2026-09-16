@@ -23,6 +23,15 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Re-encoding the photos takes about three minutes; they only change when a master does.
+      - name: Cache optimized images
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/assets/images/optimized
+            public/og-image.jpg
+          key: images-${{ hashFiles('src/assets/images/*.jpg', 'scripts/optimize-images.mjs') }}
+
       - run: npm ci
       - run: npm test
       - run: npm run lint

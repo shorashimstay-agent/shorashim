@@ -46,7 +46,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 ## Development
 
 ```
-npm test                               # booking rules (apps-script/src/rules.js)
+npm test                               # booking rules (shared/rules.js)
 python3 apps-script/deploy.py "note"   # push code and update the web app deployment
 ```
 
@@ -56,4 +56,4 @@ python3 apps-script/deploy.py "note"   # push code and update the web app deploy
 - **Calendar access goes through the REST API** (`UrlFetchApp` with `ScriptApp.getOAuthToken()`). It creates an event with its details in one call and lists the three calendars in parallel. The manifest declares the Calendar advanced service; that declaration is what enables the Calendar API in the script's hidden default Cloud project, and without it the REST calls fail with 403. Event details live in **shared** extended properties, which is where `CalendarApp.setTag` stores them, so both APIs see the same data.
 - **Request timings:** every successful request returns `timings` (milliseconds per step). The signed `?action=diag&t=<ms>&sig=<HMAC of "diag:"+t>` reports availability, snapshot and admin-sheet refresh times. The 5-minute timer also calls the web app, to keep Google from starting it cold for the next visitor.
 - **Sheet protection:** the admin tabs are protected so only the owner can edit. For others, only פעולה and ביצוע in בקשות stay editable. The owner account itself can always edit everything.
-- **Rules are shared by the script and the site:** `rules.js` is plain global functions, because Apps Script has no modules. The Node tests load it with `vm`. `src/lib/stay.ts` mirrors the date rules for the site; the server remains authoritative.
+- **One copy of the rules:** `shared/rules.js` holds the date arithmetic, prices and validation, and both consumers use that same file. The site imports it as an ES module. Apps Script has no modules, so `deploy.py` strips the `export ` keyword on upload and every declaration becomes a global — which is why the file uses `var` and function declarations and never imports anything. `shared/rules.test.mjs` tests the module directly and also evaluates the stripped form to check it still defines the globals `Code.js` calls. `src/lib/stay.ts` adds only browser-side presentation helpers. The server still validates every request itself and remains authoritative.

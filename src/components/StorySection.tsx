@@ -1,5 +1,6 @@
 import { Clock, Heart, Sprout, Landmark } from 'lucide-react';
 import { IMAGES } from '../data/shorashimData';
+import Picture from './Picture';
 
 export default function StorySection() {
   return (
@@ -83,11 +84,11 @@ export default function StorySection() {
           {/* Archival Visual Column */}
           <div className="lg:col-span-5 space-y-6">
             <div className="rounded-3xl overflow-hidden border border-[#E0D5C3] shadow-md bg-white p-3">
-              <img
-                src={IMAGES.heritage}
+              <Picture
+                image={IMAGES.heritage}
                 alt="מורשת חקלאית של משפחת פויזנר בזמארין 1882"
                 className="w-full h-80 object-cover rounded-2xl filter sepia-[0.25] contrast-105"
-                referrerPolicy="no-referrer"
+                sizes="(min-width: 1024px) 40vw, 100vw"
               />
               <div className="p-4 text-center">
                 <span className="text-xs uppercase tracking-wider text-[#8B6B48] font-semibold block mb-1">

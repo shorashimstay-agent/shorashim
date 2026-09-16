@@ -8,11 +8,20 @@ import {
   fetchAvailability,
   submitBookingRequest,
   type Availability,
-  type BookingRequestFailure,
-  type BookingRequestSuccess,
 } from '../lib/bookingApi';
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
-import { daysBetween, formatHebrewDate, isWeddingStay, nightsOf, stayRange, type StayType } from '../lib/stay';
+import {
+  daysBetween,
+  estimatePrice,
+  formatHebrewDate,
+  isWeddingStay,
+  israelToday,
+  NOTES_MAX,
+  nightsOf,
+  stayRange,
+  validateRequest,
+  type StayType,
+} from '../lib/stay';
 
 interface BookingSectionProps {
   initialStayType?: StayType;
@@ -34,10 +43,12 @@ const STAY_OPTIONS: { id: StayType; label: string }[] = [
   { id: 'wedding_night', label: 'ליל כלולות זוגי' },
 ];
 
-const NOTES_MAX = 450;
 const NO_BLOCKS = new Set<string>();
 
+/** Maps the shared rules' error codes onto the form's fields and wording, for both validation passes. */
 const SERVER_FIELD_ERRORS: Record<string, [Field, string]> = {
+  stayType: ['dates', 'חלק מהפרטים אינם תקינים'],
+  adults: ['dates', 'מספר האורחים אינו תקין'],
   checkIn: ['dates', 'התאריכים שנבחרו אינם תקינים'],
   checkOut: ['dates', 'התאריכים שנבחרו אינם תקינים'],
   name: ['name', 'נא למלא שם מלא'],
@@ -121,13 +132,8 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     return () => observer.disconnect();
   }, []);
 
-  const estimate = (() => {
-    if (stayType === 'bride_day') return BRAND_DATA.brideDayPrice;
-    if (stayType === 'bride_night_day') return BRAND_DATA.brideNightDayPrice;
-    if (stayType === 'wedding_night') return BRAND_DATA.weddingNightPrice;
-    const n = Math.max(nights, 1);
-    return BRAND_DATA.basePricePerNight * n + (adultsCount === 3 ? BRAND_DATA.thirdGuestSurcharge * n : 0);
-  })();
+  // Shown before check-out is picked too, so quote at least one night.
+  const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount);
 
   const getStayTypeName = () => {
     switch (stayType) {
@@ -161,14 +167,34 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     setErrors(({ dates: _dates, ...rest }) => rest);
   };
 
+  /**
+   * Checks the form against the same rules the server will apply, so the guest is told here rather
+   * than after a round trip. Empty dates get their own message: the shared rules only know the
+   * value is invalid, not that the guest has yet to choose.
+   */
   const validate = (): FieldErrors => {
+    if (!checkIn || (!wedding && !checkOut)) {
+      return { dates: wedding ? 'בחרו את תאריך החתונה' : 'בחרו תאריכי הגעה ועזיבה' };
+    }
+    const check = validateRequest(
+      {
+        stayType,
+        checkIn,
+        checkOut: wedding ? '' : checkOut,
+        adults: adultsCount,
+        name: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        notes: notes.trim(),
+      },
+      israelToday()
+    );
+    if (check.ok) return {};
     const found: FieldErrors = {};
-    if (!checkIn || (!wedding && !checkOut)) found.dates = wedding ? 'בחרו את תאריך החתונה' : 'בחרו תאריכי הגעה ועזיבה';
-    if (fullName.trim().length < 2) found.name = 'נא למלא שם מלא';
-    const digits = phone.replace(/\D/g, '');
-    if (!/^[+\d\s\-()]+$/.test(phone.trim()) || digits.length < 9 || digits.length > 15) found.phone = 'נא למלא מספר טלפון תקין';
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) found.email = 'כתובת האימייל אינה תקינה';
-    if (notes.trim().length > NOTES_MAX) found.notes = `ההערות ארוכות מדי (עד ${NOTES_MAX} תווים)`;
+    Object.keys(check.errors).forEach((key) => {
+      const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
+      found[field] = message;
+    });
     return found;
   };
 
@@ -216,25 +242,23 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     });
 
     if (result.ok) {
-      const { ref, holdHours } = result as BookingRequestSuccess;
+      const { ref, holdHours } = result;
       setSubmission({ state: 'sent', ref, holdHours });
       // The public availability sheet catches up within about a minute; grey out the held nights now.
       const held = stayRange(stayType, checkIn, checkOut);
       setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]) });
       return;
     }
-    // The tsconfig is not strict, so `result.ok` does not narrow the union by itself.
-    const failure = result as BookingRequestFailure;
-    if (failure.error === 'unavailable') {
+    if (result.error === 'unavailable') {
       clearDates();
       loadAvailability();
       setErrors({ dates: 'חלק מהתאריכים נתפסו בינתיים. בחרו תאריכים אחרים.' });
       setSubmission({ state: 'idle' });
       return;
     }
-    if (failure.error === 'invalid' && failure.fields) {
+    if (result.error === 'invalid' && result.fields) {
       const mapped: FieldErrors = {};
-      Object.keys(failure.fields).forEach((key) => {
+      Object.keys(result.fields).forEach((key) => {
         const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
         mapped[field] = message;
       });
@@ -245,9 +269,9 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     setSubmission({
       state: 'failed',
       message:
-        failure.error === 'rate_limited'
+        result.error === 'rate_limited'
           ? 'נשלחו מכם כבר כמה בקשות. נשמח להמשיך את השיחה ב-WhatsApp.'
-          : failure.error === 'network'
+          : result.error === 'network'
             ? 'לא הצלחנו לוודא שהבקשה נקלטה. אם לא נחזור אליכם בקרוב, כתבו לנו ב-WhatsApp.'
             : 'לא הצלחנו לשלוח את הבקשה כרגע. אפשר לשלוח אותה אלינו ב-WhatsApp.',
     });

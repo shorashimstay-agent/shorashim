@@ -1,3 +1,12 @@
+/** A picture in its shipped forms: AVIF and WebP srcsets, a JPEG fallback, and the master's dimensions. */
+export interface ResponsiveImage {
+  avif: string;
+  webp: string;
+  fallback: string;
+  width: number;
+  height: number;
+}
+
 export type SectionId = 
   | 'home'
   | 'stay'
@@ -42,7 +51,7 @@ export interface GalleryItem {
   title: string;
   category: 'house' | 'details' | 'courtyard' | 'bride';
   categoryLabel: string;
-  imageUrl: string;
+  image: ResponsiveImage;
   description: string;
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Heart, Sparkles, MessageCircle, Check, Camera, Coffee, Music, Sun } from 'lucide-react';
 import { BRAND_DATA, BRIDE_PACKAGES, IMAGES } from '../data/shorashimData';
+import Picture from './Picture';
 
 interface BrideSectionProps {
   onSelectPackage?: (packageId: string) => void;
@@ -87,11 +88,11 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
           {/* Editorial Photo Showcase */}
           <div className="lg:col-span-6">
             <div className="relative rounded-3xl overflow-hidden shadow-xl border border-[#E2D6C5]">
-              <img
-                src={IMAGES.bride}
+              <Picture
+                image={IMAGES.bride}
                 alt="התארגנות כלה בשורשים זכרון יעקב"
                 className="w-full h-[440px] sm:h-[480px] object-cover object-center"
-                referrerPolicy="no-referrer"
+                sizes="(min-width: 1024px) 50vw, 100vw"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
                 <div className="text-white">
