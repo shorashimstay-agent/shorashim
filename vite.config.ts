@@ -3,10 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(({command}) => {
+export default defineConfig(() => {
   return {
-    // GitHub Pages serves this repo at /shorashim/; dev server stays at /.
-    base: command === 'build' ? '/shorashim/' : '/',
+    // GitHub Pages serves the site at the root of its custom domain (public/CNAME).
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
