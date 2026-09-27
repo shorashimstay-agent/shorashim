@@ -1,6 +1,6 @@
 # Shorashim booking backend
 
-A Google Apps Script web app in the `shorashimzichron@gmail.com` account. It powers the website's availability calendar and booking requests. Google Calendar is the only record of bookings.
+A Google Apps Script web app in the `shorashimstay@gmail.com` account. It powers the website's availability calendar and booking requests. Google Calendar is the only record of bookings.
 
 ## Calendars
 
@@ -35,7 +35,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 ## Day to day (Saray)
 
 - **Close dates or add a phone booking:** create an event in **שורשים – הזמנות**. The website shows those nights as taken within about two minutes.
-- **New website request:** an email arrives at shorashimzichron@gmail.com, and a ⏳ event appears in **שורשים – בקשות**. Tap **לאישור או דחייה** in the email:
+- **New website request:** an email arrives at shorashimstay@gmail.com, and a ⏳ event appears in **שורשים – בקשות**. Tap **לאישור או דחייה** in the email:
   - **Approve** moves the stay into הזמנות. If the guest gave an email address, they get a Google Calendar invitation.
   - **Decline** removes the request and frees the dates.
   - Both screens offer a ready-made WhatsApp message to the guest.
@@ -52,7 +52,7 @@ python3 apps-script/deploy.py "note"   # push code and update the web app deploy
 
 - **`deploy.py`** uses the OAuth token in `~/.config/gcloud/shorashim/`. It reads IDs and secrets from `~/.config/gcloud/shorashim/booking-config.json`: calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
 - **The web app URL stays the same** across deploys. It goes in `src/data/bookingConfig.ts`.
-- **Adding OAuth scopes:** push with `deploy.py --content-only`, have the owner run `setup` in the editor (signed in as shorashimzichron@gmail.com) to authorize the new scopes, then run `deploy.py` normally to release. Releasing first would break the live web app until the owner re-authorizes. `setup` is safe to re-run: it reinstalls the triggers and rewrites both spreadsheets.
+- **Adding OAuth scopes:** push with `deploy.py --content-only`, have the owner run `setup` in the editor (signed in as shorashimstay@gmail.com) to authorize the new scopes, then run `deploy.py` normally to release. Releasing first would break the live web app until the owner re-authorizes. `setup` is safe to re-run: it reinstalls the triggers and rewrites both spreadsheets.
 - **Calendar access goes through the REST API** (`UrlFetchApp` with `ScriptApp.getOAuthToken()`). It creates an event with its details in one call and lists the three calendars in parallel. The manifest declares the Calendar advanced service; that declaration is what enables the Calendar API in the script's hidden default Cloud project, and without it the REST calls fail with 403. Event details live in **shared** extended properties, which is where `CalendarApp.setTag` stores them, so both APIs see the same data.
 - **Request timings:** every successful request returns `timings` (milliseconds per step). The signed `?action=diag&t=<ms>&sig=<HMAC of "diag:"+t>` reports availability, snapshot and admin-sheet refresh times. The 5-minute timer also calls the web app, to keep Google from starting it cold for the next visitor.
 - **Sheet protection:** the admin tabs are protected so only the owner can edit. For others, only פעולה and ביצוע in בקשות stay editable. The owner account itself can always edit everything.
