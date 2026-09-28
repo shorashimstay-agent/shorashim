@@ -1,41 +1,14 @@
-import { useEffect, useId, useState, useRef } from 'react';
 import { Calendar, Users, Phone, MessageCircle, Sparkles, Check, Info, Send, Loader2 } from 'lucide-react';
 import { BRAND_DATA } from '../data/shorashimData';
-import { RECAPTCHA_SITE_KEY } from '../data/bookingConfig';
-import AvailabilityCalendar from './AvailabilityCalendar';
-import {
-  bookingApiEnabled,
-  fetchAvailability,
-  submitBookingRequest,
-  type Availability,
-} from '../lib/bookingApi';
-import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
-import {
-  addDays,
-  daysBetween,
-  estimatePrice,
-  formatHebrewDate,
-  isWeddingStay,
-  israelToday,
-  NOTES_MAX,
-  nightsOf,
-  stayRange,
-  validateRequest,
-  type StayType,
-} from '../lib/stay';
+import { useBookingForm } from '../booking/useBookingForm';
+import { Announcer, DatePicker, FieldError, Honeypot, SendConsent, SentHeading, described } from '../booking/parts';
+import { formatHebrewDate, NOTES_MAX, type StayType } from '../lib/stay';
+
+// Layout only. The form's behaviour is in ../booking/ (docs/front-sync.md).
 
 interface BookingSectionProps {
   initialStayType?: StayType;
 }
-
-type Field = 'dates' | 'name' | 'phone' | 'email' | 'notes';
-type FieldErrors = Partial<Record<Field, string>>;
-
-type Submission =
-  | { state: 'idle' }
-  | { state: 'sending' }
-  | { state: 'sent'; ref: string; holdHours: number }
-  | { state: 'failed'; message: string };
 
 const STAY_OPTIONS: { id: StayType; label: string }[] = [
   { id: 'couple', label: 'אירוח זוגי' },
@@ -44,311 +17,14 @@ const STAY_OPTIONS: { id: StayType; label: string }[] = [
   { id: 'wedding_night', label: 'ליל כלולות זוגי' },
 ];
 
-const NO_BLOCKS = new Set<string>();
-
-/** Maps the shared rules' error codes onto the form's fields and wording, for both validation passes. */
-const SERVER_FIELD_ERRORS: Record<string, [Field, string]> = {
-  stayType: ['dates', 'חלק מהפרטים אינם תקינים'],
-  adults: ['dates', 'מספר האורחים אינו תקין'],
-  checkIn: ['dates', 'התאריכים שנבחרו אינם תקינים'],
-  checkOut: ['dates', 'התאריכים שנבחרו אינם תקינים'],
-  name: ['name', 'נא למלא שם מלא'],
-  phone: ['phone', 'נא למלא מספר טלפון תקין'],
-  email: ['email', 'כתובת האימייל אינה תקינה'],
-  notes: ['notes', `ההערות ארוכות מדי (עד ${NOTES_MAX} תווים)`],
-};
-
 const inputClass = (hasError?: string) =>
   `w-full px-4 py-2.5 rounded-xl border bg-[#FAF8F5] text-[#2C2926] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B6B48]/30 ${
     hasError ? 'border-[#D9776B]' : 'border-[#D9CFBF]'
   }`;
 
-function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? (
-    <p id={id} className="mt-1 text-xs text-[#B3261E]">
-      {message}
-    </p>
-  ) : null;
-}
-
-/** Props that tie an input to its error message for screen readers. */
-const described = (errorId: string, message?: string) => ({
-  'aria-invalid': message ? true : undefined,
-  'aria-describedby': message ? errorId : undefined,
-});
-
 export default function BookingSection({ initialStayType = 'couple' }: BookingSectionProps) {
-  const stayTypeInputId = useId();
-  const fullNameInputId = useId();
-  const phoneInputId = useId();
-  const emailInputId = useId();
-  const notesInputId = useId();
-  const datesLabelId = useId();
-  const adultsLabelId = useId();
-  const successHeadingRef = useRef<HTMLHeadingElement>(null);
-  const [announcement, setAnnouncement] = useState('');
-
-  const [stayType, setStayType] = useState<StayType>(initialStayType);
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-  const [adultsCount, setAdultsCount] = useState<number>(2);
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [notes, setNotes] = useState('');
-  const [website, setWebsite] = useState(''); // Honeypot: hidden from people, filled in by bots.
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [availability, setAvailability] = useState<Availability | null>(null);
-  const [availabilityState, setAvailabilityState] = useState<'loading' | 'ready' | 'error'>(bookingApiEnabled ? 'loading' : 'error');
-  const [submission, setSubmission] = useState<Submission>({ state: 'idle' });
-  const [whatsAppOpened, setWhatsAppOpened] = useState(false);
-
-  const wedding = isWeddingStay(stayType);
-  const nights = !wedding && checkIn && checkOut ? daysBetween(checkIn, checkOut) : 0;
-
-  // Package buttons elsewhere on the page change the selected stay type.
-  useEffect(() => setStayType(initialStayType), [initialStayType]);
-
-  // Regular and wedding stays pick dates differently, so switching between them starts over.
-  useEffect(() => {
-    setCheckIn('');
-    setCheckOut('');
-  }, [wedding]);
-
-  const loadAvailability = () => {
-    if (!bookingApiEnabled) return;
-    fetchAvailability()
-      .then((result) => {
-        setAvailability(result);
-        setAvailabilityState('ready');
-      })
-      .catch(() => setAvailabilityState('error'));
-  };
-
-  useEffect(loadAvailability, []);
-
-  // Load reCAPTCHA as the booking section comes into view, so submitting does not wait for it.
-  useEffect(() => {
-    const section = document.getElementById('booking');
-    if (!section || !('IntersectionObserver' in window)) {
-      preloadRecaptcha();
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          preloadRecaptcha();
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '600px' }
-    );
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, []);
-
-  // Shown before check-out is picked too, so quote at least one night.
-  const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount);
-
-  const getStayTypeName = () => {
-    switch (stayType) {
-      case 'bride_day':
-        return 'חוויית כלה: יום כלה (התארגנות ביום החתונה)';
-      case 'bride_night_day':
-        return 'חוויית כלה: לילה לפני + יום כלה';
-      case 'wedding_night':
-        return 'ליל כלולות לאחר החתונה';
-      case 'couple':
-      default:
-        return 'אירוח זוגי בוטיק';
-    }
-  };
-
-  const datesText = (() => {
-    if (!checkIn) return '';
-    if (wedding) return `תאריך החתונה: ${formatHebrewDate(checkIn)}`;
-    if (!checkOut) return `הגעה ${formatHebrewDate(checkIn)} · בחרו תאריך עזיבה`;
-    return `הגעה ${formatHebrewDate(checkIn)} · עזיבה ${formatHebrewDate(checkOut)} (${nights === 1 ? 'לילה אחד' : `${nights} לילות`})`;
-  })();
-
-  const clearDates = () => {
-    setCheckIn('');
-    setCheckOut('');
-  };
-
-  const handleDatesChange = (nextCheckIn: string, nextCheckOut: string) => {
-    setCheckIn(nextCheckIn);
-    setCheckOut(nextCheckOut);
-    setErrors(({ dates: _dates, ...rest }) => rest);
-  };
-
-  /**
-   * Checks the form against the same rules the server will apply, so the guest is told here rather
-   * than after a round trip. Empty dates get their own message: the shared rules only know the
-   * value is invalid, not that the guest has yet to choose.
-   */
-  const validate = (): FieldErrors => {
-    // Report every problem at once. Without dates, the other fields are checked against placeholder
-    // dates, and the dates get their own message.
-    const missingDates = !checkIn || (!wedding && !checkOut);
-    const placeholderIn = addDays(israelToday(), 2);
-    const check = validateRequest(
-      {
-        stayType,
-        checkIn: missingDates ? placeholderIn : checkIn,
-        checkOut: wedding ? '' : missingDates ? addDays(placeholderIn, 1) : checkOut,
-        adults: adultsCount,
-        name: fullName.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        notes: notes.trim(),
-      },
-      israelToday()
-    );
-    const found: FieldErrors = {};
-    if (!check.ok) {
-      Object.keys(check.errors).forEach((key) => {
-        const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
-        found[field] = message;
-      });
-    }
-    if (missingDates) found.dates = wedding ? 'בחרו את תאריך החתונה' : 'בחרו תאריכי הגעה ועזיבה';
-    return found;
-  };
-
-  // Generate WhatsApp link with prefilled details
-  const handleWhatsAppBooking = (ref?: string) => {
-    const messageLines = [
-      ref ? `שלום שורשים, שלחתי בקשת הזמנה באתר (מספר ${ref}):` : `שלום שורשים, אשמח לבדוק זמינות ולהזמין:`,
-      `• סוג האירוח: ${getStayTypeName()}`,
-      checkIn ? (wedding ? `• תאריך החתונה: ${formatHebrewDate(checkIn)}` : `• תאריך הגעה: ${formatHebrewDate(checkIn)}`) : '',
-      checkOut && !wedding ? `• תאריך עזיבה: ${formatHebrewDate(checkOut)} (${nights} לילות)` : '',
-      `• מספר אורחים (מבוגרים): ${adultsCount}`,
-      fullName ? `• שם: ${fullName}` : '',
-      phone ? `• טלפון: ${phone}` : '',
-      notes ? `• הערות/בקשות מיוחדות: ${notes}` : '',
-    ].filter(Boolean);
-
-    const message = encodeURIComponent(messageLines.join('\n'));
-    window.open(`https://wa.me/${BRAND_DATA.whatsappNumber}?text=${message}`, '_blank');
-    setWhatsAppOpened(true);
-  };
-
-  // Moves focus to the first field with an error and says how many there are.
-  const focusFirstError = (found: FieldErrors) => {
-    const order: [Field, string][] = [
-      ['dates', datesLabelId],
-      ['name', fullNameInputId],
-      ['phone', phoneInputId],
-      ['email', emailInputId],
-      ['notes', notesInputId],
-    ];
-    const first = order.find(([field]) => found[field]);
-    const count = Object.keys(found).length;
-    setAnnouncement(count === 1 ? 'יש שדה אחד שצריך לתקן.' : `יש ${count} שדות שצריך לתקן.`);
-    if (!first) return;
-    if (first[0] === 'dates') {
-      // The date picker's focusable day (it keeps one day in the tab order), else its first free day.
-      const calendar = document.querySelector(`[aria-labelledby="${datesLabelId}"]`);
-      calendar?.querySelector<HTMLElement>('button[tabindex="0"], .rdp-day_button:not([disabled])')?.focus();
-      return;
-    }
-    document.getElementById(first[1])?.focus();
-  };
-
-  const handleSubmit = async () => {
-    const found = validate();
-    setErrors(found);
-    if (Object.keys(found).length) {
-      focusFirstError(found);
-      return;
-    }
-
-    setSubmission({ state: 'sending' });
-    setAnnouncement('שולחים את הבקשה...');
-    let token = '';
-    try {
-      token = await recaptchaToken('booking_request');
-    } catch {
-      // The server decides whether a missing token is acceptable.
-    }
-    const result = await submitBookingRequest({
-      stayType,
-      checkIn,
-      checkOut: wedding ? '' : checkOut,
-      adults: adultsCount,
-      name: fullName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      notes: notes.trim(),
-      website,
-      recaptchaToken: token,
-    });
-
-    if (result.ok) {
-      const { ref, holdHours } = result;
-      setSubmission({ state: 'sent', ref, holdHours });
-      setAnnouncement('');
-      // The success panel replaces the form; move focus to it so nobody is left on a vanished button.
-      setTimeout(() => successHeadingRef.current?.focus(), 0);
-      // The public availability sheet catches up within about a minute; grey out the held nights now.
-      const held = stayRange(stayType, checkIn, checkOut);
-      setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]) });
-      return;
-    }
-    if (result.error === 'unavailable') {
-      clearDates();
-      loadAvailability();
-      setErrors({ dates: 'חלק מהתאריכים נתפסו בינתיים. בחרו תאריכים אחרים.' });
-      setSubmission({ state: 'idle' });
-      focusFirstError({ dates: 'x' });
-      return;
-    }
-    if (result.error === 'invalid' && result.fields) {
-      const mapped: FieldErrors = {};
-      Object.keys(result.fields).forEach((key) => {
-        const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
-        mapped[field] = message;
-      });
-      setErrors(mapped);
-      setSubmission({ state: 'idle' });
-      focusFirstError(mapped);
-      return;
-    }
-    setAnnouncement('');
-    setSubmission({
-      state: 'failed',
-      message:
-        result.error === 'rate_limited'
-          ? 'נשלחו מכם כבר כמה בקשות. נשמח להמשיך את השיחה ב-WhatsApp.'
-          : result.error === 'network'
-            ? 'לא הצלחנו לוודא שהבקשה נקלטה. אם לא נחזור אליכם בקרוב, כתבו לנו ב-WhatsApp.'
-            : 'לא הצלחנו לשלוח את הבקשה כרגע. אפשר לשלוח אותה אלינו ב-WhatsApp.',
-    });
-  };
-
-  const startNewRequest = () => {
-    clearDates();
-    setNotes('');
-    setSubmission({ state: 'idle' });
-  };
-
-  const sending = submission.state === 'sending';
-
-  // A request takes a few seconds; say what is happening while the button waits.
-  const [sendingSeconds, setSendingSeconds] = useState(0);
-  useEffect(() => {
-    if (!sending) {
-      setSendingSeconds(0);
-      return;
-    }
-    const started = Date.now();
-    const timer = setInterval(() => setSendingSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
-    return () => clearInterval(timer);
-  }, [sending]);
-  const sendingLabel =
-    sendingSeconds < 3 ? 'שולחים את הבקשה...' : sendingSeconds < 8 ? 'בודקים זמינות ושומרים ביומן...' : 'עוד רגע, מסיימים...';
-
+  const form = useBookingForm(initialStayType);
+  const { ids, errors, submission, wedding, checkIn, nights, adultsCount } = form;
   return (
     <section id="booking" className="py-24 bg-[#FAF7F2] relative">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -377,18 +53,18 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
 
             {/* Stay Category Selector */}
             <div className="mb-6">
-              <span id={stayTypeInputId} className="block text-xs font-semibold text-[#736B5E] mb-2">
+              <span id={ids.stayType} className="block text-xs font-semibold text-[#736B5E] mb-2">
                 סוג האירוח
               </span>
-              <div role="group" aria-labelledby={stayTypeInputId} className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+              <div role="group" aria-labelledby={ids.stayType} className="grid grid-cols-2 sm:grid-cols-2 gap-2">
                 {STAY_OPTIONS.map((option) => (
                   <button
                     key={option.id}
                     type="button"
-                    aria-pressed={stayType === option.id}
-                    onClick={() => setStayType(option.id)}
+                    aria-pressed={form.stayType === option.id}
+                    onClick={() => form.setStayType(option.id)}
                     className={`py-3 px-3 rounded-2xl text-xs sm:text-sm font-medium border text-center transition-all cursor-pointer ${
-                      stayType === option.id
+                      form.stayType === option.id
                         ? 'bg-[#8B6B48] text-white border-[#8B6B48] shadow-xs'
                         : 'bg-[#FAF8F5] text-[#453E33] border-[#E8E0D5] hover:bg-[#F3ECE0]'
                     }`}
@@ -402,45 +78,34 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
             {/* Availability Calendar */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span id={datesLabelId} className="block text-xs font-semibold text-[#736B5E]">
+                <span id={ids.datesLabel} className="block text-xs font-semibold text-[#736B5E]">
                   {wedding ? 'תאריך החתונה' : "תאריכי הגעה ועזיבה (צ'ק-אין 15:00 · צ'ק-אאוט 11:00)"}
                 </span>
                 {checkIn && (
-                  <button type="button" onClick={clearDates} className="text-xs text-[#816342] underline cursor-pointer">
+                  <button type="button" onClick={form.clearDates} className="text-xs text-[#816342] underline cursor-pointer">
                     ניקוי תאריכים
                   </button>
                 )}
               </div>
 
-              <div
-                role="group"
-                aria-labelledby={datesLabelId}
-                aria-describedby={errors.dates ? `${datesLabelId}-error` : undefined}
-                className={`rounded-2xl border bg-[#FAF8F5] p-2 sm:p-4 flex justify-center ${
-                  errors.dates ? 'border-[#D9776B]' : 'border-[#E8E0D5]'
-                }`}
-              >
-                <AvailabilityCalendar
-                  stayType={stayType}
-                  blocked={availability?.blocked ?? NO_BLOCKS}
-                  windowEnd={availability?.to}
-                  checkIn={checkIn}
-                  checkOut={checkOut}
-                  onChange={handleDatesChange}
-                />
-              </div>
+              <DatePicker
+                form={form}
+                className={(hasError) =>
+                  `rounded-2xl border bg-[#FAF8F5] p-2 sm:p-4 flex justify-center ${hasError ? 'border-[#D9776B]' : 'border-[#E8E0D5]'}`
+                }
+              />
 
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#70675B]">
-                {bookingApiEnabled && availabilityState === 'loading' && (
+                {form.apiEnabled && form.availabilityState === 'loading' && (
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     בודקים זמינות...
                   </span>
                 )}
-                {bookingApiEnabled && availabilityState === 'error' && (
+                {form.apiEnabled && form.availabilityState === 'error' && (
                   <span>לא הצלחנו לבדוק זמינות כרגע. אפשר לבחור תאריכים, ונאשר מולכם.</span>
                 )}
-                {availabilityState === 'ready' && (
+                {form.availabilityState === 'ready' && (
                   <>
                     <span className="flex items-center gap-1.5">
                       <span className="w-3 h-3 rounded-full bg-[#8B6B48]" />
@@ -455,14 +120,14 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               </div>
 
               <p className="mt-2 text-sm font-medium text-[#241E1A] empty:hidden" aria-live="polite">
-                {datesText}
+                {form.datesText}
               </p>
               {wedding && (
                 <p className="mt-1 text-xs text-[#70675B]">
                   כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
                 </p>
               )}
-              <FieldError id={`${datesLabelId}-error`} message={errors.dates} />
+              <FieldError id={`${ids.datesLabel}-error`} message={errors.dates} />
             </div>
 
             {/* Adults Guests Counter */}
@@ -471,21 +136,21 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 <div>
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-[#816342]" />
-                    <span id={adultsLabelId} className="text-sm font-semibold text-[#2C2926]">מספר אורחים מבוגרים</span>
+                    <span id={ids.adultsLabel} className="text-sm font-semibold text-[#2C2926]">מספר אורחים מבוגרים</span>
                   </div>
                   <span className="text-xs text-[#70675B]">
                     למבוגרים בלבד • עד 3 מבוגרים (אורח שלישי על ספה נפתחת)
                   </span>
                 </div>
 
-                <div role="group" aria-labelledby={adultsLabelId} className="flex items-center gap-2">
+                <div role="group" aria-labelledby={ids.adultsLabel} className="flex items-center gap-2">
                   {[1, 2, 3].map((num) => (
                     <button
                       key={num}
                       type="button"
                       aria-pressed={adultsCount === num}
                       aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
-                      onClick={() => setAdultsCount(num)}
+                      onClick={() => form.setAdultsCount(num)}
                       className={`w-9 h-9 rounded-xl font-medium text-sm transition-all cursor-pointer ${
                         adultsCount === num
                           ? 'bg-[#8B6B48] text-white shadow-xs'
@@ -502,100 +167,88 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
             {/* Contact Details Inputs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
-                <label htmlFor={fullNameInputId} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
+                <label htmlFor={ids.fullName} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
                   שם מלא *
                 </label>
                 <input
-                  id={fullNameInputId}
+                  id={ids.fullName}
                   type="text"
                   autoComplete="name"
                   placeholder="ישראל ישראלי"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={form.fullName}
+                  onChange={(e) => form.setFullName(e.target.value)}
                   aria-required="true"
-                  {...described(`${fullNameInputId}-error`, errors.name)}
+                  {...described(`${ids.fullName}-error`, errors.name)}
                   className={inputClass(errors.name)}
                 />
-                <FieldError id={`${fullNameInputId}-error`} message={errors.name} />
+                <FieldError id={`${ids.fullName}-error`} message={errors.name} />
               </div>
 
               <div>
-                <label htmlFor={phoneInputId} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
+                <label htmlFor={ids.phone} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
                   טלפון לחזרה *
                 </label>
                 <input
-                  id={phoneInputId}
+                  id={ids.phone}
                   type="tel"
                   autoComplete="tel"
                   placeholder="050-0000000"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={form.phone}
+                  onChange={(e) => form.setPhone(e.target.value)}
                   aria-required="true"
-                  {...described(`${phoneInputId}-error`, errors.phone)}
+                  {...described(`${ids.phone}-error`, errors.phone)}
                   className={inputClass(errors.phone)}
                 />
-                <FieldError id={`${phoneInputId}-error`} message={errors.phone} />
+                <FieldError id={`${ids.phone}-error`} message={errors.phone} />
               </div>
             </div>
 
             <div className="mb-4">
-              <label htmlFor={emailInputId} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
+              <label htmlFor={ids.email} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
                 אימייל (לא חובה) – לקבלת זימון ליומן לאחר אישור ההזמנה
               </label>
               <input
-                id={emailInputId}
+                id={ids.email}
                 type="email"
                 dir="ltr"
                 autoComplete="email"
                 placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                {...described(`${emailInputId}-error`, errors.email)}
+                value={form.email}
+                onChange={(e) => form.setEmail(e.target.value)}
+                {...described(`${ids.email}-error`, errors.email)}
                 className={`${inputClass(errors.email)} text-right`}
               />
-              <FieldError id={`${emailInputId}-error`} message={errors.email} />
+              <FieldError id={`${ids.email}-error`} message={errors.email} />
             </div>
 
             <div className="mb-6">
-              <label htmlFor={notesInputId} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
+              <label htmlFor={ids.notes} className="block text-xs font-semibold text-[#736B5E] mb-1.5">
                 הערות או בקשות מיוחדות (שעות הגעה, צוות איפור, צילומים וכו')
               </label>
               <textarea
-                id={notesInputId}
+                id={ids.notes}
                 rows={2}
                 maxLength={NOTES_MAX}
                 placeholder="ספרו לנו קצת על השהות המתוכננת שלכם..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                {...described(`${notesInputId}-error`, errors.notes)}
+                value={form.notes}
+                onChange={(e) => form.setNotes(e.target.value)}
+                {...described(`${ids.notes}-error`, errors.notes)}
                 className={inputClass(errors.notes)}
               />
-              <FieldError id={`${notesInputId}-error`} message={errors.notes} />
+              <FieldError id={`${ids.notes}-error`} message={errors.notes} />
             </div>
 
-            <input
-              type="text"
-              name="website"
-              tabIndex={-1}
-              autoComplete="off"
-              aria-hidden="true"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              className="sr-only"
-            />
+            <Honeypot form={form} />
 
-            {/* Announces sending and validation results to screen readers. */}
-            <p className="sr-only" aria-live="polite" role="status">
-              {announcement}
-            </p>
+            <Announcer form={form} />
 
             {/* Action Buttons */}
             {submission.state === 'sent' ? (
               <div role="status" className="p-5 rounded-2xl bg-[#E8F8EE] border border-[#A7E8BD] text-[#1E6B37]">
-                <h4 ref={successHeadingRef} tabIndex={-1} className="flex items-center gap-2 font-semibold mb-1 outline-none">
+                <SentHeading form={form} className="flex items-center gap-2 font-semibold mb-1 outline-none">
                   <Check className="w-5 h-5" />
                   <span>הבקשה נשלחה!</span>
-                </h4>
+                </SentHeading>
                 <p className="text-sm">
                   מספר הבקשה: <span dir="ltr" className="font-semibold">{submission.ref}</span>. התאריכים שמורים עבורכם ל-
                   {submission.holdHours} שעות, ונחזור אליכם לאישור בהקדם.
@@ -603,7 +256,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 <div className="mt-4 flex flex-col sm:flex-row gap-2">
                   <button
                     type="button"
-                    onClick={() => handleWhatsAppBooking(submission.ref)}
+                    onClick={() => form.openWhatsApp(submission.ref)}
                     className="flex-1 py-3 px-4 rounded-xl bg-[#178440] hover:bg-[#136E35] text-white text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4" />
@@ -611,24 +264,24 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   </button>
                   <button
                     type="button"
-                    onClick={startNewRequest}
+                    onClick={form.startNewRequest}
                     className="flex-1 py-3 px-4 rounded-xl border border-[#1E6B37]/40 text-[#1E6B37] hover:bg-white text-sm font-medium cursor-pointer"
                   >
                     שליחת בקשה נוספת
                   </button>
                 </div>
               </div>
-            ) : bookingApiEnabled ? (
+            ) : form.apiEnabled ? (
               <>
                 <button
                   type="button"
                   id="submit-booking-request"
-                  onClick={handleSubmit}
-                  disabled={sending}
+                  onClick={form.submit}
+                  disabled={form.sending}
                   className="w-full py-4 px-6 rounded-2xl bg-[#8B6B48] hover:bg-[#765A3C] disabled:opacity-70 text-white font-medium text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer disabled:cursor-wait"
                 >
-                  {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  <span>{sending ? sendingLabel : 'שליחת בקשת הזמנה'}</span>
+                  {form.sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  <span>{form.sending ? form.sendingLabel : 'שליחת בקשת הזמנה'}</span>
                 </button>
 
                 {submission.state === 'failed' && (
@@ -640,44 +293,20 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 <button
                   type="button"
                   id="submit-booking-whatsapp"
-                  onClick={() => handleWhatsAppBooking()}
+                  onClick={() => form.openWhatsApp()}
                   className="mt-3 w-full py-3 px-6 rounded-2xl border border-[#178440] text-[#1E6B37] hover:bg-[#E8F8EE] text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>מעדיפים WhatsApp? שלחו לנו את הפרטים ישירות</span>
                 </button>
 
-                <p className="mt-3 text-xs text-[#5C5549] text-center">
-                  שליחת הבקשה היא הסכמה ל
-                  <a href="/terms/" className="underline">
-                    תנאי ההזמנה והשימוש
-                  </a>{' '}
-                  ול
-                  <a href="/privacy/" className="underline">
-                    מדיניות הפרטיות
-                  </a>
-                  .
-                </p>
-
-                {RECAPTCHA_SITE_KEY && (
-                  <p className="mt-2 text-[11px] text-[#6E675E] text-center">
-                    האתר מוגן באמצעות reCAPTCHA, ו
-                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
-                      מדיניות הפרטיות
-                    </a>{' '}
-                    ו
-                    <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline">
-                      תנאי השימוש
-                    </a>{' '}
-                    של Google חלים.
-                  </p>
-                )}
+                <SendConsent />
               </>
             ) : (
               <button
                 type="button"
                 id="submit-booking-whatsapp"
-                onClick={() => handleWhatsAppBooking()}
+                onClick={() => form.openWhatsApp()}
                 className="w-full py-4 px-6 rounded-2xl bg-[#178440] hover:bg-[#136E35] text-white font-medium text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer"
               >
                 <MessageCircle className="w-5 h-5" />
@@ -685,7 +314,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               </button>
             )}
 
-            {whatsAppOpened && submission.state !== 'sent' && (
+            {form.whatsAppOpened && submission.state !== 'sent' && (
               <div className="mt-4 p-3 bg-[#E8F8EE] border border-[#A7E8BD] text-[#1E6B37] rounded-xl text-xs text-center flex items-center justify-center gap-2">
                 <Check className="w-4 h-4" />
                 <span>פנייתכם נפתחה ב-WhatsApp! שרי ויואב יחזרו אליכם בהקדם האפשרי.</span>
@@ -705,7 +334,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               <div className="space-y-3 text-sm text-[#4E473D] mb-6">
                 <div className="flex justify-between pb-2 border-b border-[#EAE3D7]">
                   <span>סוג שהות:</span>
-                  <span className="font-medium text-[#241E1A]">{getStayTypeName()}</span>
+                  <span className="font-medium text-[#241E1A]">{form.stayTypeName}</span>
                 </div>
                 {wedding ? (
                   checkIn && (
@@ -727,7 +356,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 <div className="flex justify-between pt-2 text-base font-semibold text-[#241E1A]">
                   <span>הערכת מחיר:</span>
                   <span className="text-[#816342] font-serif text-xl">
-                    ₪{estimate.toLocaleString()}
+                    ₪{form.estimate.toLocaleString()}
                   </span>
                 </div>
               </div>
