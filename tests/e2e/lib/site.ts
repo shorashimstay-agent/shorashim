@@ -3,13 +3,6 @@ import { expect, type FrameLocator, type Page } from '@playwright/test';
 
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night';
 
-const STAY_LABELS: Record<StayType, string> = {
-  couple: 'אירוח זוגי',
-  bride_day: 'יום כלה (התארגנות)',
-  bride_night_day: 'לילה לפני + יום כלה',
-  wedding_night: 'ליל כלולות זוגי',
-};
-
 export interface GuestForm {
   stayType: StayType;
   /** Check-in, or the wedding date for wedding stays. */
@@ -62,18 +55,17 @@ async function pickDay(page: Page, date: string): Promise<void> {
 /** Fills in and submits the booking form; returns the request reference from the success screen. */
 export async function submitBooking(page: Page, g: GuestForm): Promise<string> {
   const booking = page.locator('#booking');
-  // Controls are found by their labelled groups, the way a screen-reader user finds them.
-  await booking.getByRole('group', { name: 'סוג האירוח' }).getByRole('button', { name: STAY_LABELS[g.stayType], exact: true }).click();
+  // Controls are found by stable hooks (data-stay-type, data-adults, input names), not by their
+  // wording: the section's design and text come from front-2 and change (docs/front-sync.md).
+  // tests/e2e/a11y.spec.ts checks separately that each control has an accessible name.
+  await booking.locator(`[data-stay-type="${g.stayType}"]`).click();
   await pickDay(page, g.checkIn);
   if (g.checkOut) await pickDay(page, g.checkOut);
-  await booking
-    .getByRole('group', { name: 'מספר אורחים מבוגרים' })
-    .getByRole('button', { name: g.adults === 1 ? 'מבוגר אחד' : `${g.adults} מבוגרים`, exact: true })
-    .click();
-  await booking.getByPlaceholder('ישראל ישראלי').fill(g.name);
-  await booking.getByPlaceholder('050-0000000').fill(g.phone);
-  if (g.email) await booking.getByPlaceholder('name@example.com').fill(g.email);
-  if (g.notes) await booking.locator('textarea').fill(g.notes);
+  await booking.locator(`[data-adults="${g.adults}"]`).click();
+  await booking.locator('input[name="guest-name"]').fill(g.name);
+  await booking.locator('input[name="phone"]').fill(g.phone);
+  if (g.email) await booking.locator('input[name="email"]').fill(g.email);
+  if (g.notes) await booking.locator('textarea[name="notes"]').fill(g.notes);
   await page.locator('#submit-booking-request').click();
   const success = booking.getByText('מספר הבקשה:');
   await expect(success).toBeVisible({ timeout: 150_000 });

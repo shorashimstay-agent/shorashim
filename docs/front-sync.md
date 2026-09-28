@@ -80,6 +80,9 @@ deploy is needed. The sync stops when:
 - A production-owned file changed, or conflict markers remain.
 - `BookingSection.tsx` no longer takes its behaviour from `useBookingForm` or drops one of the parts
   above, `#booking` or `#submit-booking-request`.
+- The booking controls lost the hooks the tests use instead of wording: `data-stay-type`,
+  `data-adults`, `name="guest-name" | "phone" | "email" | "notes"`, the legend text
+  `הבחירה שלכם` and `מספר הבקשה:` in the sent panel.
 - `App.tsx` lost the skip link, `<main id="main">` or `<AccessibilityMenu />`; the footer lost
   a link to `/terms/`, `/privacy/` or `/accessibility/`; the ids the tests use are gone.
 - A design file uses `@google/genai`, `process.env`, `import.meta.env` or a domain not in
