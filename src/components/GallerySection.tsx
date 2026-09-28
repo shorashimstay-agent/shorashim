@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, ZoomIn, Image as ImageIcon } from 'lucide-react';
+import { X } from 'lucide-react';
 import { GALLERY_ITEMS } from '../data/shorashimData';
 import { GalleryItem } from '../types';
+import { EditorialTag } from './RootLine';
 import Picture from './Picture';
 
 export default function GallerySection() {
@@ -30,80 +31,90 @@ export default function GallerySection() {
       : GALLERY_ITEMS.filter((item) => item.category === activeTab);
 
   return (
-    <section id="gallery" className="py-24 bg-[#FAF7F2] relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="gallery" className="py-28 sm:py-36 bg-[#DED5C8]/30 relative">
+      <div className="max-w-7xl mx-auto px-6 sm:px-12">
         
         {/* Section Header */}
-        <div className="max-w-3xl mb-12">
-          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-2">
-            06 | גלריה
-          </span>
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
-            לראות. להרגיש. להגיע.
-          </h2>
-          <p className="text-base sm:text-lg text-[#6D6457]">
-            הצצה לפינות השונות של שורשים, בין השקט של החצר הירוקה לאבן החמה ולחללים המעוצבים.
-          </p>
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 pb-8 border-b border-[#DED5C8]">
+          <div className="max-w-2xl">
+            <EditorialTag className="mb-4 block">
+              09 · גלריה
+            </EditorialTag>
+            <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4">
+              לראות. להרגיש. להגיע.
+            </h2>
+            <p className="text-base sm:text-lg text-[#292824]/75 font-light">
+              הצצה לפינות השונות של שורשים, בין השקט של החצר הירוקה לאבן החמה ולחללים המעוצבים.
+            </p>
+          </div>
+
+          {/* Curated Editorial Filter */}
+          <div role="group" aria-label="סינון התמונות לפי נושא" className="mt-8 lg:mt-0 flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`text-xs px-4 py-2 transition-all cursor-pointer font-sans tracking-wide ${
+                  activeTab === tab.id
+                    ? 'bg-[#1E1D1A] text-white'
+                    : 'text-[#292824]/70 hover:text-[#1E1D1A] border border-[#DED5C8]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Gallery Filter Tabs */}
-        <div role="group" aria-label="סינון התמונות לפי נושא" className="flex flex-wrap items-center gap-2 sm:gap-3 mb-10">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              aria-pressed={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-[#8B6B48] text-white shadow-xs'
-                  : 'bg-[#EFEAE2] hover:bg-[#E5DED4] text-[#4E463A]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* 09 — CURATED EDITORIAL GALLERY: Mixed scales and aspect ratios */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 items-start">
+          {filteredItems.map((item, idx) => {
+            // Assign varying spans and aspect ratios for rhythmic editorial layout
+            const spanClass =
+              idx === 0
+                ? 'lg:col-span-8 aspect-[16/11]'
+                : idx === 1
+                ? 'lg:col-span-4 aspect-[4/5]'
+                : idx === 2
+                ? 'lg:col-span-4 aspect-[4/5]'
+                : idx === 3
+                ? 'lg:col-span-4 aspect-[1/1]'
+                : idx === 4
+                ? 'lg:col-span-4 aspect-[4/5]'
+                : 'lg:col-span-6 aspect-[16/10]';
 
-        {/* Masonry-like Responsive Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveLightboxItem(item)}
-              aria-label={`הגדלת התמונה: ${item.title}`}
-              className="group relative block w-full text-right rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 bg-white border border-[#E8E1D5] cursor-pointer"
-            >
-              <span className="block aspect-4/3 w-full overflow-hidden relative">
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveLightboxItem(item)}
+                aria-label={`הגדלת התמונה: ${item.title}`}
+                className={`${spanClass} block w-full text-right overflow-hidden bg-[#292824] group cursor-pointer relative shadow-[0_2px_15px_rgba(30,29,26,0.04)]`}
+              >
                 <Picture
                   image={item.image}
                   alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  className="w-full h-full object-cover brightness-[0.98] group-hover:scale-103 transition-transform duration-700 ease-out"
+                  sizes="(min-width: 1024px) 66vw, (min-width: 640px) 50vw, 100vw"
                 />
-                <span className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="bg-white/90 backdrop-blur-xs text-[#2C2926] p-3 rounded-full shadow-md">
-                    <ZoomIn className="w-5 h-5" />
-                  </span>
-                </span>
-              </span>
 
-              <span className="block p-5">
-                <span className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-[#816342]">
+                {/* Subtle, restrained hover overlay with editorial caption */}
+                <span className="absolute inset-0 bg-gradient-to-t from-[#1E1D1A]/85 via-[#1E1D1A]/20 to-transparent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300 p-6 flex flex-col justify-end text-white">
+                  <span className="text-[10px] font-mono tracking-widest text-[#DED5C8]/80 mb-1">
                     {item.categoryLabel}
                   </span>
+                  <span className="block font-serif text-xl font-normal">
+                    {item.title}
+                  </span>
+                  <span className="block text-xs text-[#DED5C8]/90 font-light mt-1 line-clamp-2">
+                    {item.description}
+                  </span>
                 </span>
-                <span className="block font-serif text-lg text-[#241E1A] font-medium mb-1">
-                  {item.title}
-                </span>
-                <span className="block text-xs text-[#6B6255] line-clamp-2">
-                  {item.description}
-                </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
       </div>
@@ -116,40 +127,40 @@ export default function GallerySection() {
         onClick={(e) => {
           if (e.target === lightbox.current) closeLightbox();
         }}
-        className="m-auto max-w-4xl w-[calc(100%-2rem)] p-0 bg-[#FAF7F2] rounded-3xl overflow-hidden shadow-2xl border border-white/20 backdrop:bg-black/85"
+        className="fixed inset-0 m-0 w-full h-full max-w-none max-h-none bg-[#1E1D1A]/95 backdrop:bg-transparent p-6 sm:p-12 open:flex items-center justify-center"
       >
         {activeLightboxItem && (
-          <div className="relative">
+          <>
             <button
               type="button"
               autoFocus
               onClick={closeLightbox}
-              className="absolute top-4 left-4 z-10 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
+              className="absolute top-6 right-6 text-white/70 hover:text-white p-2 transition-colors cursor-pointer"
               aria-label="סגירת התמונה"
             >
-              <X className="w-5 h-5" />
+              <X className="w-7 h-7" />
             </button>
 
-            <div className="max-h-[75vh] overflow-hidden flex items-center justify-center bg-black/10">
+            <div className="max-w-4xl max-h-[88vh] flex flex-col items-center">
               <Picture
                 image={activeLightboxItem.image}
                 alt={activeLightboxItem.title}
-                className="max-h-[75vh] w-auto object-contain"
+                className="max-h-[72vh] w-auto object-contain border border-white/10"
                 sizes="90vw"
               />
-            </div>
-
-            <div className="p-6 bg-white">
-              <div className="flex items-center gap-2 mb-1 text-xs font-semibold text-[#816342]">
-                <ImageIcon className="w-3.5 h-3.5" />
-                <span>{activeLightboxItem.categoryLabel}</span>
+              <div className="mt-4 text-center text-white">
+                <span className="text-xs font-mono text-[#DED5C8]/80 block mb-1">
+                  {activeLightboxItem.categoryLabel}
+                </span>
+                <h3 id="lightbox-title" className="font-serif text-2xl font-normal">
+                  {activeLightboxItem.title}
+                </h3>
+                <p className="text-sm text-[#DED5C8]/80 max-w-lg mt-1 font-light">
+                  {activeLightboxItem.description}
+                </p>
               </div>
-              <h3 id="lightbox-title" className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-2">
-                {activeLightboxItem.title}
-              </h3>
-              <p className="text-sm text-[#635B4E]">{activeLightboxItem.description}</p>
             </div>
-          </div>
+          </>
         )}
       </dialog>
     </section>
