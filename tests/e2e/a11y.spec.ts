@@ -112,7 +112,7 @@ test('form: an empty submission marks the fields invalid, links the errors and f
   await page.goto('/#booking');
   await expect(page.locator('#booking').getByText('הבחירה שלכם', { exact: true })).toBeVisible({ timeout: 60_000 });
   await page.locator('#submit-booking-request').click();
-  const name = page.getByPlaceholder('ישראל ישראלי');
+  const name = page.locator('#booking input[name="guest-name"]');
   await expect(name).toHaveAttribute('aria-invalid', 'true');
   const errorId = await name.getAttribute('aria-describedby');
   await expect(page.locator(`[id="${errorId}"]`)).toHaveText(/./);

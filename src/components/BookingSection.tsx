@@ -61,6 +61,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   <button
                     key={option.id}
                     type="button"
+                    data-stay-type={option.id}
                     aria-pressed={form.stayType === option.id}
                     onClick={() => form.setStayType(option.id)}
                     className={`py-3 px-3 rounded-2xl text-xs sm:text-sm font-medium border text-center transition-all cursor-pointer ${
@@ -148,6 +149,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                     <button
                       key={num}
                       type="button"
+                      data-adults={num}
                       aria-pressed={adultsCount === num}
                       aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
                       onClick={() => form.setAdultsCount(num)}
@@ -172,6 +174,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 </label>
                 <input
                   id={ids.fullName}
+                  name="guest-name"
                   type="text"
                   autoComplete="name"
                   placeholder="ישראל ישראלי"
@@ -190,6 +193,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 </label>
                 <input
                   id={ids.phone}
+                  name="phone"
                   type="tel"
                   autoComplete="tel"
                   placeholder="050-0000000"
@@ -209,6 +213,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               </label>
               <input
                 id={ids.email}
+                name="email"
                 type="email"
                 dir="ltr"
                 autoComplete="email"
@@ -227,6 +232,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               </label>
               <textarea
                 id={ids.notes}
+                name="notes"
                 rows={2}
                 maxLength={NOTES_MAX}
                 placeholder="ספרו לנו קצת על השהות המתוכננת שלכם..."

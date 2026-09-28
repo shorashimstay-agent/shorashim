@@ -408,6 +408,16 @@ function contractProblems(state) {
     ['<SentHeading', 'must keep the SentHeading focus target'],
     ['id="submit-booking-request"', 'must keep the send button id'],
     ['form.submit', 'the send button must call form.submit'],
+    // The tests find the controls by these, not by their wording.
+    ['data-stay-type={', 'stay-type buttons must carry data-stay-type'],
+    ['data-adults={', 'guest-count buttons must carry data-adults'],
+    ['name="guest-name"', 'the name input must be name="guest-name"'],
+    ['name="phone"', 'the phone input must be name="phone"'],
+    ['name="email"', 'the email input must be name="email"'],
+    ['name="notes"', 'the notes textarea must be name="notes"'],
+    // Texts the tests wait for: the calendar legend (availability loaded) and the sent panel.
+    ['הבחירה שלכם', 'the calendar legend must say הבחירה שלכם'],
+    ['מספר הבקשה:', 'the sent panel must show מספר הבקשה:'],
   ]) {
     if (!booking.includes(needle)) problems.push(`BookingSection.tsx ${why} (missing ${needle}).`);
   }
