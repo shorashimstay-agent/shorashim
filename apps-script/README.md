@@ -42,6 +42,30 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 - **Or decide from the sheet:** in **שורשים – ניהול הזמנות**, tab בקשות, choose אישור or דחייה in the **פעולה** column, then tick **ביצוע**. The tick is the confirmation, and it works in the Sheets phone app too. Decided requests stay at the bottom of the tab for 3 days with a WhatsApp link to the guest.
 - **Unanswered requests** stop holding their dates after 24 hours and are marked ⌛ פג תוקף. They can still be approved while the dates are free.
 - **Cancel a booking:** delete its event.
+- **Or use the owner console** (below): the same requests, bookings and channel bookings, with approve
+  and decline, on a page made for the phone.
+
+## Owner console (`console/`)
+
+A separate Apps Script web app that only **shorashimstay@gmail.com** can open (Google asks for the
+sign-in). Its URL is `consoleUrl` in `booking-config.json`; add it to the phone's home screen.
+
+- **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
+  ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and
+  manual events), הזמנות, ערוצים. It offers what the admin sheet offers; closing dates is still done
+  in Google Calendar.
+- **It holds no booking logic.** `console/Server.js` calls this web app's `console` action, signed with
+  the same HMAC secret over `console:<time>:<op>:<id>:<decision>` and valid for 5 minutes. So every
+  approval goes through `decideAndRecord_`, with the same lock, conflict check, invitation and
+  decision list as the email link and the sheet, and the sheets refresh as usual.
+- **One source for both views:** `adminData_()` builds the rows the sheet writes and the lists the
+  console shows, so they cannot disagree.
+- **Deploy:** `python3 apps-script/deploy.py --app console [--env staging]`. `npm run test:e2e`
+  deploys the staging console too; production follows the same rule as the booking app (the staging
+  suite must have passed on the commit). The console's `Config.js` (booking URL and secret) is
+  generated and never committed.
+- **First time only:** open the console URL signed in as shorashimstay@gmail.com and approve its
+  permission (it calls the booking web app). Staging exists only for the tests and needs no approval.
 
 ## Development
 

@@ -35,7 +35,7 @@ export default defineConfig({
   projects: [
     {
       name: 'staging',
-      testMatch: ['a11y.spec.ts', 'booking.spec.ts'],
+      testMatch: ['a11y.spec.ts', 'booking.spec.ts', 'console.spec.ts'],
       use: { baseURL: `http://localhost:${PORT}` },
     },
     {

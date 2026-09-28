@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The staging regression suite (tests/e2e/PLAN.md), run as `npm run test:e2e`.
 #
-# 1. Deploys the working tree's backend to staging, so the suite always tests this code.
+# 1. Deploys the working tree's backend and owner console to staging, so the suite always tests this code.
 # 2. Runs the suite against it, with the site built from the same tree.
 # 3. On a full pass of a clean tree, records the commit's tree hash in .git/e2e-passed. The
 #    pre-push hook and `deploy.py` (production) both require that record.
@@ -13,6 +13,7 @@ clean=1
 [ -z "$(git status --porcelain --untracked-files=normal -- . ':!.claude')" ] || clean=0
 
 python3 apps-script/deploy.py --env staging --allow-dirty "e2e run"
+python3 apps-script/deploy.py --app console --env staging --allow-dirty "e2e run"
 npx playwright test --project=staging "$@"
 
 if [ "$clean" = 1 ] && [ "$#" -eq 0 ]; then

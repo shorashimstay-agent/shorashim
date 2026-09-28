@@ -126,6 +126,26 @@ in this public repo.
   checks `diag` reports its version, that an out-of-range price is refused, and that a request's
   stored estimate follows the changed price. It restores the tree's file afterwards.
 
+**O — Owner console** (`console.spec.ts`). A test browser cannot sign in to Google, so the real
+`console/Console.html` runs in the browser with `google.script.run` replaced by a bridge that makes
+the signed `console` call from the test process (the secret never enters the page). Fixture requests
+are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is needed.
+- O1: `overview` returns the fixture request (holding, no conflicts), a manual block and a channel
+  booking; the admin sheet shows the same request; the console shows them in בקשות, הזמנות, ערוצים
+  and on the calendar.
+- O2: approve in the console: the result names the invited email and offers the WhatsApp message;
+  the request event is gone, a booking with the guest as attendee exists, and הזמנות in the sheet
+  and the console's recent decisions show it.
+- O3: decline in the console: no request, no booking, the nights are free.
+- O4: declined from the email link while the console still shows it: approving in the console
+  reports it as already handled, and after a refresh it appears under recent decisions.
+- O5: a request whose nights got booked meanwhile: the console disables approval and names the
+  nights; the backend refuses approval too, and declining still works.
+- O6: a forged signature gets no data, and a signature made for `overview` does not authorize
+  `decide`.
+- O7: axe (WCAG + best-practice) on every tab at 390px and 1280px; the tabs work from the keyboard.
+- O8: the staging console deployment exists and redirects to Google sign-in (it is owner-only).
+
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
   so the guest copies go away too.
@@ -140,6 +160,8 @@ in this public repo.
 - Signed `diag` lists all the production triggers.
 - Signed `diag`, given the live `/prices.json` version, reports that same version: the web app
   reads the published prices.
+- The owner console redirects to Google sign-in (it is live and private), and a signed `overview`
+  answers `ok` with its four lists. Only the shape is checked; the guest details are not printed.
 - A reCAPTCHA token from the live page verifies with `hostname=shorashimstay.com`.
 - The decision link and the booking POST are not touched, so nothing is written.
 

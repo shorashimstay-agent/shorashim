@@ -22,6 +22,8 @@ export interface BackendConfig {
   adminSheetId: string;
   availabilitySheetId: string;
   testHooks?: boolean;
+  /** The owner console's web app (console/, deployed by `deploy.py --app console`). */
+  consoleUrl?: string;
 }
 
 interface E2EConfig {

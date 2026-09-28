@@ -44,6 +44,18 @@ test('the production web app prices from the live /prices.json', async ({ reques
   expect((await api.diag(file.version)).pricesVersion).toBe(file.version);
 });
 
+test('the owner console is live, private, and its backend answers', async () => {
+  expect(cfg.consoleUrl, 'deploy it with: deploy.py --app console').toBeTruthy();
+  const res = await fetch(cfg.consoleUrl!, { redirect: 'manual' });
+  expect(res.status).toBe(302);
+  expect(res.headers.get('location') ?? '').toMatch(/^https:\/\/accounts\.google\.com\//);
+  // Read-only. The answer holds guest details, so only its shape is checked and nothing is printed.
+  const o = await api.console('overview');
+  expect(o.ok).toBe(true);
+  expect(o.health.staging).toBe(false);
+  for (const key of ['requests', 'decisions', 'bookings', 'channels']) expect(Array.isArray(o[key])).toBe(true);
+});
+
 test('reCAPTCHA tokens from the live page verify for shorashimstay.com', async ({ page }) => {
   await page.goto('/#booking');
   await page.locator('#booking').evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
