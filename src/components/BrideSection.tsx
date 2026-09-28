@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Heart, Sparkles, MessageCircle, Check, Camera, Coffee, Music, Sun } from 'lucide-react';
+import { MessageCircle, Check } from 'lucide-react';
 import { BRAND_DATA, BRIDE_PACKAGES, IMAGES } from '../data/shorashimData';
+import { RootLine, EditorialTag } from './RootLine';
 import Picture from './Picture';
 
 interface BrideSectionProps {
@@ -8,8 +8,6 @@ interface BrideSectionProps {
 }
 
 export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
-  const [selectedPackageId, setSelectedPackageId] = useState<string>('bride_day');
-
   const handleWhatsAppBrideInquiry = (pkgTitle?: string) => {
     const text = encodeURIComponent(
       `היי שורשים, אשמח לפרטים ולהתאמה אישית לגבי חוויית כלה בשורשים${
@@ -20,33 +18,34 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
   };
 
   return (
-    <section id="bride" className="py-24 bg-[#F5EFE6] relative overflow-hidden">
-      {/* Decorative background blur elements */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#EADCCB]/50 rounded-full blur-3xl -z-0 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#E4D1BC]/40 rounded-full blur-3xl -z-0 pointer-events-none" />
+    <section id="bride" className="py-28 sm:py-36 bg-[#DED5C8]/30 relative overflow-hidden">
+      
+      {/* Abstract root line motif */}
+      <div className="absolute right-12 top-0 bottom-0 w-8 z-0 hidden lg:block opacity-30 pointer-events-none">
+        <RootLine variant="vertical" color="#7B6045" className="h-full" />
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 sm:px-12 relative z-10">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/70 border border-[#E0D3C2] text-xs font-semibold tracking-wider text-[#89603A] mb-3">
-            <Heart className="w-3.5 h-3.5 text-[#B87D65]" />
-            <span>03 | כלה בשורשים</span>
-          </div>
+        <div className="max-w-3xl mb-20">
+          <EditorialTag className="mb-4 block">
+            07 · כלה בשורשים
+          </EditorialTag>
           
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
+          <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-6">
             מקום יפה להתחיל בו יום יפה.
           </h2>
           
-          <p className="text-lg sm:text-xl text-[#6D6457] leading-relaxed font-light">
+          <p className="text-lg sm:text-xl text-[#292824]/75 font-light leading-relaxed">
             יש משהו בבוקר של חתונה שראוי למקום משלו. לפני האיפור, השיער, השמלה, הצילומים והאנשים, יש כמה שעות שהן רק שלך.
           </p>
         </div>
 
-        {/* Narrative & Photo Story */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center mb-16">
-          <div className="lg:col-span-6 space-y-6 text-[#453E35] text-base sm:text-lg leading-relaxed">
-            <h3 className="font-serif text-2xl sm:text-3xl text-[#241E1A] font-medium">
+        {/* Narrative & Cinematic Visual */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center mb-24">
+          <div className="lg:col-span-5 space-y-6 text-[#292824]/80 text-base sm:text-lg font-light leading-relaxed">
+            <h3 className="font-serif text-3xl text-[#1E1D1A] font-normal leading-snug">
               התארגנות כלה בלי תחושה של פס ייצור
             </h3>
             
@@ -57,166 +56,93 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
 
             <p>
               העיצוב של שורשים מציע מגוון רקעים טבעיים לצילום: עץ ואבן אותנטיים, קיר התמונות המשפחתי,
-              המטבח המעוצב, פרטים ישנים עם נשמה, אור טבעי רך שמחמיא לכל פריים והחצר הירוקה עם עצי הפיקוס הוותיקים.
+              המטבח המעוצב, אור טבעי רך שמחמיא לכל פריים והחצר הירוקה עם עצי הפיקוס הוותיקים לצילומי המפגש.
             </p>
 
-            <p className="font-serif italic text-xl text-[#816342]">
-              ״המקום לא נבנה כסט צילום. הוא פשוט כזה.״
-            </p>
-
-            {/* Quick Benefits Checklist */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Camera className="w-4 h-4 text-[#816342]" />
-                <span>צילומים בחלל הצימר ובחצר</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Coffee className="w-4 h-4 text-[#816342]" />
-                <span>פינת קפה ומטבח רחב למלוות</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Music className="w-4 h-4 text-[#816342]" />
-                <span>אווירה אינטימית ושקטה בלבד</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Sun className="w-4 h-4 text-[#816342]" />
-                <span>שעות מותאמות לצורכי החתונה</span>
-              </div>
+            <div className="pt-4 flex items-center gap-4">
+              <button
+                onClick={() => handleWhatsAppBrideInquiry()}
+                className="inline-flex items-center gap-2.5 px-6 py-3 bg-[#1E1D1A] text-white hover:bg-[#7B6045] transition-colors duration-300 text-sm font-medium cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>שיחה ב-WhatsApp להתאמה אישית</span>
+              </button>
             </div>
           </div>
 
-          {/* Editorial Photo Showcase */}
-          <div className="lg:col-span-6">
-            <div className="relative rounded-3xl overflow-hidden shadow-xl border border-[#E2D6C5]">
+          <div className="lg:col-span-7">
+            <div className="aspect-[16/11] overflow-hidden bg-[#292824] shadow-[0_4px_25px_rgba(30,29,26,0.06)]">
               <Picture
                 image={IMAGES.bride}
-                alt="התארגנות כלה בשורשים זכרון יעקב"
-                className="w-full h-[440px] sm:h-[480px] object-cover object-center"
-                sizes="(min-width: 1024px) 50vw, 100vw"
+                alt="בוקר כלה בשורשים"
+                className="w-full h-full object-cover brightness-[0.98]"
+                sizes="(min-width: 1024px) 58vw, 100vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
-                <div className="text-white">
-                  <span className="text-xs uppercase tracking-wider text-[#EADCCB]">החצר והחללים של שורשים</span>
-                  <p className="text-sm sm:text-base font-light text-white/90 mt-1">
-                    עוד לפני שיוצאים ללוקיישן — רקע טבעי לצילומי התארגנות, פרטים ומפגש מרגש
-                  </p>
-                </div>
-              </div>
+            </div>
+            <div className="mt-2.5 flex justify-between items-center text-[11px] text-[#7B6045] font-mono">
+              <span>בוקר התארגנות · חצר ועץ הפיקוס</span>
+              <span>שורשים · זכרון יעקב</span>
             </div>
           </div>
         </div>
 
-        {/* The 3 Bridal Packages */}
-        <div className="mb-14">
-          <div className="text-center mb-10">
-            <h3 className="font-serif text-2xl sm:text-3xl text-[#241E1A] font-medium">
-              מסלולי כלה בשורשים
+        {/* 3 Packages — Editorial Unboxed Presentation */}
+        <div className="pt-16 border-t border-[#DED5C8]">
+          <div className="mb-12">
+            <EditorialTag className="mb-2 block">
+              מסלולי כלה
+            </EditorialTag>
+            <h3 className="font-serif text-3xl text-[#1E1D1A] font-normal">
+              בחרי את המסלול המתאים לך
             </h3>
-            <p className="text-[#6D6457] text-sm sm:text-base mt-1">
-              בחרי את המסלול המתאים לך וצרי קשר ב-WhatsApp להתאמה אישית של שעות ופרטים
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {BRIDE_PACKAGES.map((pkg) => {
-              const isSelected = selectedPackageId === pkg.id;
-              return (
-                <div
-                  key={pkg.id}
-                  onClick={() => {
-                    setSelectedPackageId(pkg.id);
-                    if (onSelectPackage) onSelectPackage(pkg.id);
-                  }}
-                  className={`relative rounded-3xl p-6 sm:p-8 flex flex-col justify-between transition-all duration-300 cursor-pointer border ${
-                    isSelected
-                      ? 'bg-white border-[#8B6B48] shadow-md ring-2 ring-[#8B6B48]/20'
-                      : 'bg-white/80 border-[#E8E1D5] hover:bg-white hover:border-[#D0C2B0]'
-                  }`}
-                >
-                  {pkg.badge && (
-                    <span className="absolute -top-3 right-6 px-3 py-1 rounded-full text-xs font-semibold bg-[#8B6B48] text-white shadow-xs">
-                      {pkg.badge}
-                    </span>
-                  )}
-
-                  <div>
-                    <h4 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-2">
-                      {/* The whole card selects on click; this button is the keyboard and screen-reader way to do it. */}
-                      <button
-                        type="button"
-                        aria-pressed={isSelected}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPackageId(pkg.id);
-                          if (onSelectPackage) onSelectPackage(pkg.id);
-                        }}
-                        className="text-right cursor-pointer"
-                      >
-                        {pkg.title}
-                      </button>
-                    </h4>
-                    
-                    <p className="text-xs font-medium text-[#816342] mb-3">
-                      {pkg.subtitle}
-                    </p>
-
-                    <p className="text-xs sm:text-sm text-[#5C5549] leading-relaxed mb-6">
-                      {pkg.description}
-                    </p>
-
-                    <div className="space-y-2.5 mb-6 pt-4 border-t border-[#F0EAE1]">
-                      {pkg.highlights.map((point, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-[#453E35]">
-                          <Check className="w-4 h-4 text-[#816342] shrink-0 mt-0.5" />
-                          <span>{point}</span>
-                        </div>
-                      ))}
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-12">
+            {BRIDE_PACKAGES.map((pkg) => (
+              <div
+                key={pkg.id}
+                className="pb-8 border-b md:border-b-0 md:border-l border-[#DED5C8] md:pl-8 last:border-none flex flex-col justify-between"
+              >
+                <div>
+                  <div className="text-xs font-mono text-[#7B6045] tracking-wider mb-2">
+                    {pkg.recommendedFor}
                   </div>
+                  <h4 className="font-serif text-2xl text-[#1E1D1A] font-normal mb-1">
+                    {pkg.title}
+                  </h4>
+                  <div className="font-serif italic text-sm text-[#7B6045] mb-4">
+                    {pkg.subtitle}
+                  </div>
+                  <p className="text-sm text-[#292824]/75 font-light leading-relaxed mb-6">
+                    {pkg.description}
+                  </p>
 
-                  <div className="pt-4 border-t border-[#F0EAE1]">
-                    <div className="text-xs text-[#70675B] mb-3">
-                      מתאים עבור: <strong>{pkg.recommendedFor}</strong>
-                    </div>
-                    
-                    <button
-                      type="button"
-                      aria-label={`שיחה ב-WhatsApp על ${pkg.title}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleWhatsAppBrideInquiry(pkg.title);
-                      }}
-                      className="w-full py-3 px-4 rounded-xl bg-[#178440] hover:bg-[#136E35] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>דברי איתנו ב-WhatsApp</span>
-                    </button>
+                  <div className="space-y-2 mb-8">
+                    {pkg.highlights.map((h, i) => (
+                      <div key={i} className="flex items-start gap-2.5 text-xs text-[#292824]/80 font-light">
+                        <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0 mt-0.5" />
+                        <span>{h}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Bottom Banner Call to Action */}
-        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#E5DDD0] shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 text-center md:text-right">
-            <h4 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium">
-              רוצה לשמוע עוד או לבדוק תאריך לחתונה שלך?
-            </h4>
-            <p className="text-sm text-[#685F52] max-w-xl">
-              תמחור ותנאי שימוש ייקבעו בנפרד בהתאם ללוח הזמנים של יום החתונה. נשמח לתאם איתך שיחה אישית ולהבטיח שהבוקר שלך יהיה מושלם.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => handleWhatsAppBrideInquiry('התאמה אישית ליום החתונה')}
-              className="px-6 py-3 rounded-full bg-[#8B6B48] hover:bg-[#735637] text-white text-sm font-medium flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>אני רוצה להתארגן בשורשים</span>
-            </button>
+                <div className="pt-4 border-t border-[#DED5C8]/70 flex items-center justify-between">
+                  <button
+                    type="button"
+                    aria-label={`תיאום ${pkg.title} ב-WhatsApp`}
+                    onClick={() => {
+                      if (onSelectPackage) onSelectPackage(pkg.id);
+                      handleWhatsAppBrideInquiry(pkg.title);
+                    }}
+                    className="text-xs font-medium text-[#1E1D1A] hover:text-[#7B6045] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>לתיאום מסלול זה ב-WhatsApp</span>
+                    <span aria-hidden="true">←</span>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

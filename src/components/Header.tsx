@@ -1,13 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, Phone, CalendarCheck } from 'lucide-react';
-import { BRAND_DATA } from '../data/shorashimData';
+import { Menu, X } from 'lucide-react';
 
 interface HeaderProps {
   onOpenBooking: () => void;
+  isHomepage?: boolean;
 }
 
-export default function Header({ onOpenBooking }: HeaderProps) {
-  const [isScrolled, setIsScrolled] = useState(false);
+export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
+  // 1. Determine if we are on the homepage:
+  // Check prop if provided, else check window.location.pathname.
+  const [pathname, setPathname] = useState(
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setPathname(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const isHomePage =
+    isHomepage !== undefined
+      ? isHomepage
+      : pathname === '/' || pathname === '' || pathname === '/index.html';
+
+  // 2. SCROLL STATE:
+  // Listen to window scroll events.
+  // Homepage at scroll < 50px => isAtTop = true
+  const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuToggle = useRef<HTMLButtonElement>(null);
 
@@ -26,21 +48,38 @@ export default function Header({ onOpenBooking }: HeaderProps) {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 30);
+      const scrollY =
+        window.pageYOffset ||
+        document.documentElement.scrollTop ||
+        window.scrollY ||
+        0;
+      setScrolled(scrollY >= 50);
     };
-    window.addEventListener('scroll', handleScroll);
+
+    // Run on initial mount
+    handleScroll();
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // 3. LOGO VISIBILITY & HEADER RULES:
+  // Homepage + scrollY < 50px  => logo MUST be hidden completely
+  // Homepage + scrollY >= 50px => logo MUST be visible
+  // Any internal page          => logo MUST always be visible
+  const isAtTop = !scrolled;
+  const showLogo = !isHomePage || !isAtTop;
+
+  // Solid sticky header style is active when on internal page OR when scrolled on homepage
+  const isSolid = !isHomePage || scrolled;
+
   const navLinks = [
-    { label: 'דף הבית', href: '#home' },
-    { label: 'האירוח', href: '#stay' },
+    { label: 'הבית', href: '#house' },
+    { label: 'הסיפור', href: '#story' },
     { label: 'כלה בשורשים', href: '#bride' },
-    { label: 'הסיפור שלנו', href: '#story' },
-    { label: 'זכרון שלנו', href: '#zichron' },
+    { label: 'זכרון יעקב', href: '#zichron' },
     { label: 'גלריה', href: '#gallery' },
-    { label: 'שאלות נפוצות', href: '#faq' },
-    { label: 'הזמנה', href: '#booking' },
+    { label: 'שאלות', href: '#faq' },
   ];
 
   const handleLinkClick = (href: string) => {
@@ -54,47 +93,83 @@ export default function Header({ onOpenBooking }: HeaderProps) {
   return (
     <header
       id="main-header"
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-[#FAF7F2]/95 backdrop-blur-md shadow-xs py-3 border-b border-[#E8E1D7]'
-          : 'bg-gradient-to-b from-black/60 via-black/35 to-transparent text-white py-5'
+      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ease-in-out h-[84px] sm:h-[90px] lg:h-[94px] flex items-center ${
+        isSolid
+          ? 'bg-[#F3EFE7]/96 backdrop-blur-[4px] border-b border-[#E5DFD3]/75 text-[#665548] shadow-[0_2px_18px_rgba(64,54,47,0.035)]'
+          : 'bg-transparent text-[#F4EFE5]'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-        {/* Brand Logo */}
-        <a
-          href="#home"
-          id="header-brand-logo"
-          onClick={(e) => {
-            e.preventDefault();
-            handleLinkClick('#home');
-          }}
-          className="flex flex-col items-start group"
-        >
-          <span
-            className={`font-serif text-2xl md:text-3xl tracking-wide font-medium transition-colors ${
-              isScrolled ? 'text-[#2C2926]' : 'text-white drop-shadow-sm'
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 w-full flex items-center justify-between">
+        
+        {/* 
+          LOGO CONTAINER:
+          Maintains exact fixed width (w-[130px] sm:w-[150px] lg:w-[160px]) so hiding or showing
+          the logo NEVER causes the navigation links to move horizontally.
+          
+          LOGO VISIBILITY:
+          When showLogo is false (Homepage at top):
+          - opacity: 0
+          - visibility: hidden
+          - pointer-events: none
+          - Genuinely invisible: No tree, no text, no replacement branding.
+          
+          When showLogo is true (Homepage scrolled >= 50px OR any internal page):
+          - opacity: 1
+          - visibility: visible
+          - pointer-events: auto
+          - Smooth transition (350ms ease)
+        */}
+        <div className="flex items-center w-[130px] sm:w-[150px] lg:w-[160px] shrink-0 justify-start select-none">
+          <a
+            href="#home"
+            id="header-brand-logo"
+            onClick={(e) => {
+              e.preventDefault();
+              handleLinkClick('#home');
+            }}
+            tabIndex={showLogo ? 0 : -1}
+            aria-hidden={!showLogo}
+            className={`inline-flex items-center cursor-pointer py-1 transition-all duration-350 ease-in-out ${
+              showLogo
+                ? 'opacity-100 visible pointer-events-auto'
+                : 'opacity-0 invisible pointer-events-none'
             }`}
+            style={{
+              opacity: showLogo ? 1 : 0,
+              visibility: showLogo ? 'visible' : 'hidden',
+              pointerEvents: showLogo ? 'auto' : 'none',
+            }}
+            aria-label="שורשים - בית אירוח אינטימי למבוגרים זכרון יעקב"
           >
-            {BRAND_DATA.name}
-          </span>
-          <span
-            className={`text-xs tracking-wider transition-colors ${
-              isScrolled ? 'text-[#6B6255]' : 'text-white drop-shadow-sm'
-            }`}
-          >
-            {BRAND_DATA.tagline}
-          </span>
-        </a>
+            {/* The official approved original logo image */}
+            <img
+              src="/shorashim-logo-transparent.png"
+              alt="שורשים – מקום להתחבר אליו"
+              width={256}
+              height={256}
+              className="w-auto h-[68px] sm:h-[76px] lg:h-[82px] object-contain"
+              referrerPolicy="no-referrer"
+            />
+          </a>
+        </div>
 
-        {/* Desktop Navigation */}
-        <nav id="desktop-navigation" aria-label="ניווט ראשי" className="hidden lg:flex items-center gap-7">
+        {/* 
+          Desktop Navigation Menu:
+          Position remains 100% steady and anchored whether logo is hidden or visible.
+          Colors:
+          - Scrolled: warm brown #665548 (hover: #40362F)
+          - Top: clean white / soft ivory #F4EFE5
+        */}
+        <nav id="desktop-navigation" aria-label="ניווט ראשי" className="hidden md:flex items-center gap-6 lg:gap-9">
           {navLinks.map((link) => (
             <button
               key={link.label}
+              type="button"
               onClick={() => handleLinkClick(link.href)}
-              className={`text-sm font-medium transition-colors hover:text-[#89603A] cursor-pointer ${
-                isScrolled ? 'text-[#3E3A35]' : 'text-white/90 hover:text-white'
+              className={`text-[14px] lg:text-[15px] font-sans tracking-wide transition-colors duration-200 cursor-pointer py-1 font-normal ${
+                isSolid
+                  ? 'text-[#665548] hover:text-[#40362F]'
+                  : 'text-[#F4EFE5] hover:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
               }`}
             >
               {link.label}
@@ -102,33 +177,26 @@ export default function Header({ onOpenBooking }: HeaderProps) {
           ))}
         </nav>
 
-        {/* CTA Buttons */}
-        <div className="flex items-center gap-3">
-          <a
-            href={`tel:${BRAND_DATA.phone}`}
-            id="header-phone-link"
-            title={`התקשרו: ${BRAND_DATA.phoneFormatted}`}
-            aria-label={`התקשרו: ${BRAND_DATA.phoneFormatted}`}
-            className={`hidden sm:flex items-center gap-2 text-xs md:text-sm px-3.5 py-2 rounded-full border transition-all ${
-              isScrolled
-                ? 'border-[#D9CFBF] text-[#3E3A35] hover:bg-[#F0EAE1]'
-                : 'border-white/40 text-white hover:bg-white/15'
-            }`}
-          >
-            <Phone className="w-3.5 h-3.5" />
-            <span dir="ltr">{BRAND_DATA.phoneFormatted}</span>
-          </a>
-
+        {/* 
+          Opposite Side (Left in RTL):
+          Action button "בדיקת זמינות"
+          Balances: BRAND LOGO CONTAINER (fixed width)  ←  NAVIGATION  →  BOOKING (fixed width)
+        */}
+        <div className="flex items-center gap-3 sm:gap-4 w-[130px] sm:w-[150px] lg:w-[160px] shrink-0 justify-end">
           <button
+            type="button"
             id="header-check-availability-btn"
             onClick={onOpenBooking}
-            className="flex items-center gap-2 text-xs md:text-sm font-medium bg-[#8B6B48] hover:bg-[#735637] text-white px-4 py-2.5 rounded-full shadow-xs hover:shadow-md transition-all cursor-pointer"
+            className={`text-[13px] sm:text-[14px] tracking-wide font-normal px-4 py-2 border transition-all duration-300 cursor-pointer rounded-[2px] ${
+              isSolid
+                ? 'border-[#665548]/35 text-[#665548] hover:border-[#40362F] hover:bg-[#40362F] hover:text-[#F3EFE7]'
+                : 'border-[#F4EFE5]/50 text-[#F4EFE5] hover:border-white hover:bg-white hover:text-[#1E1D1A] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
+            }`}
           >
-            <CalendarCheck className="w-4 h-4" />
-            <span>בדיקת זמינות</span>
+            בדיקת זמינות
           </button>
 
-          {/* Mobile Menu Button */}
+          {/* Minimal Mobile Menu Toggle */}
           <button
             ref={menuToggle}
             type="button"
@@ -136,8 +204,10 @@ export default function Header({ onOpenBooking }: HeaderProps) {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-controls={mobileMenuOpen ? 'mobile-nav-drawer' : undefined}
-            className={`lg:hidden p-2 rounded-md transition-colors ${
-              isScrolled ? 'text-[#2C2926] hover:bg-[#EFE9E0]' : 'text-white hover:bg-white/20'
+            className={`md:hidden p-1.5 transition-colors cursor-pointer rounded-[2px] ${
+              isSolid
+                ? 'text-[#665548]'
+                : 'text-[#F4EFE5] drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
             }`}
             aria-label={mobileMenuOpen ? 'סגירת התפריט' : 'פתיחת התפריט'}
           >
@@ -151,34 +221,30 @@ export default function Header({ onOpenBooking }: HeaderProps) {
         <nav
           id="mobile-nav-drawer"
           aria-label="ניווט ראשי"
-          className="lg:hidden bg-[#FAF7F2] border-b border-[#E5DDD2] px-6 py-6 shadow-xl animate-fadeIn text-[#2C2926]"
+          className="md:hidden fixed top-[84px] sm:top-[90px] left-0 right-0 bg-[#F3EFE7] border-b border-[#E5DFD3] px-8 py-8 shadow-xl text-[#665548] animate-fadeIn z-50"
         >
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             {navLinks.map((link) => (
               <button
                 key={link.label}
+                type="button"
                 onClick={() => handleLinkClick(link.href)}
-                className="text-right py-2 text-base font-medium text-[#2C2926] hover:text-[#816342] border-b border-[#EAE3D9] last:border-b-0 cursor-pointer"
+                className="text-right text-lg font-sans text-[#665548] hover:text-[#40362F] cursor-pointer py-1 font-light"
               >
                 {link.label}
               </button>
             ))}
-            <div className="pt-3 flex flex-col gap-3">
-              <a
-                href={`tel:${BRAND_DATA.phone}`}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border border-[#D9CFBF] text-[#2C2926] text-sm font-medium"
-              >
-                <Phone className="w-4 h-4" />
-                <span>חייגו אלינו: {BRAND_DATA.phoneFormatted}</span>
-              </a>
+
+            <div className="pt-4 border-t border-[#E5DFD3]">
               <button
+                type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
                   onOpenBooking();
                 }}
-                className="w-full py-3 bg-[#8B6B48] text-white rounded-xl text-sm font-medium shadow-xs"
+                className="w-full text-center py-3 bg-[#40362F] text-sm tracking-wide text-[#F3EFE7] hover:bg-[#665548] transition-colors rounded-[2px]"
               >
-                בדיקת זמינות והזמנה
+                בדיקת זמינות
               </button>
             </div>
           </div>

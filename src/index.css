@@ -4,42 +4,68 @@
   html {
     font-family: 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     scroll-behavior: smooth;
+    background-color: #F4F0E8;
+    color: #1E1D1A;
   }
   
-  h1, h2, h3, .font-serif-hebrew {
+  /* 
+    ROLE 01: CUSTOM HEBREW SERIF WORDMARK
+    Frank Ruhl Libre with refined letter-spacing and optical calibration
+  */
+  .font-wordmark-serif {
     font-family: 'Frank Ruhl Libre', serif;
+    font-feature-settings: "kern" 1, "liga" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 
+    ROLE 02: EDITORIAL DISPLAY TYPOGRAPHY
+    Crisp, cultured, contemporary editorial presence
+  */
+  .font-display-statement {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  /*
+    ROLE 03: UI / BODY & NAVIGATION
+    Clean contemporary Hebrew sans-serif
+  */
+  body, p, button, input, textarea, nav {
+    font-family: 'Assistant', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 }
 
-/* Custom scrollbar */
+/* Custom refined scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F4EFEA;
+  background: #F4F0E8;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D8CFC4;
-  border-radius: 4px;
+  background: #DED5C8;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B3A899;
+  background: #A18A70;
 }
 
 
 /* Availability calendar (react-day-picker) */
 .shorashim-calendar {
-  --rdp-accent-color: #8B6B48;
-  --rdp-accent-background-color: #F3ECE0;
-  --rdp-today-color: #8B6B48;
+  --rdp-accent-color: #1E1D1A;
+  --rdp-accent-background-color: #E9E2D6;
+  --rdp-today-color: #7B6045;
   --rdp-day-width: 36px;
   --rdp-day-height: 36px;
   --rdp-day_button-width: 34px;
   --rdp-day_button-height: 34px;
   --rdp-disabled-opacity: 1;
   font-size: 0.875rem;
-  color: #2C2926;
+  color: #1E1D1A;
 }
 @media (min-width: 640px) {
   .shorashim-calendar {
@@ -59,10 +85,10 @@
   text-decoration: line-through;
 }
 .shorashim-calendar .stay-middle {
-  background: #F3ECE0;
+  background: #E9E2D6;
 }
 .shorashim-calendar .stay-edge .rdp-day_button {
-  background: #8B6B48;
+  background: #1E1D1A;
   color: #fff;
   text-decoration: none;
 }

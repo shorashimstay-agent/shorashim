@@ -1,166 +1,145 @@
-import { useState } from 'react';
-import { Sparkles, Calendar, Heart, ArrowDown, MapPin } from 'lucide-react';
 import { BRAND_DATA, IMAGES } from '../data/shorashimData';
+import ShorashimWordmark from './ShorashimWordmark';
 import Picture from './Picture';
 
 interface HeroProps {
   onOpenBooking: () => void;
-  onSelectStayType?: (type: 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night') => void;
 }
 
-export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
-  const [quickType, setQuickType] = useState<'couple' | 'bride'>('couple');
-
-  const scrollToSection = (selector: string) => {
-    const el = document.querySelector(selector);
+export default function Hero({ onOpenBooking }: HeroProps) {
+  const scrollToConcept = () => {
+    const el = document.getElementById('concept');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
   return (
-    <section id="home" className="relative min-h-[92vh] flex flex-col justify-between pt-28 pb-12 overflow-hidden bg-[#241E1A]">
-      {/* Background Photography with atmospheric overlay */}
+    <section
+      id="home"
+      className="relative w-full min-h-screen flex flex-col justify-end text-white overflow-hidden select-none"
+    >
+      {/* 
+        IMMERSIVE CINEMATIC PHOTOGRAPHY
+        The original full-screen photograph of the house and tree (untouched crop, warm Mediterranean light).
+        Tree dominates the left side; typography creates the counterweight on the right.
+      */}
       <div className="absolute inset-0 z-0">
         <Picture
           image={IMAGES.courtyard}
-          alt="חצר בית הבוטיק שורשים בזכרון יעקב"
-          className="w-full h-full object-cover object-center brightness-60 scale-105 transition-transform duration-1000 ease-out"
+          alt="חצר בית האירוח שורשים בזכרון יעקב — עץ הפיקוס, האבן והאווירה הים-תיכונית"
+          className="w-full h-full object-cover object-[55%_center] sm:object-center brightness-[0.82] contrast-[1.03] saturate-[0.98]"
           sizes="100vw"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#201A16] via-[#201A16]/55 to-[#201A16]/40" />
+
+        {/* 
+          SUBTLE TOP GRADIENT OVERLAY ONLY BEHIND THE NAVIGATION:
+          - Starts slightly darker at the very top
+          - Subtle and transparent
+          - Fades gradually into complete transparency around 130-160px from the top
+          - Guarantees white/warm-ivory navigation readability over brighter sky/foliage areas
+          - Feels organic and almost invisible without darkening the rest of the photograph
+        */}
+        <div className="absolute top-0 left-0 right-0 h-36 sm:h-44 bg-gradient-to-b from-[#12110F]/70 via-[#12110F]/30 to-transparent pointer-events-none z-[1]" />
+
+        {/* 
+          Subtle localized gradient wash behind the text area:
+          Leaves stone texture, plants, tree bark, and Mediterranean warmth completely photographic.
+        */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#151412]/80 via-[#151412]/20 to-transparent" />
+        <div className="absolute inset-y-0 right-0 w-full md:w-3/5 bg-gradient-to-l from-[#151412]/45 to-transparent pointer-events-none" />
       </div>
 
-      {/* Main Hero Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white my-auto">
-        {/* Subtle pill tag */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs sm:text-sm font-medium tracking-wider mb-6 text-white/95">
-          <Sparkles className="w-3.5 h-3.5 text-[#E6C280]" />
-          <span>{BRAND_DATA.capacity}</span>
-        </div>
+      {/* 
+        ART-DIRECTED HERO COMPOSITION
+        - Located in the right-center region
+        - Away from the furniture in the lower courtyard
+        - Subtle editorial indentation:
+            שורשים
+              מקום להתחבר אליו
+                  בית אירוח אינטימי למבוגרים · זכרון יעקב
+      */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 w-full pb-24 sm:pb-36 lg:pb-44 pt-32">
+        <div className="mr-0 md:mr-6 lg:mr-12 max-w-2xl">
+          
+          {/* 
+            01 — SHORASHIM WORDMARK
+            Scale: 72–82px on desktop (lg:text-[5.1rem] / ~80px).
+            Warm ivory (#F4EFE5). Refined contemporary Hebrew serif with old soul.
+            The ONLY logo/brand moment on the initial screen.
+          */}
+          <div className="mb-6 sm:mb-8">
+            <ShorashimWordmark
+              variant="hero"
+              theme="light"
+            />
+          </div>
 
-        {/* Title & Tagline */}
-        <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-normal tracking-tight text-white mb-4 drop-shadow-md">
-          {BRAND_DATA.name}
-        </h1>
-        
-        <p className="font-serif italic text-2xl sm:text-3xl text-[#E8DAC5] font-light mb-3">
-          {BRAND_DATA.tagline}
-        </p>
-
-        <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-2xl mx-auto font-light leading-relaxed mb-8">
-          {BRAND_DATA.subtitle}
-        </p>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-10">
-          <button
-            id="hero-check-dates-btn"
-            onClick={onOpenBooking}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#8E6F4A] hover:bg-[#936F45] text-white font-medium text-base shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer"
-          >
-            <Calendar className="w-4 h-4" />
-            <span>בדיקת זמינות והזמנה</span>
-          </button>
-
-          <button
-            id="hero-bride-section-btn"
-            onClick={() => {
-              if (onSelectStayType) onSelectStayType('bride_day');
-              scrollToSection('#bride');
-            }}
-            className="flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 text-white font-medium text-base transition-all duration-200 cursor-pointer"
-          >
-            <Heart className="w-4 h-4 text-[#F3C4B6]" />
-            <span>כלה בשורשים</span>
-          </button>
-
-          <button
-            id="hero-story-btn"
-            onClick={() => scrollToSection('#story')}
-            className="flex items-center gap-2 px-5 py-3.5 rounded-full text-white/80 hover:text-white text-sm font-medium hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <span>הסיפור של שורשים</span>
-            <ArrowDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Location snippet */}
-        <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-white/75">
-          <MapPin className="w-3.5 h-3.5 text-[#E6C280]" />
-          <span>{BRAND_DATA.address}, כמה בתים מהמדרחוב</span>
-        </div>
-      </div>
-
-      {/* Bottom Floating Quick Bar */}
-      <div className="relative z-10 max-w-4xl mx-auto w-full px-4 sm:px-6">
-        <div className="bg-[#FAF7F2]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-[#E5DDD2] text-[#2C2926]">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-            {/* Stay Purpose Selector */}
-            <div className="flex flex-col">
-              <span id="hero-stay-kind" className="text-xs font-semibold text-[#6B6255] mb-1.5">אופי האירוח</span>
-              <div role="group" aria-labelledby="hero-stay-kind" className="grid grid-cols-2 gap-1.5 p-1 bg-[#EFE9DF] rounded-xl">
-                <button
-                  type="button"
-                  aria-pressed={quickType === 'couple'}
-                  onClick={() => setQuickType('couple')}
-                  className={`text-xs sm:text-sm py-1.5 px-3 rounded-lg font-medium transition-all ${
-                    quickType === 'couple'
-                      ? 'bg-white text-[#2C2926] shadow-xs'
-                      : 'text-[#6C6457] hover:text-[#2C2926]'
-                  }`}
-                >
-                  אירוח זוגי
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={quickType === 'bride'}
-                  onClick={() => setQuickType('bride')}
-                  className={`text-xs sm:text-sm py-1.5 px-3 rounded-lg font-medium transition-all ${
-                    quickType === 'bride'
-                      ? 'bg-white text-[#2C2926] shadow-xs'
-                      : 'text-[#6C6457] hover:text-[#2C2926]'
-                  }`}
-                >
-                  חוויית כלה
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Summary Note */}
-            <div className="flex flex-col text-xs sm:text-sm text-[#575046] border-y md:border-y-0 md:border-x border-[#E5DDD2] py-2 md:py-0 md:px-4">
-              {quickType === 'couple' ? (
-                <>
-                  <span className="font-medium text-[#2C2926]">סופ״ש או אמצ״ש שקט</span>
-                  <span className="text-xs text-[#70675B]">כ-80 מ״ר, חצר ירוקה, גג פרטי עם ערסל ומטבח מלא</span>
-                </>
-              ) : (
-                <>
-                  <span className="font-medium text-[#2C2926]">יום כלה / לילה לפני</span>
-                  <span className="text-xs text-[#70675B]">התארגנות אינטימית, ללא פס ייצור, רקעי צילום טבעיים</span>
-                </>
-              )}
-            </div>
-
-            {/* Direct check availability action */}
-            <div>
-              <button
-                onClick={() => {
-                  if (quickType === 'bride') {
-                    if (onSelectStayType) onSelectStayType('bride_day');
-                    scrollToSection('#bride');
-                  } else {
-                    onOpenBooking();
-                  }
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#8B6B48] hover:bg-[#735637] text-white text-sm font-medium shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>{quickType === 'couple' ? 'בדיקת תאריכים פנויים' : 'גלי את מסלולי הכלה'}</span>
-                <span className="text-xs" aria-hidden="true">←</span>
-              </button>
+          {/* 
+            Subtle editorial indentation (step 1):
+            02 — TAGLINE:
+            מקום להתחבר אליו
+            Scale: 28–30px.
+            Different supporting typeface (clean contemporary light sans / humanist).
+            Slightly softer ivory (#DED5C8).
+            Intimate whisper after the wordmark.
+          */}
+          <div className="pr-2 sm:pr-4">
+            <div className="text-[25px] sm:text-[27px] md:text-[29px] lg:text-[30px] text-[#DED5C8] font-light tracking-wide leading-snug">
+              {BRAND_DATA.tagline}
             </div>
           </div>
+
+          {/* 
+            Subtle editorial indentation (step 2):
+            03 — DESCRIPTOR:
+            בית אירוח אינטימי למבוגרים · זכרון יעקב
+            Scale: 14–15px.
+            Lower visual opacity (~70% #DED5C8/70).
+            Letter spacing slightly airy.
+          */}
+          <div className="pr-4 sm:pr-8 mt-5 sm:mt-7">
+            <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
+              בית אירוח אינטימי למבוגרים · זכרון יעקב
+            </div>
+          </div>
+
+          {/* 
+            Generous breathing space to the CTA
+          */}
+          <div className="h-10 sm:h-12 lg:h-14" />
+
+          {/* 
+            ACTIONS:
+            CTA: Warm ivory background (#F4EFE5), dark charcoal typography (#27241F),
+            minimal padding, subtle soft corners (rounded-[2px]), no pill shape, no icon.
+            
+            Secondary Link: "הסיפור של שורשים ↓" placed at an editorial distance.
+          */}
+          <div className="flex flex-wrap items-center gap-8 sm:gap-12 pr-2 sm:pr-4">
+            <button
+              type="button"
+              id="hero-check-availability-btn"
+              onClick={onOpenBooking}
+              className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[2px]"
+            >
+              בדיקת זמינות והזמנה
+            </button>
+
+            <button
+              type="button"
+              id="hero-discover-btn"
+              onClick={scrollToConcept}
+              className="group inline-flex items-center gap-2 text-[13px] sm:text-[14px] text-[#DED5C8]/70 hover:text-[#F4EFE5] transition-colors duration-300 cursor-pointer font-light tracking-wide select-none"
+            >
+              <span>הסיפור של שורשים</span>
+              <span aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-y-[2px] opacity-70">
+                ↓
+              </span>
+            </button>
+          </div>
+
         </div>
       </div>
     </section>
