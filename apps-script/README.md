@@ -48,7 +48,9 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 ## Owner console (`console/`)
 
 A separate Apps Script web app that only **shorashimstay@gmail.com** can open (Google asks for the
-sign-in). Its URL is `consoleUrl` in `booking-config.json`; add it to the phone's home screen.
+sign-in). Its short address is **https://shorashimstay.com/admin** (`public/admin/index.html` forwards to
+`consoleUrl` from `booking-config.json`; update it if the console is ever redeployed under a new
+URL). Add it to the phone's home screen.
 
 - **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
   ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and
