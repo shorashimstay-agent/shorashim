@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Refuses to push to main when the pushed commit changes the site, the backend or the tests and the
+# staging suite (npm run test:e2e) has not passed on exactly that commit. Pushes that touch nothing
+# else (docs, README) go through. Emergency bypass: git push --no-verify.
+set -euo pipefail
+marker="$(git rev-parse --git-dir)/e2e-passed"
+zero=0000000000000000000000000000000000000000
+checked='^(src/|public/|shared/|apps-script/|scripts/|tests/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$|tsconfig\.json$|playwright\.config\.ts$|\.github/)'
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = refs/heads/main ] && [ "$local_sha" != "$zero" ] || continue
+  if [ "$remote_sha" != "$zero" ] && git cat-file -e "$remote_sha" 2>/dev/null; then
+    changed=$(git diff --name-only "$remote_sha" "$local_sha")
+  else
+    changed=$(git ls-tree -r --name-only "$local_sha")
+  fi
+  echo "$changed" | grep -Eq "$checked" || continue
+  tree=$(git rev-parse "$local_sha^{tree}")
+  if ! grep -qx "$tree" "$marker" 2>/dev/null; then
+    echo "pre-push: the staging suite has not passed on $(git rev-parse --short "$local_sha")."
+    echo "          Run \`npm run test:e2e\` on this commit first (bypass: git push --no-verify)."
+    exit 1
+  fi
+done

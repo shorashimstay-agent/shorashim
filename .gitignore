@@ -17,3 +17,8 @@ public/og-image.jpg
 
 # Python bytecode from local tooling
 __pycache__/
+
+# Playwright regression suite (tests/e2e)
+/.e2e-dist
+/test-results
+/playwright-report
