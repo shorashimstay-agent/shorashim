@@ -63,7 +63,9 @@ async function openConsole(page: Page) {
     (window as any).google = { script: { get run() { return runner(null, null); } } };
   });
   await page.goto(CONSOLE_PAGE);
-  await expect(page.locator('#requests-sub')).not.toHaveText('טוען…', { timeout: 90_000 });
+  // The first overview reads three calendars through Google's front end, which on slow days has
+  // taken well over a minute on staging.
+  await expect(page.locator('#requests-sub')).not.toHaveText('טוען…', { timeout: 180_000 });
 }
 
 /** The calendar cell of `date`, moving month by month until it is shown. */
