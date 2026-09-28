@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, Image as ImageIcon } from 'lucide-react';
 import { GALLERY_ITEMS } from '../data/shorashimData';
 import { GalleryItem } from '../types';
@@ -7,6 +7,14 @@ import Picture from './Picture';
 export default function GallerySection() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [activeLightboxItem, setActiveLightboxItem] = useState<GalleryItem | null>(null);
+  const lightbox = useRef<HTMLDialogElement>(null);
+
+  // A native modal dialog: Escape closes it, focus stays inside, and it returns to the photo after.
+  useEffect(() => {
+    const d = lightbox.current;
+    if (activeLightboxItem && d && !d.open) d.showModal();
+  }, [activeLightboxItem]);
+  const closeLightbox = () => lightbox.current?.close();
 
   const tabs = [
     { id: 'all', label: 'הכול' },
@@ -27,7 +35,7 @@ export default function GallerySection() {
         
         {/* Section Header */}
         <div className="max-w-3xl mb-12">
-          <span className="text-xs font-semibold tracking-wider text-[#A07044] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-2">
             06 | גלריה
           </span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
@@ -39,10 +47,12 @@ export default function GallerySection() {
         </div>
 
         {/* Gallery Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-10">
+        <div role="group" aria-label="סינון התמונות לפי נושא" className="flex flex-wrap items-center gap-2 sm:gap-3 mb-10">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
                 activeTab === tab.id
@@ -58,58 +68,64 @@ export default function GallerySection() {
         {/* Masonry-like Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item) => (
-            <div
+            <button
               key={item.id}
+              type="button"
               onClick={() => setActiveLightboxItem(item)}
-              className="group relative rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 bg-white border border-[#E8E1D5] cursor-pointer"
+              aria-label={`הגדלת התמונה: ${item.title}`}
+              className="group relative block w-full text-right rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 bg-white border border-[#E8E1D5] cursor-pointer"
             >
-              <div className="aspect-4/3 w-full overflow-hidden relative">
+              <span className="block aspect-4/3 w-full overflow-hidden relative">
                 <Picture
                   image={item.image}
                   alt={item.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                 />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="bg-white/90 backdrop-blur-xs text-[#2C2926] p-3 rounded-full shadow-md">
+                <span className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="bg-white/90 backdrop-blur-xs text-[#2C2926] p-3 rounded-full shadow-md">
                     <ZoomIn className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
+                  </span>
+                </span>
+              </span>
 
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-[#8B6B48]">
+              <span className="block p-5">
+                <span className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-[#816342]">
                     {item.categoryLabel}
                   </span>
-                </div>
-                <h3 className="font-serif text-lg text-[#241E1A] font-medium mb-1">
+                </span>
+                <span className="block font-serif text-lg text-[#241E1A] font-medium mb-1">
                   {item.title}
-                </h3>
-                <p className="text-xs text-[#736B5F] line-clamp-2">
+                </span>
+                <span className="block text-xs text-[#6B6255] line-clamp-2">
                   {item.description}
-                </p>
-              </div>
-            </div>
+                </span>
+              </span>
+            </button>
           ))}
         </div>
 
       </div>
 
-      {/* Lightbox Modal */}
-      {activeLightboxItem && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
-          onClick={() => setActiveLightboxItem(null)}
-        >
-          <div
-            className="relative max-w-4xl w-full bg-[#FAF7F2] rounded-3xl overflow-hidden shadow-2xl border border-white/20"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* Lightbox: a native modal dialog */}
+      <dialog
+        ref={lightbox}
+        aria-labelledby="lightbox-title"
+        onClose={() => setActiveLightboxItem(null)}
+        onClick={(e) => {
+          if (e.target === lightbox.current) closeLightbox();
+        }}
+        className="m-auto max-w-4xl w-[calc(100%-2rem)] p-0 bg-[#FAF7F2] rounded-3xl overflow-hidden shadow-2xl border border-white/20 backdrop:bg-black/85"
+      >
+        {activeLightboxItem && (
+          <div className="relative">
             <button
-              onClick={() => setActiveLightboxItem(null)}
+              type="button"
+              autoFocus
+              onClick={closeLightbox}
               className="absolute top-4 left-4 z-10 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
-              aria-label="סגור תמונה"
+              aria-label="סגירת התמונה"
             >
               <X className="w-5 h-5" />
             </button>
@@ -124,20 +140,18 @@ export default function GallerySection() {
             </div>
 
             <div className="p-6 bg-white">
-              <div className="flex items-center gap-2 mb-1 text-xs font-semibold text-[#8B6B48]">
+              <div className="flex items-center gap-2 mb-1 text-xs font-semibold text-[#816342]">
                 <ImageIcon className="w-3.5 h-3.5" />
                 <span>{activeLightboxItem.categoryLabel}</span>
               </div>
-              <h3 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-2">
+              <h3 id="lightbox-title" className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-2">
                 {activeLightboxItem.title}
               </h3>
-              <p className="text-sm text-[#635B4E]">
-                {activeLightboxItem.description}
-              </p>
+              <p className="text-sm text-[#635B4E]">{activeLightboxItem.description}</p>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </dialog>
     </section>
   );
 }

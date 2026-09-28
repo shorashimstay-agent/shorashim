@@ -29,7 +29,7 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/70 border border-[#E0D3C2] text-xs font-semibold tracking-wider text-[#A07044] mb-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/70 border border-[#E0D3C2] text-xs font-semibold tracking-wider text-[#89603A] mb-3">
             <Heart className="w-3.5 h-3.5 text-[#B87D65]" />
             <span>03 | כלה בשורשים</span>
           </div>
@@ -60,26 +60,26 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
               המטבח המעוצב, פרטים ישנים עם נשמה, אור טבעי רך שמחמיא לכל פריים והחצר הירוקה עם עצי הפיקוס הוותיקים.
             </p>
 
-            <p className="font-serif italic text-xl text-[#8B6B48]">
+            <p className="font-serif italic text-xl text-[#816342]">
               ״המקום לא נבנה כסט צילום. הוא פשוט כזה.״
             </p>
 
             {/* Quick Benefits Checklist */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Camera className="w-4 h-4 text-[#8B6B48]" />
+                <Camera className="w-4 h-4 text-[#816342]" />
                 <span>צילומים בחלל הצימר ובחצר</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Coffee className="w-4 h-4 text-[#8B6B48]" />
+                <Coffee className="w-4 h-4 text-[#816342]" />
                 <span>פינת קפה ומטבח רחב למלוות</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Music className="w-4 h-4 text-[#8B6B48]" />
+                <Music className="w-4 h-4 text-[#816342]" />
                 <span>אווירה אינטימית ושקטה בלבד</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm font-medium text-[#2C2926]">
-                <Sun className="w-4 h-4 text-[#8B6B48]" />
+                <Sun className="w-4 h-4 text-[#816342]" />
                 <span>שעות מותאמות לצורכי החתונה</span>
               </div>
             </div>
@@ -141,10 +141,22 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
 
                   <div>
                     <h4 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-2">
-                      {pkg.title}
+                      {/* The whole card selects on click; this button is the keyboard and screen-reader way to do it. */}
+                      <button
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPackageId(pkg.id);
+                          if (onSelectPackage) onSelectPackage(pkg.id);
+                        }}
+                        className="text-right cursor-pointer"
+                      >
+                        {pkg.title}
+                      </button>
                     </h4>
                     
-                    <p className="text-xs font-medium text-[#8B6B48] mb-3">
+                    <p className="text-xs font-medium text-[#816342] mb-3">
                       {pkg.subtitle}
                     </p>
 
@@ -155,7 +167,7 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
                     <div className="space-y-2.5 mb-6 pt-4 border-t border-[#F0EAE1]">
                       {pkg.highlights.map((point, idx) => (
                         <div key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-[#453E35]">
-                          <Check className="w-4 h-4 text-[#8B6B48] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#816342] shrink-0 mt-0.5" />
                           <span>{point}</span>
                         </div>
                       ))}
@@ -163,16 +175,18 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
                   </div>
 
                   <div className="pt-4 border-t border-[#F0EAE1]">
-                    <div className="text-xs text-[#7A7163] mb-3">
+                    <div className="text-xs text-[#70675B] mb-3">
                       מתאים עבור: <strong>{pkg.recommendedFor}</strong>
                     </div>
                     
                     <button
+                      type="button"
+                      aria-label={`שיחה ב-WhatsApp על ${pkg.title}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleWhatsAppBrideInquiry(pkg.title);
                       }}
-                      className="w-full py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#20BE5C] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                      className="w-full py-3 px-4 rounded-xl bg-[#178440] hover:bg-[#136E35] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                     >
                       <MessageCircle className="w-4 h-4" />
                       <span>דברי איתנו ב-WhatsApp</span>

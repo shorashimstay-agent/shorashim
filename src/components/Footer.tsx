@@ -136,7 +136,7 @@ export default function Footer({ onOpenBooking }: FooterProps) {
               rel="noopener noreferrer"
               className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-white/90"
             >
-              <div className="p-2 rounded-xl bg-[#25D366]/20 text-[#25D366]">
+              <div className="p-2 rounded-xl bg-[#178440]/20 text-[#178440]">
                 <MessageCircle className="w-4 h-4" />
               </div>
               <div>
@@ -177,15 +177,34 @@ export default function Footer({ onOpenBooking }: FooterProps) {
         </div>
 
         {/* Legal & Credits Bottom */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-white/50 gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-white/70 gap-4">
           <div>
             כל הזכויות שמורות © {new Date().getFullYear()} שורשים | משק פויזנר, זכרון יעקב
           </div>
-          <div className="flex items-center gap-4">
-            <span>מבוגרים בלבד</span>
-            <span>•</span>
-            <span>אירוח זוגי והתארגנות כלה</span>
-          </div>
+          <nav aria-label="מסמכים">
+            <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+              <li>
+                <a href="/terms/" className="underline hover:text-white">
+                  תנאי הזמנה ושימוש
+                </a>
+              </li>
+              <li>
+                <a href="/privacy/" className="underline hover:text-white">
+                  מדיניות פרטיות
+                </a>
+              </li>
+              <li>
+                <a href="/accessibility/" className="underline hover:text-white">
+                  הצהרת נגישות
+                </a>
+              </li>
+              <li>
+                <a href="/en/terms/" lang="en" hrefLang="en" className="underline hover:text-white">
+                  English
+                </a>
+              </li>
+            </ul>
+          </nav>
         </div>
 
       </div>

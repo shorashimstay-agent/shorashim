@@ -58,7 +58,7 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
           <button
             id="hero-check-dates-btn"
             onClick={onOpenBooking}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#A88358] hover:bg-[#936F45] text-white font-medium text-base shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer"
+            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#8E6F4A] hover:bg-[#936F45] text-white font-medium text-base shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer"
           >
             <Calendar className="w-4 h-4" />
             <span>בדיקת זמינות והזמנה</span>
@@ -99,9 +99,11 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
             {/* Stay Purpose Selector */}
             <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#8C8375] mb-1.5">אופי האירוח</span>
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#EFE9DF] rounded-xl">
+              <span id="hero-stay-kind" className="text-xs font-semibold text-[#6B6255] mb-1.5">אופי האירוח</span>
+              <div role="group" aria-labelledby="hero-stay-kind" className="grid grid-cols-2 gap-1.5 p-1 bg-[#EFE9DF] rounded-xl">
                 <button
+                  type="button"
+                  aria-pressed={quickType === 'couple'}
                   onClick={() => setQuickType('couple')}
                   className={`text-xs sm:text-sm py-1.5 px-3 rounded-lg font-medium transition-all ${
                     quickType === 'couple'
@@ -112,6 +114,8 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
                   אירוח זוגי
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={quickType === 'bride'}
                   onClick={() => setQuickType('bride')}
                   className={`text-xs sm:text-sm py-1.5 px-3 rounded-lg font-medium transition-all ${
                     quickType === 'bride'
@@ -129,12 +133,12 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
               {quickType === 'couple' ? (
                 <>
                   <span className="font-medium text-[#2C2926]">סופ״ש או אמצ״ש שקט</span>
-                  <span className="text-xs text-[#7A7163]">כ-80 מ״ר, חצר ירוקה, גג פרטי עם ערסל ומטבח מלא</span>
+                  <span className="text-xs text-[#70675B]">כ-80 מ״ר, חצר ירוקה, גג פרטי עם ערסל ומטבח מלא</span>
                 </>
               ) : (
                 <>
                   <span className="font-medium text-[#2C2926]">יום כלה / לילה לפני</span>
-                  <span className="text-xs text-[#7A7163]">התארגנות אינטימית, ללא פס ייצור, רקעי צילום טבעיים</span>
+                  <span className="text-xs text-[#70675B]">התארגנות אינטימית, ללא פס ייצור, רקעי צילום טבעיים</span>
                 </>
               )}
             </div>
@@ -153,7 +157,7 @@ export default function Hero({ onOpenBooking, onSelectStayType }: HeroProps) {
                 className="w-full py-2.5 px-4 rounded-xl bg-[#8B6B48] hover:bg-[#735637] text-white text-sm font-medium shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{quickType === 'couple' ? 'בדיקת תאריכים פנויים' : 'גלי את מסלולי הכלה'}</span>
-                <span className="text-xs">←</span>
+                <span className="text-xs" aria-hidden="true">←</span>
               </button>
             </div>
           </div>
