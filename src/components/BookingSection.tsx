@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, useRef } from 'react';
 import { Calendar, Users, Phone, MessageCircle, Sparkles, Check, Info, Send, Loader2 } from 'lucide-react';
 import { BRAND_DATA } from '../data/shorashimData';
 import { RECAPTCHA_SITE_KEY } from '../data/bookingConfig';
@@ -11,6 +11,7 @@ import {
 } from '../lib/bookingApi';
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
 import {
+  addDays,
   daysBetween,
   estimatePrice,
   formatHebrewDate,
@@ -62,9 +63,19 @@ const inputClass = (hasError?: string) =>
     hasError ? 'border-[#D9776B]' : 'border-[#D9CFBF]'
   }`;
 
-function FieldError({ message }: { message?: string }) {
-  return message ? <p className="mt-1 text-xs text-[#B3261E]">{message}</p> : null;
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return message ? (
+    <p id={id} className="mt-1 text-xs text-[#B3261E]">
+      {message}
+    </p>
+  ) : null;
 }
+
+/** Props that tie an input to its error message for screen readers. */
+const described = (errorId: string, message?: string) => ({
+  'aria-invalid': message ? true : undefined,
+  'aria-describedby': message ? errorId : undefined,
+});
 
 export default function BookingSection({ initialStayType = 'couple' }: BookingSectionProps) {
   const stayTypeInputId = useId();
@@ -72,6 +83,10 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
   const phoneInputId = useId();
   const emailInputId = useId();
   const notesInputId = useId();
+  const datesLabelId = useId();
+  const adultsLabelId = useId();
+  const successHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [announcement, setAnnouncement] = useState('');
 
   const [stayType, setStayType] = useState<StayType>(initialStayType);
   const [checkIn, setCheckIn] = useState('');
@@ -173,14 +188,15 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
    * value is invalid, not that the guest has yet to choose.
    */
   const validate = (): FieldErrors => {
-    if (!checkIn || (!wedding && !checkOut)) {
-      return { dates: wedding ? 'בחרו את תאריך החתונה' : 'בחרו תאריכי הגעה ועזיבה' };
-    }
+    // Report every problem at once. Without dates, the other fields are checked against placeholder
+    // dates, and the dates get their own message.
+    const missingDates = !checkIn || (!wedding && !checkOut);
+    const placeholderIn = addDays(israelToday(), 2);
     const check = validateRequest(
       {
         stayType,
-        checkIn,
-        checkOut: wedding ? '' : checkOut,
+        checkIn: missingDates ? placeholderIn : checkIn,
+        checkOut: wedding ? '' : missingDates ? addDays(placeholderIn, 1) : checkOut,
         adults: adultsCount,
         name: fullName.trim(),
         phone: phone.trim(),
@@ -189,12 +205,14 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
       },
       israelToday()
     );
-    if (check.ok) return {};
     const found: FieldErrors = {};
-    Object.keys(check.errors).forEach((key) => {
-      const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
-      found[field] = message;
-    });
+    if (!check.ok) {
+      Object.keys(check.errors).forEach((key) => {
+        const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
+        found[field] = message;
+      });
+    }
+    if (missingDates) found.dates = wedding ? 'בחרו את תאריך החתונה' : 'בחרו תאריכי הגעה ועזיבה';
     return found;
   };
 
@@ -216,12 +234,38 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     setWhatsAppOpened(true);
   };
 
+  // Moves focus to the first field with an error and says how many there are.
+  const focusFirstError = (found: FieldErrors) => {
+    const order: [Field, string][] = [
+      ['dates', datesLabelId],
+      ['name', fullNameInputId],
+      ['phone', phoneInputId],
+      ['email', emailInputId],
+      ['notes', notesInputId],
+    ];
+    const first = order.find(([field]) => found[field]);
+    const count = Object.keys(found).length;
+    setAnnouncement(count === 1 ? 'יש שדה אחד שצריך לתקן.' : `יש ${count} שדות שצריך לתקן.`);
+    if (!first) return;
+    if (first[0] === 'dates') {
+      // The date picker's focusable day (it keeps one day in the tab order), else its first free day.
+      const calendar = document.querySelector(`[aria-labelledby="${datesLabelId}"]`);
+      calendar?.querySelector<HTMLElement>('button[tabindex="0"], .rdp-day_button:not([disabled])')?.focus();
+      return;
+    }
+    document.getElementById(first[1])?.focus();
+  };
+
   const handleSubmit = async () => {
     const found = validate();
     setErrors(found);
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length) {
+      focusFirstError(found);
+      return;
+    }
 
     setSubmission({ state: 'sending' });
+    setAnnouncement('שולחים את הבקשה...');
     let token = '';
     try {
       token = await recaptchaToken('booking_request');
@@ -244,6 +288,9 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     if (result.ok) {
       const { ref, holdHours } = result;
       setSubmission({ state: 'sent', ref, holdHours });
+      setAnnouncement('');
+      // The success panel replaces the form; move focus to it so nobody is left on a vanished button.
+      setTimeout(() => successHeadingRef.current?.focus(), 0);
       // The public availability sheet catches up within about a minute; grey out the held nights now.
       const held = stayRange(stayType, checkIn, checkOut);
       setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]) });
@@ -254,6 +301,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
       loadAvailability();
       setErrors({ dates: 'חלק מהתאריכים נתפסו בינתיים. בחרו תאריכים אחרים.' });
       setSubmission({ state: 'idle' });
+      focusFirstError({ dates: 'x' });
       return;
     }
     if (result.error === 'invalid' && result.fields) {
@@ -264,8 +312,10 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
       });
       setErrors(mapped);
       setSubmission({ state: 'idle' });
+      focusFirstError(mapped);
       return;
     }
+    setAnnouncement('');
     setSubmission({
       state: 'failed',
       message:
@@ -305,7 +355,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
 
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-semibold tracking-wider text-[#A07044] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-2">
             07 | הזמנה ובדיקת זמינות
           </span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
@@ -321,20 +371,21 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
           {/* Booking Engine Form */}
           <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-10 border border-[#E5DCD0] shadow-sm">
             <h3 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-6 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#8B6B48]" />
+              <Calendar className="w-5 h-5 text-[#816342]" />
               <span>בחירת פרטי שהות</span>
             </h3>
 
             {/* Stay Category Selector */}
             <div className="mb-6">
-              <label htmlFor={stayTypeInputId} className="block text-xs font-semibold text-[#736B5E] mb-2">
+              <span id={stayTypeInputId} className="block text-xs font-semibold text-[#736B5E] mb-2">
                 סוג האירוח
-              </label>
-              <div id={stayTypeInputId} className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+              </span>
+              <div role="group" aria-labelledby={stayTypeInputId} className="grid grid-cols-2 sm:grid-cols-2 gap-2">
                 {STAY_OPTIONS.map((option) => (
                   <button
                     key={option.id}
                     type="button"
+                    aria-pressed={stayType === option.id}
                     onClick={() => setStayType(option.id)}
                     className={`py-3 px-3 rounded-2xl text-xs sm:text-sm font-medium border text-center transition-all cursor-pointer ${
                       stayType === option.id
@@ -351,17 +402,20 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
             {/* Availability Calendar */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="block text-xs font-semibold text-[#736B5E]">
+                <span id={datesLabelId} className="block text-xs font-semibold text-[#736B5E]">
                   {wedding ? 'תאריך החתונה' : "תאריכי הגעה ועזיבה (צ'ק-אין 15:00 · צ'ק-אאוט 11:00)"}
                 </span>
                 {checkIn && (
-                  <button type="button" onClick={clearDates} className="text-xs text-[#8B6B48] underline cursor-pointer">
+                  <button type="button" onClick={clearDates} className="text-xs text-[#816342] underline cursor-pointer">
                     ניקוי תאריכים
                   </button>
                 )}
               </div>
 
               <div
+                role="group"
+                aria-labelledby={datesLabelId}
+                aria-describedby={errors.dates ? `${datesLabelId}-error` : undefined}
                 className={`rounded-2xl border bg-[#FAF8F5] p-2 sm:p-4 flex justify-center ${
                   errors.dates ? 'border-[#D9776B]' : 'border-[#E8E0D5]'
                 }`}
@@ -376,7 +430,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 />
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#7A7163]">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#70675B]">
                 {bookingApiEnabled && availabilityState === 'loading' && (
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -393,20 +447,22 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                       הבחירה שלכם
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="line-through text-[#B3A899]">12</span>
+                      <span className="line-through text-[#777066]">12</span>
                       תפוס
                     </span>
                   </>
                 )}
               </div>
 
-              {datesText && <p className="mt-2 text-sm font-medium text-[#241E1A]">{datesText}</p>}
+              <p className="mt-2 text-sm font-medium text-[#241E1A] empty:hidden" aria-live="polite">
+                {datesText}
+              </p>
               {wedding && (
-                <p className="mt-1 text-xs text-[#7A7163]">
+                <p className="mt-1 text-xs text-[#70675B]">
                   כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
                 </p>
               )}
-              <FieldError message={errors.dates} />
+              <FieldError id={`${datesLabelId}-error`} message={errors.dates} />
             </div>
 
             {/* Adults Guests Counter */}
@@ -414,19 +470,21 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-[#8B6B48]" />
-                    <span className="text-sm font-semibold text-[#2C2926]">מספר אורחים מבוגרים</span>
+                    <Users className="w-4 h-4 text-[#816342]" />
+                    <span id={adultsLabelId} className="text-sm font-semibold text-[#2C2926]">מספר אורחים מבוגרים</span>
                   </div>
-                  <span className="text-xs text-[#7A7163]">
+                  <span className="text-xs text-[#70675B]">
                     למבוגרים בלבד • עד 3 מבוגרים (אורח שלישי על ספה נפתחת)
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div role="group" aria-labelledby={adultsLabelId} className="flex items-center gap-2">
                   {[1, 2, 3].map((num) => (
                     <button
                       key={num}
                       type="button"
+                      aria-pressed={adultsCount === num}
+                      aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
                       onClick={() => setAdultsCount(num)}
                       className={`w-9 h-9 rounded-xl font-medium text-sm transition-all cursor-pointer ${
                         adultsCount === num
@@ -454,9 +512,11 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   placeholder="ישראל ישראלי"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  aria-required="true"
+                  {...described(`${fullNameInputId}-error`, errors.name)}
                   className={inputClass(errors.name)}
                 />
-                <FieldError message={errors.name} />
+                <FieldError id={`${fullNameInputId}-error`} message={errors.name} />
               </div>
 
               <div>
@@ -470,9 +530,11 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   placeholder="050-0000000"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  aria-required="true"
+                  {...described(`${phoneInputId}-error`, errors.phone)}
                   className={inputClass(errors.phone)}
                 />
-                <FieldError message={errors.phone} />
+                <FieldError id={`${phoneInputId}-error`} message={errors.phone} />
               </div>
             </div>
 
@@ -488,9 +550,10 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                {...described(`${emailInputId}-error`, errors.email)}
                 className={`${inputClass(errors.email)} text-right`}
               />
-              <FieldError message={errors.email} />
+              <FieldError id={`${emailInputId}-error`} message={errors.email} />
             </div>
 
             <div className="mb-6">
@@ -504,9 +567,10 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 placeholder="ספרו לנו קצת על השהות המתוכננת שלכם..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                {...described(`${notesInputId}-error`, errors.notes)}
                 className={inputClass(errors.notes)}
               />
-              <FieldError message={errors.notes} />
+              <FieldError id={`${notesInputId}-error`} message={errors.notes} />
             </div>
 
             <input
@@ -520,13 +584,18 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               className="sr-only"
             />
 
+            {/* Announces sending and validation results to screen readers. */}
+            <p className="sr-only" aria-live="polite" role="status">
+              {announcement}
+            </p>
+
             {/* Action Buttons */}
             {submission.state === 'sent' ? (
-              <div className="p-5 rounded-2xl bg-[#E8F8EE] border border-[#A7E8BD] text-[#1E6B37]">
-                <div className="flex items-center gap-2 font-semibold mb-1">
+              <div role="status" className="p-5 rounded-2xl bg-[#E8F8EE] border border-[#A7E8BD] text-[#1E6B37]">
+                <h4 ref={successHeadingRef} tabIndex={-1} className="flex items-center gap-2 font-semibold mb-1 outline-none">
                   <Check className="w-5 h-5" />
                   <span>הבקשה נשלחה!</span>
-                </div>
+                </h4>
                 <p className="text-sm">
                   מספר הבקשה: <span dir="ltr" className="font-semibold">{submission.ref}</span>. התאריכים שמורים עבורכם ל-
                   {submission.holdHours} שעות, ונחזור אליכם לאישור בהקדם.
@@ -535,7 +604,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   <button
                     type="button"
                     onClick={() => handleWhatsAppBooking(submission.ref)}
-                    className="flex-1 py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#1EBE5A] text-white text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 py-3 px-4 rounded-xl bg-[#178440] hover:bg-[#136E35] text-white text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>להמשך שיחה ב-WhatsApp</span>
@@ -563,7 +632,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 </button>
 
                 {submission.state === 'failed' && (
-                  <div className="mt-3 p-3 rounded-xl bg-[#FCE8E6] border border-[#E6A39A] text-[#8C1D18] text-xs text-center">
+                  <div role="alert" className="mt-3 p-3 rounded-xl bg-[#FCE8E6] border border-[#E6A39A] text-[#8C1D18] text-xs text-center">
                     {submission.message}
                   </div>
                 )}
@@ -572,14 +641,26 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   type="button"
                   id="submit-booking-whatsapp"
                   onClick={() => handleWhatsAppBooking()}
-                  className="mt-3 w-full py-3 px-6 rounded-2xl border border-[#25D366] text-[#1E6B37] hover:bg-[#E8F8EE] text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="mt-3 w-full py-3 px-6 rounded-2xl border border-[#178440] text-[#1E6B37] hover:bg-[#E8F8EE] text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>מעדיפים WhatsApp? שלחו לנו את הפרטים ישירות</span>
                 </button>
 
+                <p className="mt-3 text-xs text-[#5C5549] text-center">
+                  שליחת הבקשה היא הסכמה ל
+                  <a href="/terms/" className="underline">
+                    תנאי ההזמנה והשימוש
+                  </a>{' '}
+                  ול
+                  <a href="/privacy/" className="underline">
+                    מדיניות הפרטיות
+                  </a>
+                  .
+                </p>
+
                 {RECAPTCHA_SITE_KEY && (
-                  <p className="mt-3 text-[11px] text-[#9A9083] text-center">
+                  <p className="mt-2 text-[11px] text-[#6E675E] text-center">
                     האתר מוגן באמצעות reCAPTCHA, ו
                     <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
                       מדיניות הפרטיות
@@ -597,7 +678,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 type="button"
                 id="submit-booking-whatsapp"
                 onClick={() => handleWhatsAppBooking()}
-                className="w-full py-4 px-6 rounded-2xl bg-[#25D366] hover:bg-[#1EBE5A] text-white font-medium text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer"
+                className="w-full py-4 px-6 rounded-2xl bg-[#178440] hover:bg-[#136E35] text-white font-medium text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer"
               >
                 <MessageCircle className="w-5 h-5" />
                 <span>שליחת בקשת זמינות ישירה ב-WhatsApp</span>
@@ -645,14 +726,14 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 </div>
                 <div className="flex justify-between pt-2 text-base font-semibold text-[#241E1A]">
                   <span>הערכת מחיר:</span>
-                  <span className="text-[#8B6B48] font-serif text-xl">
+                  <span className="text-[#816342] font-serif text-xl">
                     ₪{estimate.toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2 text-xs text-[#7A7163] bg-white p-3 rounded-xl border border-[#E8E0D4] mb-4">
-                <Info className="w-4 h-4 text-[#8B6B48] shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 text-xs text-[#70675B] bg-white p-3 rounded-xl border border-[#E8E0D4] mb-4">
+                <Info className="w-4 h-4 text-[#816342] shrink-0 mt-0.5" />
                 <span>
                   המחיר המוצג הינו הערכה בהתאם לתעריפי תקופת ההרצה. מחיר סופי ומדויק יימסר בהתאמה אישית עם קבלת הפנייה.
                 </span>
@@ -660,15 +741,15 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
 
               <div className="space-y-2 text-xs text-[#61594D]">
                 <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#8B6B48]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#816342]" />
                   <span>בתקופת ההרצה: ללא מינימום לילות</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#8B6B48]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#816342]" />
                   <span>חניה פרטית צמודה כלולה</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#8B6B48]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#816342]" />
                   <span>קפה איכותי, מוצרי רחצה וחלוקים כלולים</span>
                 </div>
               </div>
@@ -686,7 +767,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               <div className="flex flex-col sm:flex-row gap-3">
                 <a
                   href={`tel:${BRAND_DATA.phone}`}
-                  className="flex-1 py-3 px-4 rounded-xl border border-[#8B6B48] text-[#8B6B48] hover:bg-[#F7F2EA] text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-xl border border-[#8B6B48] text-[#816342] hover:bg-[#F7F2EA] text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Phone className="w-4 h-4" />
                   <span dir="ltr">{BRAND_DATA.phoneFormatted}</span>
@@ -696,7 +777,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   href={`https://wa.me/${BRAND_DATA.whatsappNumber}?text=${encodeURIComponent('היי שורשים, אשמח לפרטים על אירוח אצלכם')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#1EBE5A] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-xl bg-[#178440] hover:bg-[#136E35] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp ישיר</span>

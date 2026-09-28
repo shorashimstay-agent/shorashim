@@ -10,6 +10,7 @@ import BookingSection from './components/BookingSection';
 import FaqSection from './components/FaqSection';
 import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
+import AccessibilityMenu from './components/AccessibilityMenu';
 
 export default function App() {
   const [selectedStayType, setSelectedStayType] = useState<
@@ -35,11 +36,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2C2926] font-sans antialiased selection:bg-[#E2D5C3] selection:text-[#201C18]">
+      <a href="#main" className="skip-link">
+        דלגו לתוכן העיקרי
+      </a>
+
       {/* Top Header */}
       <Header onOpenBooking={scrollToBooking} />
 
       {/* Main Content Sections */}
-      <main>
+      <main id="main" tabIndex={-1} className="outline-none">
         {/* 01 | דף הבית / Hero */}
         <Hero
           onOpenBooking={scrollToBooking}
@@ -73,6 +78,8 @@ export default function App() {
 
       {/* Floating WhatsApp Contact Button */}
       <FloatingWhatsApp />
+
+      <AccessibilityMenu />
     </div>
   );
 }

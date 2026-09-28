@@ -24,7 +24,7 @@ export default function ZichronGuide() {
         
         {/* Section Header */}
         <div className="max-w-3xl mb-12">
-          <span className="text-xs font-semibold tracking-wider text-[#A07044] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-2">
             05 | זכרון שלנו
           </span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
@@ -67,11 +67,11 @@ export default function ZichronGuide() {
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-xs px-3 py-1 rounded-full bg-[#F3ECE0] text-[#8B6B48] font-semibold">
+                  <span className="text-xs px-3 py-1 rounded-full bg-[#F3ECE0] text-[#816342] font-semibold">
                     {place.categoryLabel}
                   </span>
-                  <div className="flex items-center gap-1 text-xs text-[#7A7163]">
-                    <MapPin className="w-3.5 h-3.5 text-[#8B6B48]" />
+                  <div className="flex items-center gap-1 text-xs text-[#70675B]">
+                    <MapPin className="w-3.5 h-3.5 text-[#816342]" />
                     <span>{place.distance}</span>
                   </div>
                 </div>
@@ -88,9 +88,9 @@ export default function ZichronGuide() {
               {/* Personal Quote by Sari or Yoav */}
               <div className="pt-4 border-t border-[#F0E8DD] bg-[#FAF8F5] -mx-6 -mb-6 p-5 rounded-b-3xl mt-2">
                 <div className="flex items-start gap-2.5">
-                  <Quote className="w-4 h-4 text-[#8B6B48] shrink-0 mt-1 rotate-180" />
+                  <Quote className="w-4 h-4 text-[#816342] shrink-0 mt-1 rotate-180" />
                   <div className="text-xs sm:text-sm text-[#453D32] leading-relaxed">
-                    <span className="font-semibold text-[#8B6B48] block mb-0.5">
+                    <span className="font-semibold text-[#816342] block mb-0.5">
                       {place.recommendationBy} {place.recommendationBy === 'יואב' ? 'ממליץ' : 'ממליצה'}:
                     </span>
                     {place.tip}

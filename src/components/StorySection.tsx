@@ -9,7 +9,7 @@ export default function StorySection() {
         
         {/* Section Header */}
         <div className="max-w-3xl mb-16">
-          <span className="text-xs font-semibold tracking-wider text-[#A07044] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-2">
             04 | הסיפור שלנו
           </span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
@@ -29,7 +29,7 @@ export default function StorySection() {
             
             {/* Chapter 1: Five Generations */}
             <div className="relative pl-0 pr-4 border-r-2 border-[#D9CFBF]">
-              <div className="flex items-center gap-2 text-sm font-semibold text-[#8B6B48] mb-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[#816342] mb-2">
                 <Clock className="w-4 h-4" />
                 <span>חמישה דורות של אדמה</span>
               </div>
@@ -43,7 +43,7 @@ export default function StorySection() {
 
             {/* Chapter 2: The House of Tzipi and Yossi */}
             <div className="relative pl-0 pr-4 border-r-2 border-[#D9CFBF]">
-              <div className="flex items-center gap-2 text-sm font-semibold text-[#8B6B48] mb-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[#816342] mb-2">
                 <Heart className="w-4 h-4" />
                 <span>הבית של ציפי ויוסי</span>
               </div>
@@ -62,7 +62,7 @@ export default function StorySection() {
 
             {/* Chapter 3: When the House Emptied & Shorashim Was Born */}
             <div className="relative pl-0 pr-4 border-r-2 border-[#D9CFBF]">
-              <div className="flex items-center gap-2 text-sm font-semibold text-[#8B6B48] mb-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[#816342] mb-2">
                 <Sprout className="w-4 h-4" />
                 <span>כשהבית התרוקן, וכך נולד שורשים</span>
               </div>
@@ -91,10 +91,10 @@ export default function StorySection() {
                 sizes="(min-width: 1024px) 40vw, 100vw"
               />
               <div className="p-4 text-center">
-                <span className="text-xs uppercase tracking-wider text-[#8B6B48] font-semibold block mb-1">
+                <span className="text-xs uppercase tracking-wider text-[#816342] font-semibold block mb-1">
                   1882 • משק פויזנר, זכרון יעקב
                 </span>
-                <p className="text-xs text-[#7A7163] leading-relaxed">
+                <p className="text-xs text-[#70675B] leading-relaxed">
                   השורשים נמצאים באדמה, בעצים, בכרמים ובבית הפתוח
                 </p>
               </div>
@@ -102,7 +102,7 @@ export default function StorySection() {
 
             {/* Why Shorashim Quote Box */}
             <div className="bg-[#F3ECE0] rounded-2xl p-6 sm:p-8 border border-[#E5DBCC]">
-              <div className="flex items-center gap-2 text-[#8B6B48] font-semibold text-sm mb-3">
+              <div className="flex items-center gap-2 text-[#816342] font-semibold text-sm mb-3">
                 <Landmark className="w-4 h-4" />
                 <span>למה שורשים?</span>
               </div>
@@ -111,7 +111,7 @@ export default function StorySection() {
                 הורים שאנחנו מתגעגעים אליהם. וילדים שאנחנו רוצים שיידעו מאיפה הם באו.
                 כנראה שלא יכולנו לקרוא לו אחרת. שורשים.״
               </p>
-              <span className="text-xs font-semibold text-[#8B6B48]">
+              <span className="text-xs font-semibold text-[#816342]">
                 שרי ויואב פויזנר
               </span>
             </div>

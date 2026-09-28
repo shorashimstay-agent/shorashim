@@ -69,13 +69,13 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-semibold tracking-wider text-[#A07044] uppercase block mb-3">
+          <span className="text-xs font-semibold tracking-wider text-[#89603A] uppercase block mb-3">
             02 | האירוח
           </span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#241E1A] font-normal tracking-tight mb-4">
             האירוח בשורשים
           </h2>
-          <p className="font-serif text-xl sm:text-2xl text-[#8B6B48] font-normal italic">
+          <p className="font-serif text-xl sm:text-2xl text-[#816342] font-normal italic">
             העבר לא נשאר מאחור. הוא פשוט קיבל מקום חדש.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               <p className="font-serif text-xl sm:text-2xl text-[#241E1A] font-normal mb-1">
                 בשורשים, שום דבר לא נבחר כדי "להיראות כמו פעם"
               </p>
-              <p className="font-serif text-xl sm:text-2xl text-[#8B6B48] font-normal">
+              <p className="font-serif text-xl sm:text-2xl text-[#816342] font-normal">
                 הוא פשוט היה כאן פעם
               </p>
             </div>
@@ -102,30 +102,30 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               רהיטים וחפצים מהבית המשפחתי, תמונות ישנות, עץ ואבן חיים לצד עיצוב נקי ועכשווי. לא ניסינו לשחזר את העבר בחרנו את הדברים שאנחנו אוהבים ממנו ונתנו להם חיים חדשים.
             </p>
 
-            <p className="font-serif text-lg sm:text-xl text-[#8B6B48] font-medium">
+            <p className="font-serif text-lg sm:text-xl text-[#816342] font-medium">
               ישן עם חדש. סיפור עם סטייל. בית עם בוטיק.
             </p>
 
             {/* Quick Specs Badges */}
             <div className="flex flex-wrap gap-3 pt-2">
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 80 מ"ר שנועדו פשוט ליהנות מהם
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 {BRAND_DATA.capacity}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 צמוד למדרחוב – קולינריה, יין וחיי לילה
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 חצר ירוקה, שקט וציוץ ציפורים
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 חניה פרטית צמודה
               </span>
             </div>
@@ -193,7 +193,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
           {/* Card 1: 80 SQM Flow */}
           <div className="bg-white rounded-3xl p-8 border border-[#E8E1D5] shadow-xs flex flex-col justify-between space-y-4">
             <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#8B6B48] mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#816342] mb-4">
                 <Sun className="w-5 h-5" />
               </div>
               <h3 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-3">
@@ -207,7 +207,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </p>
             </div>
             <div className="pt-4 border-t border-[#F0EAE1]">
-              <p className="font-serif text-base text-[#8B6B48] font-medium">
+              <p className="font-serif text-base text-[#816342] font-medium">
                 מקום שלא רק ישנים בו. נשארים בו.
               </p>
             </div>
@@ -216,7 +216,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
           {/* Card 2: Style with Roots (ציפי) */}
           <div className="bg-white rounded-3xl p-8 border border-[#E8E1D5] shadow-xs flex flex-col justify-between space-y-4">
             <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#8B6B48] mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#816342] mb-4">
                 <Sparkles className="w-5 h-5" />
               </div>
               <h3 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-3">
@@ -230,7 +230,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </p>
             </div>
             <div className="pt-4 border-t border-[#F0EAE1]">
-              <p className="font-serif text-base text-[#8B6B48] font-medium">
+              <p className="font-serif text-base text-[#816342] font-medium">
                 חיבורים לא צפויים ויופי שנשאר.
               </p>
             </div>
@@ -239,7 +239,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
           {/* Card 3: Location (קרובים להכל) */}
           <div className="bg-white rounded-3xl p-8 border border-[#E8E1D5] shadow-xs flex flex-col justify-between space-y-4">
             <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#8B6B48] mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-[#F4EDE2] flex items-center justify-center text-[#816342] mb-4">
                 <MapPin className="w-5 h-5" />
               </div>
               <h3 className="font-serif text-xl sm:text-2xl text-[#241E1A] font-medium mb-3">
@@ -253,7 +253,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </p>
             </div>
             <div className="pt-4 border-t border-[#F0EAE1]">
-              <p className="font-serif text-base text-[#8B6B48] font-medium">
+              <p className="font-serif text-base text-[#816342] font-medium">
                 משק פויזנר, המייסדים 71, זכרון יעקב
               </p>
             </div>
@@ -267,7 +267,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
             <h3 className="font-serif text-2xl sm:text-3xl text-[#241E1A] font-normal mb-3">
               מה מחכה לכם בשורשים
             </h3>
-            <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-[#FAF7F2] border border-[#E8E1D5] text-[#8B6B48] text-sm sm:text-base font-medium">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-[#FAF7F2] border border-[#E8E1D5] text-[#816342] text-sm sm:text-base font-medium">
               <span>כ־80 מ"ר</span>
               <span>|</span>
               <span>לזוגות בלבד</span>
@@ -302,7 +302,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
 
             <div className="flex items-center gap-2 text-[#7A6F62]">
               <span className="inline-flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4 text-[#8B6B48]" />
+                <CheckCircle2 className="w-4 h-4 text-[#816342]" />
                 הצימר נגיש מאוד
               </span>
               <span className="text-[#C4B6A6]">|</span>

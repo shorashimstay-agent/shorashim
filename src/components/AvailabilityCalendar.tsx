@@ -74,6 +74,18 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
       showOutsideDays={false}
       disabled={isDisabled}
       onDayClick={handleDayClick}
+      labels={{
+        // Screen readers hear the full date and whether it can be chosen, not just the day number.
+        labelDayButton: (date: Date, modifiers: Modifiers) => {
+          const d = toISODate(date);
+          const text = date.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+          if (range && d === range.start) return `${text}, ${wedding ? 'תאריך החתונה שנבחר' : 'תאריך ההגעה שנבחר'}`;
+          if (range && !wedding && d === range.end) return `${text}, תאריך העזיבה שנבחר`;
+          if (blocked.has(d)) return `${text}, תפוס`;
+          if (modifiers.disabled) return `${text}, לא זמין לבחירה`;
+          return text;
+        },
+      }}
       modifiers={{
         booked: (date: Date) => blocked.has(toISODate(date)),
         stayStart: (date: Date) => inRange(date, 'start'),
