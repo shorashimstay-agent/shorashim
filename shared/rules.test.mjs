@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import {
+  PRICES,
   blockedNights,
+  checkPrices,
   conflictingNights,
   estimatePrice,
   isHoldActive,
@@ -56,6 +58,40 @@ test('price estimate matches the site', () => {
   assert.equal(estimatePrice('couple', 2, 3), 2300);
   assert.equal(estimatePrice('bride_day', 2, 3), 1800);
   assert.equal(estimatePrice('wedding_night', 1, 2), 1200);
+});
+
+test('estimates use the prices they are given', () => {
+  const prices = { ...PRICES, perNight: 1000, thirdGuestPerNight: 300, bride_day: 2000 };
+  assert.equal(estimatePrice('couple', 2, 3, prices), 2600);
+  assert.equal(estimatePrice('bride_day', 2, 2, prices), 2000);
+  assert.equal(validateRequest({ ...valid }, '2026-09-15', prices).value.estimate, 2000);
+});
+
+test('the published prices.json passes the checks', () => {
+  const file = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../public/prices.json'), 'utf8'));
+  const checked = checkPrices(file);
+  assert.ok(checked.ok, checked.error);
+});
+
+test('checkPrices refuses anything but whole shekels in range, with a version', () => {
+  const good = { version: 'front-2@6695fc4', prices: { ...PRICES } };
+  assert.deepEqual(checkPrices(good), { ok: true, version: good.version, prices: PRICES });
+  assert.equal(checkPrices({ ...good, prices: { ...PRICES, extra: 5 } }).ok, true);
+  for (const bad of [
+    null,
+    'x',
+    { prices: PRICES },
+    { version: '', prices: PRICES },
+    { version: 'has space', prices: PRICES },
+    { version: 'v1' },
+    { version: 'v1', prices: { ...PRICES, perNight: '950' } },
+    { version: 'v1', prices: { ...PRICES, perNight: 950.5 } },
+    { version: 'v1', prices: { ...PRICES, perNight: 95 } },
+    { version: 'v1', prices: { ...PRICES, bride_day: 20001 } },
+    { version: 'v1', prices: { ...PRICES, wedding_night: undefined } },
+  ]) {
+    assert.equal(checkPrices(bad).ok, false, JSON.stringify(bad));
+  }
 });
 
 test('holds expire after 24 hours', () => {
@@ -111,7 +147,7 @@ test('the Apps Script form of the module is plain globals that behave the same',
   // Apps Script evaluates every file into one shared global scope.
   const globals = vm.createContext({});
   vm.runInContext(stripped, globals);
-  for (const name of ['STAY_TYPES', 'PRICES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber']) {
+  for (const name of ['STAY_TYPES', 'PRICES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices']) {
     assert.ok(globals[name] !== undefined, `Code.js calls ${name}, so it must be a global`);
   }
   assert.equal(globals.estimatePrice('couple', 2, 3), estimatePrice('couple', 2, 3));

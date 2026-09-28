@@ -37,6 +37,13 @@ test('production availability, snapshot and triggers are healthy', async () => {
   expect(diag.triggers).toEqual(expect.arrayContaining(['onSheetEdit:ON_EDIT', 'onSnapshotTimer:CLOCK']));
 });
 
+test('the production web app prices from the live /prices.json', async ({ request }) => {
+  const file = await (await request.get(`/prices.json?t=${Date.now()}`)).json();
+  expect(typeof file.version).toBe('string');
+  // Passing the version, as a page would, makes the web app re-read the file if its copy is older.
+  expect((await api.diag(file.version)).pricesVersion).toBe(file.version);
+});
+
 test('reCAPTCHA tokens from the live page verify for shorashimstay.com', async ({ page }) => {
   await page.goto('/#booking');
   await page.locator('#booking').evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
