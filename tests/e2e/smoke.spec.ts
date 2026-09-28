@@ -46,6 +46,10 @@ test('the production web app prices from the live /prices.json', async ({ reques
 
 test('the owner console is live, private, and its backend answers', async () => {
   expect(cfg.consoleUrl, 'deploy it with: deploy.py --app console').toBeTruthy();
+  // shorashimstay.com/admin is the short address: it forwards to the console and is not indexed.
+  const admin = await (await fetch('https://shorashimstay.com/admin/')).text();
+  expect(admin).toContain(cfg.consoleUrl!);
+  expect(admin).toContain('noindex');
   const res = await fetch(cfg.consoleUrl!, { redirect: 'manual' });
   expect(res.status).toBe(302);
   expect(res.headers.get('location') ?? '').toMatch(/^https:\/\/accounts\.google\.com\//);

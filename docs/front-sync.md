@@ -47,7 +47,7 @@ every check passes.
 
 | Owner | Files | Rule |
 |---|---|---|
-| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `console/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `public/prices.json`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
+| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `console/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `public/prices.json`, `public/admin/`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
 | Design | everything else under `src/` and `public/`, and `index.html` | three-way merge: front-2's change is taken where the site did not change the same lines |
 | Ignored | anything else front-2 has (`metadata.json`, AI Studio config) | not taken |
 

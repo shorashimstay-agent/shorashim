@@ -59,6 +59,7 @@ const PROTECTED = [
   /^playwright\.config\.ts$/,
   /^public\/CNAME$/,
   /^public\/prices\.json$/,
+  /^public\/admin\//,
   /^src\/lib\//,
   /^src\/booking\//,
   /^src\/legal\//,
