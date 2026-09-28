@@ -46,9 +46,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'אפשר לבטל הזמנה בטלפון, ב-WhatsApp או בדוא"ל. מועד הביטול הוא המועד שבו קיבלנו את ההודעה. דמי הביטול מחושבים ממחיר ההזמנה הכולל:',
             [
-              'תאריכים רגילים: ביטול עד 7 ימים לפני יום ההגעה – ללא עלות.',
-              'חגים, חול המועד, יולי–אוגוסט ומסלולי כלה: ביטול עד 14 ימים לפני יום ההגעה – ללא עלות.',
-              'ביטול אחרי המועדים האלה ועד 48 שעות לפני יום ההגעה – 50% ממחיר ההזמנה.',
+              'ביטול עד 7 ימים לפני יום ההגעה – ללא עלות.',
+              'ביטול אחרי המועד הזה ועד 48 שעות לפני יום ההגעה – 50% ממחיר ההזמנה.',
               'ביטול בפחות מ-48 שעות לפני יום ההגעה, או אי-הגעה – 100% ממחיר ההזמנה.',
             ],
             'זכות הביטול לפי חוק הגנת הצרכן: אם תבטלו תוך 14 ימים מיום אישור ההזמנה, ובתנאי שנותרו לפחות 7 ימים שאינם ימי מנוחה עד יום ההגעה, דמי הביטול יהיו 5% ממחיר ההזמנה או 100 ₪, הנמוך מביניהם. במקרה של סתירה, הזכות לפי החוק גוברת על האמור בסעיף זה.',
@@ -126,9 +125,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'You can cancel by phone, WhatsApp or email. The cancellation time is when we receive your message. Fees are a share of the total booking price:',
             [
-              'Regular dates: cancel up to 7 days before arrival – free of charge.',
-              'Holidays, Chol HaMoed, July–August and bride packages: cancel up to 14 days before arrival – free of charge.',
-              'Cancellation after those deadlines and up to 48 hours before arrival – 50% of the booking price.',
+              'Cancel up to 7 days before arrival – free of charge.',
+              'Cancellation after that and up to 48 hours before arrival – 50% of the booking price.',
               'Cancellation less than 48 hours before arrival, or not arriving – 100% of the booking price.',
             ],
             'Your statutory right under the Israeli Consumer Protection Law: if you cancel within 14 days of the booking confirmation, and at least 7 days that are not rest days remain before arrival, the fee is 5% of the booking price or ILS 100, whichever is lower. Where they differ, this statutory right prevails over the terms above.',
