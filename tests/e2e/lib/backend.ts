@@ -20,7 +20,9 @@ async function call(cfg: BackendConfig, init: { query?: string; body?: unknown }
   let last = '';
   for (let attempt = 1; attempt <= 6; attempt++) {
     try {
-      const res = await fetch(cfg.webAppUrl + (init.query ?? ''), init.body === undefined ? {} : {
+      // Google sometimes never answers; give up on an attempt after a minute and retry.
+      const res = await fetch(cfg.webAppUrl + (init.query ?? ''), init.body === undefined ? { signal: AbortSignal.timeout(60_000) } : {
+        signal: AbortSignal.timeout(60_000),
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(init.body),
@@ -62,6 +64,15 @@ export const webApp = (cfg: BackendConfig) => ({
   pruneDecisions: (refs: string[]) => {
     const t = String(Date.now());
     return call(cfg, { body: { action: 'pruneDecisions', refs, t, sig: sign(cfg, 'prune:' + t) } }, (j) => 'removed' in j);
+  },
+  /**
+   * The owner console's signed call (Server.js does the same). The signature covers the operation
+   * and its arguments; `sig` overrides it to test refusals.
+   */
+  console: (op: string, args: { id?: string; decision?: string } = {}, sig?: string) => {
+    const t = String(Date.now());
+    const body = { action: 'console', op, t, id: args.id ?? '', decision: args.decision ?? '' };
+    return call(cfg, { body: { ...body, sig: sig ?? sign(cfg, ['console', t, op, body.id, body.decision].join(':')) } }, notDefault);
   },
   decideUrl: (id: string, sig = sign(cfg, id)) => `${cfg.webAppUrl}?action=decide&id=${encodeURIComponent(id)}&sig=${sig}`,
 });

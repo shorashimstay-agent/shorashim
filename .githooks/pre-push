@@ -5,7 +5,7 @@
 set -euo pipefail
 marker="$(git rev-parse --git-dir)/e2e-passed"
 zero=0000000000000000000000000000000000000000
-checked='^(src/|public/|shared/|apps-script/|scripts/|tests/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$|tsconfig\.json$|playwright\.config\.ts$|\.github/)'
+checked='^(src/|public/|shared/|apps-script/|console/|scripts/|tests/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$|tsconfig\.json$|playwright\.config\.ts$|\.github/)'
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   # The private front-2 clone must never reach this public repo, on any branch.

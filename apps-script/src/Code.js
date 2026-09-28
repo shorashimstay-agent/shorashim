@@ -49,6 +49,9 @@ function doPost(e) {
     if (body.action === 'testFireSheetEdit' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testFireSheetEdit_(body.row));
     }
+    if (body.action === 'console' && validSig_(consoleSigned_(body), body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(consoleCall_(body));
+    }
     if (body.action === 'testSetPrices' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testSetPrices_(body.file));
     }
@@ -577,14 +580,103 @@ function writeTab_(sheet, width, rows) {
   if (rows.length) sheet.getRange(2, 1, rows.length, width).setValues(rows);
 }
 
+var MIRRORS_REFRESHED_KEY = 'mirrorsRefreshedAt';
+
+/**
+ * What the admin sheet and the owner console show, read from the calendars: pending and expired
+ * requests, decisions of the last DECISION_DAYS days, bookings (website and manual) and channel
+ * bookings, from 30 days back to the end of the booking window. Both views are built from this, so
+ * they cannot disagree. `lists` keeps the raw calendar items for callers that need more.
+ */
+function adminData_() {
+  var today = today_();
+  var now = Date.now();
+  var lists = listEvents_(['requests', 'bookings', 'channels'], localDate_(addDays(today, -30)), localDate_(addDays(today, HORIZON_DAYS + 1)));
+  var stayLabel = function (type) {
+    return STAY_TYPES[type] ? STAY_TYPES[type].label : '';
+  };
+  var requests = lists.requests.map(function (item) {
+    var props = eventProps_(item);
+    var req = JSON.parse(props.request || '{}');
+    var range = itemRange_(item);
+    var createdAt = props.createdAt || '';
+    return {
+      id: item.iCalUID,
+      ref: req.ref || '',
+      holding: props.status === 'pending' && isHoldActive(createdAt, now),
+      holdUntil: createdAt ? new Date(Date.parse(createdAt) + HOLD_HOURS * 3600000).toISOString() : '',
+      stayType: req.stayType || '',
+      stayLabel: stayLabel(req.stayType),
+      checkIn: req.checkIn || range.start,
+      start: range.start,
+      end: range.end,
+      nights: range.nights,
+      adults: req.adults || '',
+      name: req.name || item.summary || '',
+      phone: req.phone || '',
+      email: req.email || '',
+      notes: req.notes || '',
+      estimate: req.estimate || 0,
+      createdAt: createdAt,
+      whatsapp: req.phone ? waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים') : '',
+    };
+  });
+  var cutoff = now - DECISION_DAYS * 86400000;
+  var decisions = JSON.parse(PropertiesService.getScriptProperties().getProperty(DECISIONS_KEY) || '[]')
+    .filter(function (d) {
+      return Date.parse(d.at) > cutoff;
+    })
+    .map(function (d) {
+      return {
+        at: d.at,
+        result: d.result,
+        ref: d.ref || '',
+        name: d.name || '',
+        phone: d.phone || '',
+        stayType: d.stayType || '',
+        stayLabel: stayLabel(d.stayType),
+        start: d.start,
+        end: d.end,
+        nights: daysBetween(d.start, d.end),
+        whatsapp: d.whatsapp || '',
+      };
+    });
+  var bookings = lists.bookings.map(function (item) {
+    var props = eventProps_(item);
+    var req = JSON.parse(props.request || '{}');
+    var range = itemRange_(item);
+    return {
+      id: item.iCalUID,
+      title: item.summary || '',
+      start: range.start,
+      end: range.end,
+      nights: range.nights,
+      source: props.source === 'website' ? 'website' : 'manual',
+      stayType: req.stayType || '',
+      stayLabel: stayLabel(req.stayType),
+      adults: req.adults || '',
+      name: req.name || '',
+      phone: req.phone || '',
+      email: req.email || '',
+      notes: req.notes || '',
+      ref: req.ref || '',
+      whatsapp: req.phone ? waLink_(req.phone, 'שלום ' + req.name + ', ') : '',
+    };
+  });
+  var channels = lists.channels.map(function (item) {
+    var range = itemRange_(item);
+    return { id: item.iCalUID, title: item.summary || '', start: range.start, end: range.end, nights: range.nights };
+  });
+  return { today: today, lists: lists, requests: requests, decisions: decisions, bookings: bookings, channels: channels };
+}
+
 function syncAdminSheet_() {
   if (!CONFIG.adminSheetId) return;
   var ss = SpreadsheetApp.openById(CONFIG.adminSheetId);
-  var today = today_();
-  var from = localDate_(addDays(today, -30));
-  var to = localDate_(addDays(today, HORIZON_DAYS + 1));
-  var now = Date.now();
-  var lists = listEvents_(['requests', 'bookings', 'channels'], from, to);
+  var data = adminData_();
+  var money = function (n) {
+    return n ? text_('₪' + Number(n).toLocaleString('en-US')) : '';
+  };
 
   // Requests: keep a choice made in פעולה that has not been confirmed yet.
   var requests = adminTab_(ss, ADMIN_TABS.requests, REQUEST_COLUMNS);
@@ -597,59 +689,49 @@ function syncAdminSheet_() {
         if (row[ID_COL - 1] && row[ACTION_COL - 1]) chosen[row[ID_COL - 1]] = row[ACTION_COL - 1];
       });
   }
-  var pending = lists.requests.map(function (item) {
-      var props = eventProps_(item);
-      var req = JSON.parse(props.request || '{}');
-      var range = itemRange_(item);
-      var holding = props.status === 'pending' && isHoldActive(props.createdAt, now);
-      var createdAt = props.createdAt;
-      return [
-        text_(req.ref),
-        holding ? 'ממתינה – התאריכים שמורים' : 'ממתינה – פג תוקף השמירה',
-        STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
-        text_(heDate_(range.start)),
-        text_(heDate_(range.end)),
-        range.nights,
-        req.adults || '',
-        text_(req.name || item.summary),
-        text_(req.phone),
-        text_(req.email),
-        text_(req.notes),
-        req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US')) : '',
-        createdAt ? text_(fmt_(new Date(createdAt), 'dd.MM.yyyy HH:mm')) : '',
-        chosen[item.iCalUID] || '',
-        false,
-        req.phone ? sheetLink_(waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים'), 'WhatsApp') : '',
-        item.iCalUID,
-      ];
-    });
-  var cutoff = now - DECISION_DAYS * 86400000;
-  var decided = JSON.parse(PropertiesService.getScriptProperties().getProperty(DECISIONS_KEY) || '[]')
-    .filter(function (d) {
-      return Date.parse(d.at) > cutoff;
-    })
-    .map(function (d) {
-      var approved = d.result === 'approved';
-      return [
-        text_(d.ref),
-        approved ? 'אושרה ✓' : 'נדחתה ✗',
-        STAY_TYPES[d.stayType] ? STAY_TYPES[d.stayType].label : '',
-        text_(heDate_(d.start)),
-        text_(heDate_(d.end)),
-        daysBetween(d.start, d.end),
-        '',
-        text_(d.name),
-        text_(d.phone),
-        '',
-        '',
-        '',
-        text_('טופלה ' + fmt_(new Date(d.at), 'dd.MM.yyyy HH:mm')),
-        '',
-        '',
-        sheetLink_(d.whatsapp, approved ? 'שליחת אישור ב-WhatsApp' : 'שליחת דחייה ב-WhatsApp'),
-        '',
-      ];
-    });
+  var pending = data.requests.map(function (r) {
+    return [
+      text_(r.ref),
+      r.holding ? 'ממתינה – התאריכים שמורים' : 'ממתינה – פג תוקף השמירה',
+      r.stayLabel,
+      text_(heDate_(r.start)),
+      text_(heDate_(r.end)),
+      r.nights,
+      r.adults,
+      text_(r.name),
+      text_(r.phone),
+      text_(r.email),
+      text_(r.notes),
+      money(r.estimate),
+      r.createdAt ? text_(fmt_(new Date(r.createdAt), 'dd.MM.yyyy HH:mm')) : '',
+      chosen[r.id] || '',
+      false,
+      sheetLink_(r.whatsapp, 'WhatsApp'),
+      r.id,
+    ];
+  });
+  var decided = data.decisions.map(function (d) {
+    var approved = d.result === 'approved';
+    return [
+      text_(d.ref),
+      approved ? 'אושרה ✓' : 'נדחתה ✗',
+      d.stayLabel,
+      text_(heDate_(d.start)),
+      text_(heDate_(d.end)),
+      d.nights,
+      '',
+      text_(d.name),
+      text_(d.phone),
+      '',
+      '',
+      '',
+      text_('טופלה ' + fmt_(new Date(d.at), 'dd.MM.yyyy HH:mm')),
+      '',
+      '',
+      sheetLink_(d.whatsapp, approved ? 'שליחת אישור ב-WhatsApp' : 'שליחת דחייה ב-WhatsApp'),
+      '',
+    ];
+  });
   writeTab_(requests, REQUEST_COLUMNS.length, pending.concat(decided));
   if (pending.length) {
     requests
@@ -664,43 +746,95 @@ function syncAdminSheet_() {
   writeTab_(
     bookings,
     BOOKING_COLUMNS.length,
-    lists.bookings.map(function (item) {
-        var props = eventProps_(item);
-        var req = JSON.parse(props.request || '{}');
-        var range = itemRange_(item);
-        return [
-          text_(item.summary),
-          text_(heDate_(range.start)),
-          text_(heDate_(range.end)),
-          range.nights,
-          props.source === 'website' ? 'אתר' : 'ידני',
-          STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
-          req.adults || '',
-          text_(req.phone),
-          text_(req.email),
-          text_(req.notes),
-          text_(req.ref),
-          req.phone ? sheetLink_(waLink_(req.phone, 'שלום ' + req.name + ', '), 'WhatsApp') : '',
-        ];
-      })
+    data.bookings.map(function (b) {
+      return [
+        text_(b.title),
+        text_(heDate_(b.start)),
+        text_(heDate_(b.end)),
+        b.nights,
+        b.source === 'website' ? 'אתר' : 'ידני',
+        b.stayLabel,
+        b.adults,
+        text_(b.phone),
+        text_(b.email),
+        text_(b.notes),
+        text_(b.ref),
+        sheetLink_(b.whatsapp, 'WhatsApp'),
+      ];
+    })
   );
 
   var channels = adminTab_(ss, ADMIN_TABS.channels, CHANNEL_COLUMNS);
   writeTab_(
     channels,
     CHANNEL_COLUMNS.length,
-    lists.channels.map(function (item) {
-        var range = itemRange_(item);
-        return [text_(item.summary), text_(heDate_(range.start)), text_(heDate_(range.end)), range.nights];
-      })
+    data.channels.map(function (c) {
+      return [text_(c.title), text_(heDate_(c.start)), text_(heDate_(c.end)), c.nights];
+    })
   );
+  PropertiesService.getScriptProperties().setProperty(MIRRORS_REFRESHED_KEY, new Date().toISOString());
+}
+
+// ---------------------------------------------------------------------------
+// Owner console (console/): a separate, owner-only Apps Script web app. It holds no booking logic
+// and never touches the calendars itself; it calls these signed actions, so every write still goes
+// through this project's lock, caches and decision list.
+
+/** What a console call's signature covers: the operation and its arguments, not only the time. */
+function consoleSigned_(body) {
+  return ['console', body.t, body.op, body.id || '', body.decision || ''].join(':');
+}
+
+function consoleCall_(body) {
+  if (body.op === 'overview') return consoleOverview_();
+  if (body.op === 'decide') return decideAndRecord_(body.decision, String(body.id || ''), false);
+  return { ok: false, error: 'bad_request' };
 }
 
 /**
- * Staging only (CONFIG.testHooks): Google fires onEdit only for edits typed in the Sheets UI, never for
- * API edits, so the regression suite makes its edit through the Sheets API and then hands that cell
- * to the real handler here.
+ * Everything the console shows. Each pending request carries the nights that now block it (other
+ * bookings, channel bookings and active holds), so the console can refuse approval the way the
+ * decision page does.
  */
+function consoleOverview_() {
+  var data = adminData_();
+  var now = Date.now();
+  var fixed = data.lists.bookings.concat(data.lists.channels).map(itemRuleEvent_);
+  var holds = data.lists.requests.filter(function (item) {
+    var props = eventProps_(item);
+    return props.status === 'pending' && isHoldActive(props.createdAt, now);
+  });
+  data.requests.forEach(function (r) {
+    var others = fixed.concat(
+      holds
+        .filter(function (item) {
+          return item.iCalUID !== r.id;
+        })
+        .map(itemRuleEvent_)
+    );
+    r.conflicts = conflictingNights(blockedNights(others, r.start, r.end), r.start, r.end);
+  });
+  var props = PropertiesService.getScriptProperties();
+  return {
+    ok: true,
+    today: data.today,
+    generatedAt: new Date().toISOString(),
+    holdHours: HOLD_HOURS,
+    requests: data.requests,
+    decisions: data.decisions,
+    bookings: data.bookings,
+    channels: data.channels,
+    health: {
+      staging: CONFIG.testHooks === true,
+      mirrorsRefreshedAt: props.getProperty(MIRRORS_REFRESHED_KEY) || '',
+      pricesVersion: currentPrices_('').version,
+      triggers: ScriptApp.getProjectTriggers().map(function (tr) {
+        return tr.getHandlerFunction();
+      }),
+    },
+  };
+}
+
 /**
  * Staging only (CONFIG.testHooks): the suite's site is built on localhost from the working tree, so
  * the web app cannot fetch that tree's prices.json. The suite hands it over here instead; null clears it.
@@ -717,6 +851,11 @@ function testSetPrices_(file) {
   return { ok: true, version: checked.version };
 }
 
+/**
+ * Staging only (CONFIG.testHooks): Google fires onEdit only for edits typed in the Sheets UI, never for
+ * API edits, so the regression suite makes its edit through the Sheets API and then hands that cell
+ * to the real handler here.
+ */
 function testFireSheetEdit_(row) {
   var sheet = SpreadsheetApp.openById(CONFIG.adminSheetId).getSheetByName(ADMIN_TABS.requests);
   onSheetEdit({ range: sheet.getRange(Number(row), CONFIRM_COL) });
