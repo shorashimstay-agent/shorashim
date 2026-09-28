@@ -155,7 +155,8 @@ function lsTree(repoGit, rev) {
   return out;
 }
 
-const readBlob = (repoGit, blob) => repoGit(['cat-file', 'blob', blob], { encoding: 'buffer' });
+/** A blob's bytes from the repo `repoGit` works on (this repo or .front-2). */
+const readBlob = (repoGit, blob) => run('git', [...(repoGit === frontGit ? ['-C', FRONT] : []), 'cat-file', 'blob', blob], { encoding: 'buffer' });
 const isBinary = (buf) => buf.subarray(0, 8000).includes(0);
 const sha7 = (sha) => sha.slice(0, 7);
 
@@ -441,10 +442,17 @@ function contractProblems(state) {
   return [...new Set(problems)];
 }
 
-/** ₪ amounts in the built site must be prices from prices.json. */
+const SHEKEL_AMOUNT = /₪\s?(\d{1,3}(?:,\d{3})+|\d{3,})|(\d{1,3}(?:,\d{3})+|\d{3,})\s?₪/g;
+const amountsIn = (text) => [...text.matchAll(SHEKEL_AMOUNT)].map((m) => ({ text: m[0], value: Number((m[1] ?? m[2]).replace(/,/g, '')) }));
+
+/**
+ * ₪ amounts in the built site must be prices from prices.json. Amounts in the legal pages' text
+ * (production-owned, e.g. the consumer-law cancellation cap) are not prices and are allowed.
+ */
 function priceProblems(distDir) {
   const { prices } = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/prices.json'), 'utf8'));
-  const allowed = new Set(Object.values(prices));
+  const legal = sourceFiles('src/legal').map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+  const allowed = new Set([...Object.values(prices), ...amountsIn(legal).map((a) => a.value)]);
   const problems = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -452,9 +460,8 @@ function priceProblems(distDir) {
       if (entry.isDirectory()) walk(p);
       else if (/\.(js|html)$/.test(entry.name)) {
         const text = fs.readFileSync(p, 'utf8');
-        for (const m of text.matchAll(/₪\s?(\d{1,3}(?:,\d{3})+|\d{3,})|(\d{1,3}(?:,\d{3})+|\d{3,})\s?₪/g)) {
-          const value = Number((m[1] ?? m[2]).replace(/,/g, ''));
-          if (!allowed.has(value)) problems.push(`"${m[0]}" in ${path.relative(distDir, p)} is not a price in public/prices.json`);
+        for (const a of amountsIn(text)) {
+          if (!allowed.has(a.value)) problems.push(`"${a.text}" in ${path.relative(distDir, p)} is not a price in public/prices.json`);
         }
       }
     }

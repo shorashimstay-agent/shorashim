@@ -49,10 +49,18 @@ production. For each file in the report:
 - **Content** (texts, section order, new sections, removed sections) is front-2's call: take it. If
   front-2 removed a section the site had, remove it, unless it carries a production function (then
   keep the function in front-2's style and say so in the summary).
+- **Legal and policy text** (cancellation, prices, terms): if front-2's wording contradicts the
+  booking terms in `src/legal/content.ts`, which bind every booking, align it with the terms and
+  list it in the report so the user can have it fixed in AI Studio. The three-way merge keeps that
+  correction in later syncs until front-2 changes the same lines again.
+- **Contrast**: front-2's palette is checked by axe in the staging suite. Fix failures with the
+  closest colour from front-2's own palette that passes, not a new one.
 - If a design needs a **production-owned** change (new npm package, `vite.config.ts`, a test
   selector, the image script), do not make it in the sync: stop, explain, and let the user decide.
 
-Run `npm run dev` or build and look at the page when a layout is unclear.
+Run `npm run dev` or build and look at the page when a layout is unclear. A quick axe pass
+before `ship` saves a 15-minute staging round: build, `npx vite preview`, and scan the page with
+`@axe-core/playwright` (as `tests/e2e/a11y.spec.ts` does).
 
 ## 3. Check
 
