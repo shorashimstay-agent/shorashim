@@ -45,14 +45,28 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 
 ## Development
 
+The code lives in git (`apps-script/` + `shared/rules.js`). Google only holds a copy, which
+`deploy.py` uploads through the Apps Script API. Edits made in the Apps Script editor are
+overwritten by the next deploy, so always change the code here.
+
+There are two deployments of the same code: **staging** (hidden test calendars and sheets, used by
+the regression suite in `tests/e2e/`) and **production**. A change goes through staging first:
+
 ```
-npm test                               # booking rules (shared/rules.js)
-python3 apps-script/deploy.py "note"   # push code and update the web app deployment
+npm test                                   # booking rules (shared/rules.js)
+git commit …                               # deploy.py refuses uncommitted backend code
+npm run test:e2e                           # deploys this commit to staging, runs the suite, records the pass
+python3 apps-script/deploy.py "note"       # production: refused unless the suite passed on this commit
+git push                                   # the pre-push hook applies the same check to the site
+npm run test:smoke                         # read-only checks of the live site and backend
+python3 apps-script/deploy.py --status     # which commit each environment is running
 ```
 
-- **`deploy.py`** uses the OAuth token in `~/.config/gcloud/shorashim/`. It reads IDs and secrets from `~/.config/gcloud/shorashim/booking-config.json`: calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
+- **`deploy.py`** uses the OAuth token in `~/.config/gcloud/shorashim/`. It reads IDs and secrets from `~/.config/gcloud/shorashim/booking-config.json` (production) or `booking-config.staging.json`: calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
+- **Every version is labelled with its commit** (`a1b2c3d note`, or `-dirty` for `--allow-dirty` staging tries), so `--status` shows what is live. **Rolling back** means pointing the deployment at an earlier version number.
+- **The pre-push hook** lives in `.githooks/` (enable it in a fresh clone with `git config core.hooksPath .githooks`). It only blocks pushes to `main` that change the site, backend or tests. Emergency bypasses: `git push --no-verify`, `deploy.py --force`.
 - **The web app URL stays the same** across deploys. It goes in `src/data/bookingConfig.ts`.
-- **Adding OAuth scopes:** push with `deploy.py --content-only`, have the owner run `setup` in the editor (signed in as shorashimstay@gmail.com) to authorize the new scopes, then run `deploy.py` normally to release. Releasing first would break the live web app until the owner re-authorizes. `setup` is safe to re-run: it reinstalls the triggers and rewrites both spreadsheets.
+- **When the owner must run `setup` in the editor** (signed in as shorashimstay@gmail.com), once per environment: after creating a project, after changing `oauthScopes` in `appsscript.json`, and after changing which triggers `setup` installs. Ordinary code changes need nothing. For new scopes, push with `deploy.py --content-only` first, run `setup`, then deploy normally; releasing first would break the web app until the owner re-authorizes. Do staging, then production. `setup` is safe to re-run: it reinstalls the triggers and rewrites both spreadsheets.
 - **Calendar access goes through the REST API** (`UrlFetchApp` with `ScriptApp.getOAuthToken()`). It creates an event with its details in one call and lists the three calendars in parallel. The manifest declares the Calendar advanced service; that declaration is what enables the Calendar API in the script's hidden default Cloud project, and without it the REST calls fail with 403. Event details live in **shared** extended properties, which is where `CalendarApp.setTag` stores them, so both APIs see the same data.
 - **Request timings:** every successful request returns `timings` (milliseconds per step). The signed `?action=diag&t=<ms>&sig=<HMAC of "diag:"+t>` reports availability, snapshot and admin-sheet refresh times. The 5-minute timer also calls the web app, to keep Google from starting it cold for the next visitor.
 - **Sheet protection:** the admin tabs are protected so only the owner can edit. For others, only פעולה and ביצוע in בקשות stay editable. The owner account itself can always edit everything.

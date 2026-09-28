@@ -41,6 +41,9 @@ function doPost(e) {
     if (body.action === 'pruneDecisions' && validSig_('prune:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(pruneDecisions_(body.refs));
     }
+    if (body.action === 'testFireSheetEdit' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(testFireSheetEdit_(body.row));
+    }
     return json_({ ok: false, error: 'bad_request' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
@@ -625,6 +628,17 @@ function syncAdminSheet_() {
   );
 }
 
+/**
+ * Staging only (CONFIG.testHooks): Google fires onEdit only for edits typed in the Sheets UI, never for
+ * API edits, so the regression suite makes its edit through the Sheets API and then hands that cell
+ * to the real handler here.
+ */
+function testFireSheetEdit_(row) {
+  var sheet = SpreadsheetApp.openById(CONFIG.adminSheetId).getSheetByName(ADMIN_TABS.requests);
+  onSheetEdit({ range: sheet.getRange(Number(row), CONFIRM_COL) });
+  return { ok: true, confirmTicked: sheet.getRange(Number(row), CONFIRM_COL).getValue() === true };
+}
+
 /** Installable trigger on the admin sheet: ticking ביצוע runs the action chosen in פעולה. */
 function onSheetEdit(e) {
   if (!e || !e.range || typeof e.range.getSheet !== 'function') return;
@@ -870,7 +884,7 @@ function notifyOwner_(eventId, req) {
     ' · <a href="tel:' + esc_(req.phone.replace(/[^\d+]/g, '')) + '" style="color:#8B6B48">התקשרות</a></p>' +
     '</div>';
   MailApp.sendEmail({
-    to: CONFIG.ownerEmail,
+    to: CONFIG.notifyEmail || CONFIG.ownerEmail,
     subject: 'בקשת הזמנה ' + req.ref + ': ' + stayDatesShort_(req) + ' · ' + req.name,
     body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + decideUrl_(eventId),
     htmlBody: html,
@@ -889,8 +903,21 @@ function decisionPage_(id, sig) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+/**
+ * Whether the request event still exists. CalendarApp.getEventById keeps returning an event after it
+ * is deleted (approving or declining deletes it), so it cannot answer this; the REST API, which leaves
+ * deleted events out, can. Found by the regression suite (tests/e2e, scenario E7).
+ */
+function requestIsLive_(id) {
+  var page = calendarCall_(calendarRequest_('requests', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(status)' }));
+  return (page.items || []).some(function (item) {
+    return item.status !== 'cancelled';
+  });
+}
+
 function decisionState_(id, sig) {
   if (!validSig_(id, sig)) return { status: 'forbidden' };
+  if (!requestIsLive_(id)) return { status: 'not_found' };
   var ev = calendar_('requests').getEventById(id);
   if (!ev) return { status: 'not_found' };
   var req = JSON.parse(ev.getTag('request') || '{}');
@@ -937,6 +964,7 @@ function decideOnce_(action, id) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
+    if (!requestIsLive_(id)) return { ok: false, error: 'not_found' };
     var ev = calendar_('requests').getEventById(id);
     if (!ev) return { ok: false, error: 'not_found' };
     var req = JSON.parse(ev.getTag('request') || '{}');
