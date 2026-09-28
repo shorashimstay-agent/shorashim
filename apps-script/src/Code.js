@@ -12,6 +12,11 @@
 
 var TZ = 'Asia/Jerusalem';
 var AVAILABILITY_CACHE_KEY = 'availability:v1';
+var PRICES_URL_DEFAULT = 'https://shorashimstay.com/prices.json';
+var PRICES_CACHE_KEY = 'prices:v1';
+var PRICES_REFETCH_KEY = 'prices:refetched';
+var PRICES_LAST_GOOD_KEY = 'pricesLastGood';
+var PRICES_OVERRIDE_KEY = 'pricesOverride';
 var ADDRESS = 'משק פויזנר, המייסדים 71, זכרון יעקב';
 var CONTACT_PHONE = '052-322-4220';
 
@@ -20,7 +25,7 @@ function doGet(e) {
   try {
     if (p.action === 'availability') return json_(getAvailability_());
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
-    if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_());
+    if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
     return json_({ ok: true, service: 'shorashim-booking' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
@@ -44,6 +49,9 @@ function doPost(e) {
     if (body.action === 'testFireSheetEdit' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testFireSheetEdit_(body.row));
     }
+    if (body.action === 'testSetPrices' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(testSetPrices_(body.file));
+    }
     return json_({ ok: false, error: 'bad_request' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
@@ -51,9 +59,13 @@ function doPost(e) {
   }
 }
 
-/** Timings of the slow parts, for troubleshooting. Needs a fresh signed timestamp. */
-function diagnose_() {
+/**
+ * Timings of the slow parts, for troubleshooting. Needs a fresh signed timestamp. `pricesVersion`
+ * (the ?pv= parameter) is the version the caller expects, as a request's would be.
+ */
+function diagnose_(pricesVersion) {
   var out = {};
+  out.pricesVersion = currentPrices_(String(pricesVersion || '')).version;
   var t = Date.now();
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -116,6 +128,61 @@ function calendar_(key) {
 
 function invalidateAvailability_() {
   CacheService.getScriptCache().remove(AVAILABILITY_CACHE_KEY);
+}
+
+/**
+ * The prices in force: { version, prices }. They come from the site's /prices.json (see
+ * shared/rules.js), kept in the cache for 10 minutes. A caller that expects another version (the
+ * page it was built from is newer) triggers a re-read, at most once a minute. When the file cannot be
+ * read or fails checkPrices, the last good copy is used, and before any copy exists the built-in PRICES.
+ * @param {string} wantedVersion the version the caller expects, or '' for any
+ */
+function currentPrices_(wantedVersion) {
+  var props = PropertiesService.getScriptProperties();
+  if (CONFIG.testHooks === true) {
+    var override = props.getProperty(PRICES_OVERRIDE_KEY);
+    if (override) return JSON.parse(override);
+  }
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(PRICES_CACHE_KEY);
+  if (cached) {
+    var current = JSON.parse(cached);
+    if (!wantedVersion || current.version === wantedVersion || cache.get(PRICES_REFETCH_KEY)) return current;
+  }
+  cache.put(PRICES_REFETCH_KEY, '1', 60);
+  var fetched = fetchPrices_();
+  if (fetched) {
+    var text = JSON.stringify(fetched);
+    cache.put(PRICES_CACHE_KEY, text, 600);
+    if (props.getProperty(PRICES_LAST_GOOD_KEY) !== text) props.setProperty(PRICES_LAST_GOOD_KEY, text);
+    return fetched;
+  }
+  var lastGood = props.getProperty(PRICES_LAST_GOOD_KEY);
+  if (lastGood) {
+    cache.put(PRICES_CACHE_KEY, lastGood, 60);
+    return JSON.parse(lastGood);
+  }
+  return { version: 'built-in', prices: PRICES };
+}
+
+/** Reads and checks prices.json; null on any failure. The query string gets past the CDN's cache. */
+function fetchPrices_() {
+  try {
+    var res = UrlFetchApp.fetch((CONFIG.pricesUrl || PRICES_URL_DEFAULT) + '?t=' + Date.now(), { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) {
+      console.warn('prices.json answered ' + res.getResponseCode());
+      return null;
+    }
+    var checked = checkPrices(JSON.parse(res.getContentText()));
+    if (!checked.ok) {
+      console.warn('prices.json rejected: ' + checked.error);
+      return null;
+    }
+    return { version: checked.version, prices: checked.prices };
+  } catch (err) {
+    console.warn('prices.json unreadable', err);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +404,7 @@ function onCalendarChange() {
 /** Installable trigger: every 5 minutes, so expired holds, calendar edits and the rolling date window stay current. */
 function onSnapshotTimer() {
   keepWarm_();
+  currentPrices_('');
   refreshMirrors_();
 }
 
@@ -633,6 +701,22 @@ function syncAdminSheet_() {
  * API edits, so the regression suite makes its edit through the Sheets API and then hands that cell
  * to the real handler here.
  */
+/**
+ * Staging only (CONFIG.testHooks): the suite's site is built on localhost from the working tree, so
+ * the web app cannot fetch that tree's prices.json. The suite hands it over here instead; null clears it.
+ */
+function testSetPrices_(file) {
+  var props = PropertiesService.getScriptProperties();
+  if (file === null) {
+    props.deleteProperty(PRICES_OVERRIDE_KEY);
+    return { ok: true, cleared: true };
+  }
+  var checked = checkPrices(file);
+  if (!checked.ok) return { ok: false, error: checked.error };
+  props.setProperty(PRICES_OVERRIDE_KEY, JSON.stringify({ version: checked.version, prices: checked.prices }));
+  return { ok: true, version: checked.version };
+}
+
 function testFireSheetEdit_(row) {
   var sheet = SpreadsheetApp.openById(CONFIG.adminSheetId).getSheetByName(ADMIN_TABS.requests);
   onSheetEdit({ range: sheet.getRange(Number(row), CONFIRM_COL) });
@@ -725,7 +809,7 @@ function createRequestOnce_(body) {
     last = now;
   }
 
-  var check = validateRequest(body, today_());
+  var check = validateRequest(body, today_(), currentPrices_(String(body.pricesVersion || '')).prices);
   if (!check.ok) return { ok: false, error: 'invalid', fields: check.errors };
   var req = check.value;
   mark('validate');

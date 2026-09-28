@@ -47,7 +47,7 @@ BACKEND_PATHS = ("apps-script", "shared")
 API = "https://script.googleapis.com/v1"
 CONFIG_KEYS = (
     "calendars", "hmacSecret", "ownerEmail", "notifyEmail", "webAppUrl", "recaptchaSecret", "adminSheetId",
-    "availabilitySheetId", "testHooks",
+    "availabilitySheetId", "testHooks", "pricesUrl",
 )
 
 

@@ -121,6 +121,10 @@ in this public repo.
 - G7: hold expiry: a fixture request with `createdAt` 25h ago no longer blocks, availability marks
   it ⌛ expired, and it can still be approved while its nights are free.
 - G8: wedding stay (`bride_day` on day D) holds D-1 → D+1, two nights.
+- G9: prices come from `prices.json`. The suite hands staging this tree's `public/prices.json` before
+  the run (signed `testSetPrices`; staging cannot fetch a localhost site). G9 swaps in a changed file,
+  checks `diag` reports its version, that an out-of-range price is refused, and that a request's
+  stored estimate follows the changed price. It restores the tree's file afterwards.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
@@ -134,6 +138,8 @@ in this public repo.
   and the page's JS/CSS load.
 - `availability` returns `ok` and the snapshot is fresh (under 15 minutes old).
 - Signed `diag` lists all the production triggers.
+- Signed `diag`, given the live `/prices.json` version, reports that same version: the web app
+  reads the published prices.
 - A reCAPTCHA token from the live page verifies with `hostname=shorashimstay.com`.
 - The decision link and the booking POST are not touched, so nothing is written.
 

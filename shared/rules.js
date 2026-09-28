@@ -28,6 +28,10 @@ export var STAY_TYPES = {
   bride_night_day: { label: 'לילה לפני + יום כלה', wedding: true },
 };
 
+// The live prices are in public/prices.json, published with the site at /prices.json. The site
+// bundles that file and the web app fetches it, so a price change ships with the site and needs no
+// backend deploy. These built-in values are only the web app's last resort when it has never managed
+// to read the file.
 export var PRICES = {
   perNight: 950,
   thirdGuestPerNight: 200,
@@ -35,6 +39,33 @@ export var PRICES = {
   bride_night_day: 2800,
   wedding_night: 1200,
 };
+export var PRICE_KEYS = ['perNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night'];
+export var PRICE_MIN = 100;
+export var PRICE_MAX = 20000;
+
+/**
+ * Checks the contents of prices.json: { version, prices: { perNight, ... } }, every price a whole
+ * number of shekels between PRICE_MIN and PRICE_MAX. Unknown keys are ignored.
+ * @param {unknown} file
+ * @returns {{ ok: true, version: string, prices: Record<string, number> } | { ok: false, error: string }}
+ */
+export function checkPrices(file) {
+  if (!file || typeof file !== 'object') return { ok: false, error: 'not an object' };
+  var version = file.version;
+  if (typeof version !== 'string' || !/^[\w.@:-]{1,64}$/.test(version)) return { ok: false, error: 'bad version' };
+  var source = file.prices;
+  if (!source || typeof source !== 'object') return { ok: false, error: 'no prices' };
+  var prices = {};
+  for (var i = 0; i < PRICE_KEYS.length; i++) {
+    var key = PRICE_KEYS[i];
+    var value = source[key];
+    if (typeof value !== 'number' || Math.floor(value) !== value || value < PRICE_MIN || value > PRICE_MAX) {
+      return { ok: false, error: 'bad price ' + key };
+    }
+    prices[key] = value;
+  }
+  return { ok: true, version: version, prices: prices };
+}
 
 export var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -125,12 +156,17 @@ export function conflictingNights(blocked, start, end) {
   });
 }
 
-/** @param {StayType} stayType @param {number} nights @param {number} adults @returns {number} */
-export function estimatePrice(stayType, nights, adults) {
+/**
+ * @param {StayType} stayType @param {number} nights @param {number} adults
+ * @param {Record<string, number>} [prices] the checked prices.json prices; the built-in PRICES when omitted
+ * @returns {number}
+ */
+export function estimatePrice(stayType, nights, adults, prices) {
+  var p = prices || PRICES;
   if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night') {
-    return PRICES[stayType];
+    return p[stayType];
   }
-  return PRICES.perNight * nights + (adults === 3 ? PRICES.thirdGuestPerNight * nights : 0);
+  return p.perNight * nights + (adults === 3 ? p.thirdGuestPerNight * nights : 0);
 }
 
 /** @param {string | undefined} createdAtIso @param {number} nowMs @returns {boolean} */
@@ -153,9 +189,10 @@ export function whatsappNumber(phone) {
  * submitting and the web app calls it again on arrival; the server's answer is the authoritative one.
  * @param {Record<string, unknown>} input
  * @param {string} today
+ * @param {Record<string, number>} [prices] passed on to estimatePrice
  * @returns {{ ok: true, value: Record<string, any> } | { ok: false, errors: Record<string, string> }}
  */
-export function validateRequest(input, today) {
+export function validateRequest(input, today, prices) {
   var errors = {};
   var stayType = String(input.stayType || '');
   var type = STAY_TYPES[stayType];
@@ -212,7 +249,7 @@ export function validateRequest(input, today) {
       phone: phone,
       email: email,
       notes: notes,
-      estimate: estimatePrice(stayType, blockedCount, adults),
+      estimate: estimatePrice(stayType, blockedCount, adults, prices),
     },
   };
 }

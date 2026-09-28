@@ -42,15 +42,22 @@ const notDefault = (j: any) => !(j.ok === true && j.service);
 export const webApp = (cfg: BackendConfig) => ({
   ping: () => call(cfg, { query: '?action=ping' }, (j) => j.service === 'shorashim-booking'),
   availability: () => call(cfg, { query: '?action=availability' }, (j) => Array.isArray(j.blocked)),
-  diag: () => {
+  /** `pricesVersion` is the prices.json version the caller expects, as a page would send it. */
+  diag: (pricesVersion = '') => {
     const t = String(Date.now());
-    return call(cfg, { query: `?action=diag&t=${t}&sig=${sign(cfg, 'diag:' + t)}` }, (j) => Array.isArray(j.triggers));
+    const pv = pricesVersion ? `&pv=${encodeURIComponent(pricesVersion)}` : '';
+    return call(cfg, { query: `?action=diag&t=${t}&sig=${sign(cfg, 'diag:' + t)}${pv}` }, (j) => Array.isArray(j.triggers));
   },
   post: (body: Record<string, unknown>) => call(cfg, { body }, notDefault),
   decide: (action: 'approve' | 'decline', id: string, sig = sign(cfg, id)) => call(cfg, { body: { action, id, sig } }, notDefault),
   fireSheetEdit: (row: number) => {
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testFireSheetEdit', row, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'confirmTicked' in j);
+  },
+  /** Staging only: the prices the web app uses instead of fetching /prices.json; null clears them. */
+  setPrices: (file: unknown) => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testSetPrices', file, t, sig: sign(cfg, 'test:' + t) } }, (j) => j.ok === false || 'version' in j || 'cleared' in j);
   },
   pruneDecisions: (refs: string[]) => {
     const t = String(Date.now());

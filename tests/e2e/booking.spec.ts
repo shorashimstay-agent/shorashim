@@ -1,4 +1,5 @@
 // Booking regression suite against the staging backend. Scenario IDs match tests/e2e/PLAN.md.
+import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import {
   addDays,
@@ -29,6 +30,10 @@ const base = addDays(israelToday(), 250 + Math.floor(Math.random() * 60));
 const slot = (i: number) => addDays(base, i * 5);
 
 const guestName = (who: string) => `${runTag} ${who}`;
+
+// The site under test is built from this tree's prices.json; the staging web app cannot fetch it
+// from localhost, so the suite hands it over (see testSetPrices_ in Code.js).
+const pricesFile = JSON.parse(fs.readFileSync('public/prices.json', 'utf8'));
 
 async function blocked(date: string[]): Promise<boolean> {
   const a = await api.availability();
@@ -63,11 +68,13 @@ async function onlyRequestEvent(name: string) {
 }
 
 test.beforeAll(async () => {
+  expect(await api.setPrices(pricesFile)).toMatchObject({ ok: true, version: pricesFile.version });
   const leftovers = await cleanup(cfg);
   if (leftovers.length) console.log(`[P3] removed leftovers from earlier runs:\n  ${leftovers.join('\n  ')}`);
 });
 
 test.afterAll(async () => {
+  await api.setPrices(null);
   const log = await cleanup(cfg, runTag);
   console.log(`[C] cleanup for ${runTag}: ${log.length} item(s)`);
 });
@@ -364,4 +371,22 @@ test('G8: a bride-day request holds the night before and the wedding night', asy
   expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({ ref, stayType: 'bride_day', checkIn: wedding });
   expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+});
+
+test('G9: the web app prices requests from prices.json, not from its own code', async ({ page }) => {
+  const changed = { version: `e2e-${runTag}`, prices: { ...pricesFile.prices, perNight: pricesFile.prices.perNight + 111 } };
+  expect(await api.setPrices(changed)).toMatchObject({ ok: true, version: changed.version });
+  try {
+    expect((await api.diag(changed.version)).pricesVersion).toBe(changed.version);
+    expect(await api.setPrices({ ...changed, prices: { ...changed.prices, bride_day: 5 } })).toMatchObject({ ok: false });
+    const name = guestName('מחיר');
+    const [checkIn, checkOut] = [slot(10), addDays(slot(10), 2)];
+    await openBooking(page);
+    expect(await postRequest(page, { stayType: 'couple', checkIn, checkOut, adults: 2, name, phone: randomPhone(), pricesVersion: changed.version })).toMatchObject({ ok: true });
+    const ev = await onlyRequestEvent(name);
+    expect(JSON.parse(ev.extendedProperties!.shared!.request).estimate).toBe(2 * changed.prices.perNight);
+    expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+  } finally {
+    await api.setPrices(pricesFile);
+  }
 });

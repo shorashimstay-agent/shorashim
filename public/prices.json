@@ -1,0 +1,10 @@
+{
+  "version": "initial",
+  "prices": {
+    "perNight": 950,
+    "thirdGuestPerNight": 200,
+    "bride_day": 1800,
+    "bride_night_day": 2800,
+    "wedding_night": 1200
+  }
+}
