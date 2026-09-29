@@ -299,7 +299,8 @@
   function post(body, attempt) {
     attempt = attempt || 1;
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, 30000);
+    // A decision with a calendar invitation can take a while; other calls answer faster.
+    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' ? 60000 : 30000);
     return fetch(API, { method: 'POST', body: JSON.stringify(body), signal: controller.signal })
       .then(function (res) { return res.json(); })
       .then(function (data) {
@@ -532,8 +533,18 @@
     state.busy[id] = true;
     renderRequests();
     announce('שומרים…');
+    var done = decision === 'approve' ? 'approved' : 'declined';
     call('decide', { id: id, decision: decision })
       .then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; })
+      .then(function (res) {
+        // Google sometimes loses the answer after the decision was made; a retry then finds the
+        // request gone ("not_found"). Look it up before telling the owner anything went wrong.
+        if (res.ok || (res.error !== 'network' && res.error !== 'not_found')) return res;
+        return call('overview').then(function (o) {
+          var made = (o.decisions || []).filter(function (x) { return x.ref === r.ref && x.result === done; })[0];
+          return made ? { ok: true, result: done, invited: done === 'approved' && !!r.email, whatsapp: made.whatsapp } : res;
+        }, function () { return res; });
+      })
       .then(function (res) {
         delete state.busy[id];
         state.confirming = null;
