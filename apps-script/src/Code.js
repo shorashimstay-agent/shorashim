@@ -1077,7 +1077,11 @@ function verifyRecaptcha_(token) {
     muteHttpExceptions: true,
   });
   var data = JSON.parse(res.getContentText());
-  return data.success === true && (data.score == null || data.score >= 0.5) && (!data.action || data.action === 'booking_request');
+  // CONFIG.recaptchaMinScore defaults to 0.5. Staging sets 0: Google scores the test suite's
+  // automated browser as a bot after a few runs, so there the token is still checked (genuine, this
+  // site, this action) but the score is not. The production smoke test checks real scores.
+  var minScore = CONFIG.recaptchaMinScore === '' || CONFIG.recaptchaMinScore == null ? 0.5 : Number(CONFIG.recaptchaMinScore);
+  return data.success === true && (data.score == null || data.score >= minScore) && (!data.action || data.action === 'booking_request');
 }
 
 function withinRateLimit_(phone) {
