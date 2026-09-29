@@ -44,16 +44,14 @@ test('the production web app prices from the live /prices.json', async ({ reques
   expect((await api.diag(file.version)).pricesVersion).toBe(file.version);
 });
 
-test('the owner console is live, private, and its backend answers', async () => {
-  expect(cfg.consoleUrl, 'deploy it with: deploy.py --app console').toBeTruthy();
-  // shorashimstay.com/admin is the short address: it forwards to the console and is not indexed.
-  const admin = await (await fetch('https://shorashimstay.com/admin/')).text();
-  expect(admin).toContain(cfg.consoleUrl!);
-  expect(admin).toContain('noindex');
-  const res = await fetch(cfg.consoleUrl!, { redirect: 'manual' });
-  expect(res.status).toBe(302);
-  expect(res.headers.get('location') ?? '').toMatch(/^https:\/\/accounts\.google\.com\//);
-  // Read-only. The answer holds guest details, so only its shape is checked and nothing is printed.
+test('the owner console at /admin is live and its backend refuses calls without a login', async ({ request }) => {
+  const page = await (await request.get('/admin/')).text();
+  expect(page).toContain('כניסה למסוף');
+  expect(page).toContain(`content="${cfg.webAppUrl}"`);
+  expect(page).toContain('noindex');
+  expect(await api.consoleWithToken('overview', 'v1-x.forged.token.sig')).toMatchObject({ ok: false, error: 'unauthorized' });
+  // Signed with the secret (as tools may call it): read-only. Only the shape is checked; the guest
+  // details it holds are not printed.
   const o = await api.console('overview');
   expect(o.ok).toBe(true);
   expect(o.health.staging).toBe(false);

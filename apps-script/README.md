@@ -45,29 +45,32 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 - **Or use the owner console** (below): the same requests, bookings and channel bookings, with approve
   and decline, on a page made for the phone.
 
-## Owner console (`console/`)
+## Owner console (`shorashimstay.com/admin`)
 
-A separate Apps Script web app that only **shorashimstay@gmail.com** can open (Google asks for the
-sign-in). Its short address is **https://shorashimstay.com/admin** (`public/admin/index.html` forwards to
-`consoleUrl` from `booking-config.json`; update it if the console is ever redeployed under a new
-URL). Add it to the phone's home screen.
+A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
+(`public/admin/index.html`). It logs in with a password and then stays logged in on that device.
 
 - **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
   ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and
   manual events), הזמנות, ערוצים. It offers what the admin sheet offers; closing dates is still done
   in Google Calendar.
-- **It holds no booking logic.** `console/Server.js` calls this web app's `console` action, signed with
-  the same HMAC secret over `console:<time>:<op>:<id>:<decision>` and valid for 5 minutes. So every
-  approval goes through `decideAndRecord_`, with the same lock, conflict check, invitation and
-  decision list as the email link and the sheet, and the sheets refresh as usual.
-- **One source for both views:** `adminData_()` builds the rows the sheet writes and the lists the
-  console shows, so they cannot disagree.
-- **Deploy:** `python3 apps-script/deploy.py --app console [--env staging]`. `npm run test:e2e`
-  deploys the staging console too; production follows the same rule as the booking app (the staging
-  suite must have passed on the commit). The console's `Config.js` (booking URL and secret) is
-  generated and never committed.
-- **First time only:** open the console URL signed in as shorashimstay@gmail.com and approve its
-  permission (it calls the booking web app). Staging exists only for the tests and needs no approval.
+- **The page is public and holds no secrets.** It calls this web app's `console` action. `login`
+  checks the password against `CONFIG.consolePasswordHash` (a salted HMAC, from `booking-config.json`,
+  never in the repo) and returns a session token signed with the HMAC secret. Every other console
+  call needs that token, or an HMAC signature over the operation and its arguments (tools and the
+  test suite). Decisions go through `decideAndRecord_`, like the email link and the sheet, and the
+  sheets refresh as usual. `adminData_()` builds both the sheet's rows and the console's lists.
+- **Guessing:** after 5 wrong passwords the login pauses for 15 minutes, for everyone (Apps Script
+  cannot tell callers apart). The sheet and the email links keep working meanwhile.
+- **Sessions do not expire.** "ניתוק מכל המכשירים" (in the status panel) logs out every device, and
+  so does setting a new password.
+- **Set or change the password** (forgotten, leaked, or routine):
+  ```
+  python3 apps-script/deploy.py --set-console-password     # asks without echo; stores only the hash
+  python3 apps-script/deploy.py "rotate console password"  # the backend picks it up on deploy
+  ```
+  Staging has its own random password (`consolePassword` in `booking-config.staging.json`), which
+  only the test suite uses.
 
 ## Development
 

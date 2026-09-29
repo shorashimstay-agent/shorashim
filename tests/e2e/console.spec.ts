@@ -1,10 +1,6 @@
-// Owner console (console/) against the staging backend. Scenario IDs match tests/e2e/PLAN.md §4 (O).
-//
-// A test browser cannot sign in to Google, so the console's own deployment is only checked from the
-// outside (O8: it is private). Everything else runs the real console/Console.html in the browser,
-// with google.script.run replaced by a bridge that makes Server.js's signed call from this process;
-// the signing secret never enters the page.
-import { pathToFileURL } from 'node:url';
+// Owner console (/admin, public/admin/index.html) against the staging backend. Scenario IDs match
+// tests/e2e/PLAN.md §4 (O). The page is served by the staging build of the site and pointed at the
+// staging web app; it logs in with the staging console password, as the owner does in production.
 import { expect, test, type Page } from '@playwright/test';
 import {
   addDays,
@@ -22,7 +18,6 @@ import {
 import { e2e, runTag, staging as cfg } from './lib/env';
 
 const api = webApp(cfg);
-const CONSOLE_PAGE = pathToFileURL('console/Console.html').href;
 
 // Scenario nights 150–240 days ahead, apart from booking.spec.ts's window (250–360).
 const base = addDays(israelToday(), 150 + Math.floor(Math.random() * 80));
@@ -45,24 +40,15 @@ async function fixtureRequest(who: string, start: string, nights: number, extra:
   return { id: ev.iCalUID as string, name, ref, start, end, req };
 }
 
-async function openConsole(page: Page) {
-  await page.exposeFunction('__consoleApi', (op: string, args: { id?: string; decision?: string }) => api.console(op, args));
-  await page.addInitScript(() => {
-    type Handler = ((value: unknown) => void) | null;
-    const runner = (ok: Handler, fail: Handler): unknown =>
-      new Proxy(
-        {},
-        {
-          get: (_target, name: string) => {
-            if (name === 'withSuccessHandler') return (fn: Handler) => runner(fn, fail);
-            if (name === 'withFailureHandler') return (fn: Handler) => runner(ok, fn);
-            return (...args: unknown[]) => (window as any).__consoleApi(...args).then((r: unknown) => ok?.(r), (e: unknown) => fail?.(e));
-          },
-        }
-      );
-    (window as any).google = { script: { get run() { return runner(null, null); } } };
-  });
-  await page.goto(CONSOLE_PAGE);
+/** Opens /admin against the staging web app and logs in, unless `login` is false. */
+async function openConsole(page: Page, login = true) {
+  await page.addInitScript((url) => {
+    (window as any).CONSOLE_API = url;
+  }, cfg.webAppUrl);
+  await page.goto('/admin/');
+  if (!login) return;
+  await page.getByLabel('סיסמה').fill(cfg.consolePassword!);
+  await page.getByRole('button', { name: 'כניסה' }).click();
   // The first overview reads three calendars through Google's front end, which on slow days has
   // taken well over a minute on staging.
   await expect(page.locator('#requests-sub')).not.toHaveText('טוען…', { timeout: 180_000 });
@@ -87,6 +73,11 @@ async function decideInConsole(page: Page, id: string, decision: 'approve' | 'de
   await expect(result).toBeVisible({ timeout: 120_000 });
   return result;
 }
+
+test.beforeAll(async () => {
+  expect(cfg.consolePassword, 'set it with: deploy.py --set-console-password --env staging').toBeTruthy();
+  await api.resetConsoleLock();
+});
 
 test.afterAll(async () => {
   const log = await cleanup(cfg, runTag);
@@ -181,13 +172,13 @@ test('O5: when its nights are taken, approval is refused in the console and by t
 
 test('O6: console calls need a signature that covers the operation', async () => {
   const forged = await api.console('overview', {}, 'forged');
-  expect(forged).toMatchObject({ ok: false, error: 'bad_request' });
+  expect(forged).toMatchObject({ ok: false, error: 'unauthorized' });
   expect(forged.requests).toBeUndefined();
   // A valid signature for "overview" does not authorize a decision.
   const t = String(Date.now());
   const { sign } = await import('./lib/backend');
   const overviewSig = sign(cfg, ['console', t, 'overview', '', ''].join(':'));
-  expect(await api.post({ action: 'console', op: 'decide', t, id: 'x', decision: 'approve', sig: overviewSig })).toMatchObject({ ok: false, error: 'bad_request' });
+  expect(await api.post({ action: 'console', op: 'decide', t, id: 'x', decision: 'approve', sig: overviewSig })).toMatchObject({ ok: false, error: 'unauthorized' });
 });
 
 test('O7: the console passes axe at phone and desktop width, and its tabs work from the keyboard', async ({ page }) => {
@@ -209,9 +200,40 @@ test('O7: the console passes axe at phone and desktop width, and its tabs work f
   await expect(page.locator('#screen-calendar h2')).toBeFocused();
 });
 
-test('O8: the staging console deployment exists and only opens after a Google sign-in', async () => {
-  expect(cfg.consoleUrl, 'deploy it with: deploy.py --app console --env staging').toBeTruthy();
-  const res = await fetch(cfg.consoleUrl!, { redirect: 'manual' });
-  expect(res.status).toBe(302);
-  expect(res.headers.get('location') ?? '').toMatch(/^https:\/\/accounts\.google\.com\//);
+test('O8: the password login: wrong passwords, the lockout, forged tokens, and log out everywhere', async ({ page }) => {
+  // The page without a session shows only the login.
+  await openConsole(page, false);
+  await expect(page.getByRole('heading', { name: 'כניסה למסוף' })).toBeVisible();
+  await expect(page.locator('nav.tabs')).toBeHidden();
+  await page.getByLabel('סיסמה').fill('not the password');
+  await page.getByRole('button', { name: 'כניסה' }).click();
+  await expect(page.getByRole('alert')).toContainText('הסיסמה שגויה', { timeout: 90_000 });
+
+  // Five wrong passwords lock the login for everyone, even the right password, until the pause ends.
+  // A retried call (Google sometimes loses an answer) can count twice, so count the answers instead.
+  await api.resetConsoleLock();
+  const answers: string[] = [];
+  for (let i = 0; i < 6 && answers.at(-1) !== 'locked'; i++) answers.push((await api.consoleLogin(`wrong-${i}`)).error);
+  expect(answers.at(-1)).toBe('locked');
+  expect(answers.slice(0, -1).every((a) => a === 'wrong_password')).toBe(true);
+  expect(await api.consoleLogin(cfg.consolePassword!)).toMatchObject({ ok: false, error: 'locked' });
+  await api.resetConsoleLock();
+
+  // A session token works; an altered one does not.
+  const login = await api.consoleLogin(cfg.consolePassword!);
+  expect(login.ok).toBe(true);
+  expect((await api.consoleWithToken('overview', login.token)).ok).toBe(true);
+  const parts = login.token.split('.');
+  const altered = [parts[0], parts[1], 'deadbeef', parts[3]].join('.');
+  expect(await api.consoleWithToken('overview', altered)).toMatchObject({ ok: false, error: 'unauthorized' });
+
+  // Log out everywhere from the page: that device and every earlier token are logged out.
+  await openConsole(page);
+  page.once('dialog', (d) => d.accept());
+  await page.locator('#health-btn').click();
+  await page.getByRole('button', { name: 'ניתוק מכל המכשירים' }).click();
+  await expect(page.getByRole('heading', { name: 'כניסה למסוף' })).toBeVisible({ timeout: 90_000 });
+  expect(await api.consoleWithToken('overview', login.token)).toMatchObject({ ok: false, error: 'unauthorized' });
+  const again = await api.consoleLogin(cfg.consolePassword!);
+  expect((await api.consoleWithToken('overview', again.token)).ok).toBe(true);
 });
