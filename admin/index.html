@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="referrer" content="no-referrer" />
+<!-- The booking web app the console talks to. Public: the website calls the same address. -->
+<meta name="booking-api" content="https://script.google.com/macros/s/AKfycbwP44lR5eBIRvpV2cYMBlN8fHMp9mrI1WljV3f6lgagccNSh-eGkuteNwMH_c6YjK19/exec" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'self'" />
+<link rel="icon" type="image/png" href="/shorashim-logo-transparent.png" />
+<link rel="apple-touch-icon" href="/shorashim-logo-transparent.png" />
+<title>שורשים · ניהול</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&family=Frank+Ruhl+Libre:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* The website's visual language (src/index.css, RootLine.tsx): ivory ground, ink text, an accent
+     brown for letter-spaced tags, a light serif for headings, thin lines instead of boxes. */
+  :root {
+    --bg: #F4F0E8; --paper: #FBF9F5; --sand: #EBE5DB; --ink: #1E1D1A; --body: #3D3A35; --muted: #5E574D;
+    --line: #DED5C8; --accent: #7B6045; --ivory: #F4EFE5;
+    --ok: #1E6B37; --ok-bg: #E8F1EA; --warn: #6E4A00; --warn-bg: #F7EDD8; --bad: #8C1D18; --bad-bg: #F8E6E3;
+    --hold: #E4DCCD; --ota: #DCE6F0; --ota-ink: #1F3A5F; --block: #CFC4B4; --wa: #146C36;
+    --serif: 'Frank Ruhl Libre', serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Assistant', -apple-system, sans-serif; font-weight: 400; -webkit-font-smoothing: antialiased; }
+  .app { max-width: 600px; margin: 0 auto; min-height: 100vh; padding-bottom: 96px; }
+  a { color: inherit; }
+
+  /* Header: the site's solid header, with the logo and a small wordmark. */
+  header { position: sticky; top: 0; z-index: 5; background: rgba(243,239,231,.96); border-bottom: 1px solid rgba(229,223,211,.9); box-shadow: 0 2px 18px rgba(64,54,47,.035); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 400; }
+  .brand img { width: 44px; height: 44px; object-fit: contain; }
+  .brand .word { font-family: var(--serif); font-size: 24px; letter-spacing: .035em; line-height: 1; color: #665548; }
+  .brand .word small { display: block; font-family: 'Assistant', sans-serif; font-size: 11px; letter-spacing: .2em; color: var(--accent); margin-top: 4px; }
+  .tools { display: flex; gap: 4px; align-items: center; }
+  .health { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); background: none; border: 0; min-height: 44px; padding: 0 8px; font-family: inherit; cursor: pointer; letter-spacing: .02em; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #2E9E57; box-shadow: 0 0 0 3px rgba(46,158,87,.14); }
+  .dot.bad { background: #C0392B; box-shadow: 0 0 0 3px rgba(192,57,43,.14); }
+  .dot.unknown { background: #A89F92; box-shadow: none; }
+
+  main { padding: 26px 20px 0; }
+  .screen[hidden] { display: none; }
+
+  /* Section heads: tag, light serif heading, a line (EditorialTag + h2 + border in the site). */
+  .etag { display: block; font-size: 11px; letter-spacing: .2em; color: var(--accent); margin-bottom: 10px; }
+  h2 { font-family: var(--serif); font-weight: 300; font-size: 34px; line-height: 1.1; letter-spacing: -.01em; margin: 0 0 8px; }
+  .sub { color: var(--muted); font-size: 15px; font-weight: 300; line-height: 1.6; margin: 0 0 18px; }
+  .head { padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid var(--line); position: relative; }
+  .head::after { content: ''; position: absolute; bottom: -1px; right: 0; width: 64px; height: 1px; background: var(--accent); opacity: .55; }
+  h3.tag { font-size: 11px; font-weight: 400; letter-spacing: .2em; color: var(--accent); margin: 34px 0 12px; display: flex; align-items: center; gap: 12px; }
+  h3.tag::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .banner { padding: 12px 14px; margin: 0 0 16px; font-size: 14px; border: 1px solid; }
+  .banner.err { background: var(--bad-bg); border-color: #E3B3AC; color: var(--bad); }
+
+  /* Stats: editorial numbers, divided by thin lines. */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .stat { padding: 2px 14px; border-inline-start: 1px solid var(--line); }
+  .stat:first-child { border-inline-start: 0; padding-inline-start: 0; }
+  .stat b { display: block; font-family: var(--serif); font-size: 34px; font-weight: 300; line-height: 1.15; }
+  .stat span { font-size: 12px; color: var(--muted); line-height: 1.35; display: block; }
+
+  /* Request cards */
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 20px 18px 18px; margin-bottom: 14px; box-shadow: 0 2px 15px rgba(30,29,26,.03); }
+  .card.conflict { border-color: #E3B3AC; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .name { font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.2; margin: 0; }
+  .ref { font-size: 12px; color: var(--muted); letter-spacing: .08em; direction: ltr; unicode-bidi: isolate; }
+  .kind { font-size: 11px; letter-spacing: .2em; color: var(--accent); margin-top: 6px; }
+  dl.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 16px 0; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  dl.meta div { min-width: 0; }
+  dl.meta dt { color: var(--accent); font-size: 11px; letter-spacing: .14em; margin-bottom: 2px; }
+  dl.meta dd { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+  dl.meta a { text-decoration: none; border-bottom: 1px solid var(--line); }
+  .note { font-family: var(--serif); font-style: italic; font-size: 16px; line-height: 1.55; color: var(--body); border-inline-start: 2px solid var(--accent); padding: 2px 12px; margin: 0 0 14px; white-space: pre-wrap; }
+  .pill { display: inline-block; font-size: 12px; letter-spacing: .04em; padding: 3px 10px; border: 1px solid; border-radius: 2px; }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); border-color: #E6D2A6; }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); border-color: #E3B3AC; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); border-color: #B7D6BF; }
+  .pill.ota { background: var(--ota); color: var(--ota-ink); border-color: #B9CBDD; }
+  .pill.plain { background: var(--sand); color: #4A453E; border-color: var(--line); }
+  .warnline { font-size: 14px; color: var(--bad); margin: 0 0 12px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr 52px; gap: 8px; }
+  .actions.two { grid-template-columns: 1fr 1fr; }
+
+  /* Buttons: square corners and letter-spacing, as on the site. */
+  button, .btn { font: inherit; font-size: 14px; letter-spacing: .04em; min-height: 46px; padding: 0 14px; border: 1px solid rgba(30,29,26,.35); border-radius: 2px; background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; transition: background-color .2s, color .2s, border-color .2s; }
+  button:hover, .btn:hover { border-color: var(--ink); }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--ivory); }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+  .btn.danger { border-color: #C9867E; color: var(--bad); }
+  .btn.danger.primary { background: #9E2A20; border-color: #9E2A20; color: #fff; }
+  .btn.wa { border-color: rgba(20,108,54,.5); color: var(--wa); }
+  .btn.wa.primary { background: var(--wa); border-color: var(--wa); color: #fff; }
+  .btn.quiet { border-color: var(--line); }
+  .icon { min-width: 46px; padding: 0; }
+  :focus-visible { outline: 3px solid #1F3A5F; outline-offset: 2px; }
+
+  .confirm { margin-top: 14px; padding: 14px; background: var(--bg); border: 1px solid var(--line); }
+  .confirm p { margin: 0 0 10px; font-family: var(--serif); font-size: 17px; }
+  .result { padding: 18px; margin-bottom: 14px; border: 1px solid; border-inline-start-width: 3px; background: var(--paper); }
+  .result.ok { border-color: #B7D6BF; border-inline-start-color: var(--ok); color: #14532B; }
+  .result.bad { border-color: #E3B3AC; border-inline-start-color: var(--bad); color: var(--bad); }
+  .result p { margin: 0 0 10px; font-size: 14px; }
+  .result .title { font-family: var(--serif); font-size: 19px; line-height: 1.35; }
+  .result .btn { margin-top: 4px; }
+
+  /* Lists: editorial rows between thin lines. */
+  ul.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: 58px 1fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .date { text-align: center; border-inline-end: 1px solid var(--line); padding-inline-end: 12px; }
+  .date b { display: block; font-family: var(--serif); font-size: 28px; font-weight: 300; line-height: 1; }
+  .date span { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+  .who { font-family: var(--serif); font-weight: 400; margin: 0; font-size: 18px; }
+  .what { font-size: 13px; color: var(--muted); margin: 3px 0 0; overflow-wrap: anywhere; line-height: 1.5; }
+  .item .side { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .empty { color: var(--muted); font-size: 14px; font-weight: 300; padding: 14px 0; margin: 0; border-bottom: 1px solid var(--line); }
+
+  /* Calendar */
+  .month { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .month h2 { font-size: 28px; margin: 0; }
+  .month button { width: 46px; font-size: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .dow { font-size: 11px; letter-spacing: .1em; color: var(--accent); text-align: center; padding-bottom: 6px; }
+  .day { aspect-ratio: 1 / 1.08; min-height: 42px; background: var(--paper); border: 1px solid var(--line); font-size: 14px; padding: 4px 5px; justify-content: flex-start; align-items: flex-start; color: var(--ink); letter-spacing: 0; }
+  .day.out { visibility: hidden; }
+  .day.past { color: #6B6459; background: transparent; }
+  .day.booked { background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+  .day.hold { background: repeating-linear-gradient(135deg, var(--hold), var(--hold) 5px, var(--paper) 5px, var(--paper) 10px); }
+  .day.block { background: var(--block); border-color: #BFB3A1; }
+  .day.ota { background: var(--ota); color: var(--ota-ink); border-color: #B9CBDD; }
+  .day.today { box-shadow: inset 0 0 0 2px var(--accent); }
+  .day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px #1F3A5F; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; color: var(--muted); margin: 14px 0 4px; padding: 0; list-style: none; }
+  .legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-inline-end: 6px; border: 1px solid var(--line); }
+  .panel { background: rgba(222,213,200,.4); border: 1px solid var(--line); padding: 18px; margin: 0 0 18px; }
+  .panel h3 { margin: 0 0 12px; font-family: var(--serif); font-weight: 400; font-size: 19px; }
+  .panel .row + .row { margin-top: 10px; }
+
+  /* Tab bar: the site's dark footer band. */
+  nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ink); border-top: 1px solid #292824; z-index: 6; padding-bottom: env(safe-area-inset-bottom); }
+  nav.tabs .in { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+  nav.tabs button { border: 0; border-radius: 0; color: rgba(222,213,200,.8); min-height: 66px; flex-direction: column; gap: 4px; font-size: 12px; letter-spacing: .12em; position: relative; }
+  nav.tabs button:hover { color: #fff; }
+  nav.tabs button[aria-current="page"] { color: var(--ivory); }
+  nav.tabs button[aria-current="page"]::before { content: ''; position: absolute; top: 0; left: 30%; right: 30%; height: 2px; background: var(--ivory); }
+  nav.tabs svg { width: 22px; height: 22px; }
+  .badge[hidden] { display: none; }
+  .badge { position: absolute; top: 8px; left: calc(50% - 24px); background: #A4502B; color: #fff; font-size: 11px; letter-spacing: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; }
+
+  .login { max-width: 380px; margin: 8vh auto 0; text-align: center; }
+  .login img { width: 88px; height: 88px; }
+  .login form { text-align: right; margin-top: 26px; }
+  .login label { display: block; font-size: 11px; letter-spacing: .2em; color: var(--accent); margin-bottom: 8px; }
+  .login input[type=password] { width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; font-size: 16px; border: 1px solid #CFC4B4; border-radius: 2px; background: var(--paper); color: var(--ink); direction: ltr; text-align: right; }
+  .login .btn { width: 100%; margin-top: 14px; }
+  .login .banner { text-align: right; margin-top: 14px; }
+  body.locked-out .app > header .tools, body.locked-out nav.tabs { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  @media (prefers-reduced-motion: no-preference) { .spin { animation: spin 1s linear infinite; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 360px) { h2 { font-size: 30px; } .stat b { font-size: 28px; } main { padding: 22px 14px 0; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1 class="brand"><img src="/shorashim-logo-transparent.png" alt="" width="44" height="44"><span class="word">שורשים<small>ניהול הזמנות</small></span></h1>
+    <div class="tools">
+      <button type="button" class="health" id="health-btn" aria-controls="health-panel" aria-expanded="false">
+        <span class="dot unknown" id="health-dot"></span><span id="health-text">בודקים…</span>
+      </button>
+      <button type="button" class="btn quiet icon" id="refresh-btn" aria-label="רענון">
+        <svg id="refresh-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="login" class="login" aria-labelledby="h-login" hidden>
+      <img src="/shorashim-logo-transparent.png" alt="" width="88" height="88">
+      <span class="etag" style="margin-top:18px">שורשים · ניהול הזמנות</span>
+      <h2 id="h-login">כניסה למסוף</h2>
+      <p class="sub">אחרי הכניסה המכשיר נשאר מחובר, עד "ניתוק מכל המכשירים" או החלפת הסיסמה.</p>
+      <form id="login-form" novalidate>
+        <input type="text" name="username" autocomplete="username" value="shorashim" hidden>
+        <label for="password">סיסמה</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+        <button type="submit" class="btn primary" id="login-btn">כניסה</button>
+        <div id="login-error" role="alert"></div>
+      </form>
+    </section>
+    <div id="health-panel" class="panel" hidden></div>
+    <div id="status" role="status" aria-live="polite" class="sr-only"></div>
+    <div id="error"></div>
+
+    <section class="screen" id="screen-requests" aria-labelledby="h-requests">
+      <div class="head">
+        <span class="etag">01 · בקשות</span>
+        <h2 id="h-requests">בקשות</h2>
+        <p class="sub" id="requests-sub">טוען…</p>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div id="results"></div>
+      <h3 class="tag">ממתינות לאישור</h3>
+      <div id="pending"></div>
+      <h3 class="tag">החלטות אחרונות</h3>
+      <ul class="list" id="decisions"></ul>
+    </section>
+
+    <section class="screen" id="screen-calendar" aria-labelledby="h-calendar" hidden>
+      <span class="etag">02 · יומן</span>
+      <div class="month">
+        <button type="button" id="prev-month" aria-label="החודש הקודם">›</button>
+        <h2 id="h-calendar">יומן</h2>
+        <button type="button" id="next-month" aria-label="החודש הבא">‹</button>
+      </div>
+      <div class="grid" id="cal" role="group" aria-labelledby="h-calendar"></div>
+      <ul class="legend">
+        <li><i style="background:#1E1D1A"></i>הזמנה מהאתר</li>
+        <li><i style="background:repeating-linear-gradient(135deg,#E9E2D6,#E9E2D6 3px,#F6F2EA 3px,#F6F2EA 6px)"></i>בקשה ממתינה</li>
+        <li><i style="background:#DCE6F0"></i>ערוצים</li>
+        <li><i style="background:#CFC4B4"></i>ידני / חסימה</li>
+      </ul>
+      <div id="day-panel" class="panel" aria-live="polite" hidden></div>
+    </section>
+
+    <section class="screen" id="screen-bookings" aria-labelledby="h-bookings" hidden>
+      <div class="head">
+        <span class="etag">03 · הזמנות</span>
+        <h2 id="h-bookings">הזמנות</h2>
+        <p class="sub">הזמנות מהאתר, הזמנות ידניות וחסימות מיומן ההזמנות. להוספת חסימה: יומן Google.</p>
+      </div>
+      <h3 class="tag">קרובות</h3>
+      <ul class="list" id="bookings-upcoming"></ul>
+      <h3 class="tag">הסתיימו לאחרונה</h3>
+      <ul class="list" id="bookings-past"></ul>
+    </section>
+
+    <section class="screen" id="screen-channels" aria-labelledby="h-channels" hidden>
+      <div class="head">
+        <span class="etag">04 · ערוצים</span>
+        <h2 id="h-channels">ערוצים</h2>
+        <p class="sub">הזמנות מ-Booking.com, Airbnb ושאר הערוצים, כפי שהן ביומן הערוצים.</p>
+      </div>
+      <ul class="list" id="channels"></ul>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="מסכים">
+    <div class="in">
+      <button type="button" data-tab="requests" aria-current="page"><span class="badge" id="badge" aria-hidden="true" hidden></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>בקשות<span class="sr-only" id="badge-sr"></span></button>
+      <button type="button" data-tab="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>יומן</button>
+      <button type="button" data-tab="bookings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 11l8-6 8 6v9H4z"/><path d="M10 20v-5h4v5"/></svg>הזמנות</button>
+      <button type="button" data-tab="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/></svg>ערוצים</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+  // The data comes from the booking web app (apps-script/), which checks the session on every call.
+  var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [] };
+  var DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+  var MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  var WEDDING = { bride_day: true, bride_night_day: true };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function parse(d) { var p = d.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function iso(dt) { return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'); }
+  function addDays(d, n) { var dt = parse(d); dt.setDate(dt.getDate() + n); return iso(dt); }
+  function he(d) { var dt = parse(d); return DOW[dt.getDay()] + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1); }
+  function heFull(d) { return d.split('-').reverse().join('.'); }
+  // A right-to-left mark around the dash keeps "start – end" reading from the right; without it the
+  // browser lays the two dates out left to right, and the range reads backwards.
+  function range(a, b) { return heFull(a) + ' \u200F–\u200F ' + heFull(b); }
+  function money(n) { return n ? '₪' + Number(n).toLocaleString('en-US') : '—'; }
+  function nightsText(n) { return n === 1 ? 'לילה אחד' : n + ' לילות'; }
+  function adultsText(n) { return n ? (Number(n) === 1 ? 'מבוגר אחד' : n + ' מבוגרים') : ''; }
+  function announce(text) { $('status').textContent = ''; setTimeout(function () { $('status').textContent = text; }, 50); }
+
+  // ---- Talking to the booking web app
+
+  var API = window.CONSOLE_API || document.querySelector('meta[name="booking-api"]').content;
+  var TOKEN_KEY = 'shorashim-console-token';
+  function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+
+  /**
+   * POSTs one console call. Google's front end for Apps Script sometimes answers with an HTML error
+   * page, turns the POST into a GET (the web app's default reply) or never answers, so each attempt
+   * has a time limit and the call is retried until the answer has a known shape. Repeating a decision
+   * is safe: the backend returns the first result. text/plain keeps it a simple CORS request.
+   */
+  function post(body, attempt) {
+    attempt = attempt || 1;
+    var controller = new AbortController();
+    // A decision with a calendar invitation can take a while; other calls answer faster.
+    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' ? 60000 : 30000);
+    return fetch(API, { method: 'POST', body: JSON.stringify(body), signal: controller.signal })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && typeof data.ok === 'boolean' && !(data.ok && data.service)) return data;
+        throw new Error('unexpected answer');
+      })
+      .catch(function (err) {
+        if (attempt >= 6) throw err;
+        return new Promise(function (r) { setTimeout(r, 800 * attempt); }).then(function () { return post(body, attempt + 1); });
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  function call(op, args) {
+    args = args || {};
+    return post({ action: 'console', op: op, token: token(), id: args.id || '', decision: args.decision || '' }).then(function (data) {
+      if (data.ok === false && data.error === 'unauthorized') {
+        setToken('');
+        showLogin('החיבור הסתיים. יש להיכנס שוב.');
+        throw new Error('unauthorized');
+      }
+      return data;
+    });
+  }
+
+  function showLogin(message) {
+    document.body.classList.add('locked-out');
+    document.querySelectorAll('.screen, #health-panel').forEach(function (s) { s.hidden = true; });
+    $('login').hidden = false;
+    $('login-error').innerHTML = message ? '<div class="banner err">' + esc(message) + '</div>' : '';
+    $('password').value = '';
+    $('password').focus();
+  }
+
+  function showConsole() {
+    document.body.classList.remove('locked-out');
+    $('login').hidden = true;
+    document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
+  }
+
+  $('login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'בודקים…';
+    $('login-error').innerHTML = '';
+    post({ action: 'console', op: 'login', password: $('password').value })
+      .then(function (res) {
+        if (res.ok && res.token) {
+          setToken(res.token);
+          showConsole();
+          return load();
+        }
+        var msg = res.error === 'locked' ? 'יותר מדי ניסיונות. אפשר לנסות שוב בעוד ' + res.minutes + ' דקות.'
+          : res.error === 'wrong_password' ? 'הסיסמה שגויה.' + (res.attemptsLeft ? ' נותרו ' + res.attemptsLeft + ' ניסיונות.' : '')
+          : 'לא הצלחנו להתחבר כרגע. נסו שוב.';
+        $('login-error').innerHTML = '<div class="banner err">' + esc(msg) + '</div>';
+        $('password').focus();
+      }, function () {
+        $('login-error').innerHTML = '<div class="banner err">לא הצלחנו להתחבר כרגע. נסו שוב.</div>';
+      })
+      .then(function () { btn.disabled = false; btn.textContent = 'כניסה'; });
+  });
+
+  function logoutAll() {
+    if (!window.confirm('לנתק את כל המכשירים, כולל זה? כדי להיכנס שוב צריך את הסיסמה.')) return;
+    call('logoutAll').then(function () {
+      setToken('');
+      showLogin('כל המכשירים נותקו.');
+    }, function () {});
+  }
+
+  // ---- Loading
+
+  function load(quiet) {
+    $('refresh-icon').classList.add('spin');
+    if (!quiet) announce('טוענים נתונים…');
+    return call('overview')
+      .then(function (data) {
+        if (!data || data.ok !== true) throw new Error((data && data.error) || 'no data');
+        state.data = data;
+        $('error').innerHTML = '';
+        if (!state.month) state.month = data.today.slice(0, 7);
+        render();
+        if (!quiet) announce('הנתונים עודכנו');
+      })
+      .catch(function (err) {
+        if (err && err.message === 'unauthorized') return;
+        $('error').innerHTML = '<div class="banner err" role="alert">לא הצלחנו לטעון את הנתונים. <button type="button" class="btn quiet" id="retry">לנסות שוב</button></div>';
+        $('retry').onclick = function () { load(); };
+      })
+      .then(function () { $('refresh-icon').classList.remove('spin'); });
+  }
+
+  function render() {
+    renderHealth();
+    renderRequests();
+    renderCalendar();
+    renderBookings();
+    renderChannels();
+  }
+
+  // ---- Health
+
+  function renderHealth() {
+    var h = state.data.health;
+    var age = h.mirrorsRefreshedAt ? Math.round((Date.now() - Date.parse(h.mirrorsRefreshedAt)) / 60000) : null;
+    var triggersOk = ['onSheetEdit', 'onSnapshotTimer', 'onCalendarChange'].every(function (t) { return h.triggers.indexOf(t) >= 0; });
+    var ok = triggersOk && age !== null && age < 15;
+    $('health-dot').className = 'dot' + (ok ? '' : ' bad');
+    $('health-text').textContent = (h.staging ? 'בדיקות · ' : '') + (ok ? 'הכול תקין' : 'יש בעיה');
+    $('health-panel').innerHTML =
+      '<h3>מצב המערכת</h3>' +
+      '<div class="row"><span>הגיליונות עודכנו</span><span class="pill ' + (age !== null && age < 15 ? 'ok' : 'bad') + '">' + (age === null ? 'לא ידוע' : 'לפני ' + age + ' דק׳') + '</span></div>' +
+      '<div class="row"><span>טריגרים (גיליון, יומן, תזמון)</span><span class="pill ' + (triggersOk ? 'ok' : 'bad') + '">' + (triggersOk ? 'פעילים' : 'חסרים') + '</span></div>' +
+      '<div class="row"><span>גרסת המחירים באתר</span><span class="pill plain ref">' + esc(h.pricesVersion) + '</span></div>' +
+      '<div class="row" style="margin-top:16px"><button type="button" class="btn quiet" id="logout-all">ניתוק מכל המכשירים</button></div>';
+    $('logout-all').onclick = logoutAll;
+  }
+
+  // ---- Requests
+
+  function holdText(r) {
+    if (!r.holding) return '<span class="pill bad">פג תוקף השמירה</span>';
+    var hours = Math.max(1, Math.round((Date.parse(r.holdUntil) - Date.now()) / 3600000));
+    return '<span class="pill warn">התאריכים שמורים עוד ' + hours + ' שעות</span>';
+  }
+
+  function datesMeta(r) {
+    if (WEDDING[r.stayType]) {
+      return '<div><dt>תאריך החתונה</dt><dd>' + he(r.checkIn) + '</dd></div><div><dt>נשמר</dt><dd>' + range(r.start, r.end) + '</dd></div>';
+    }
+    return '<div><dt>הגעה</dt><dd>' + he(r.start) + ' · 15:00</dd></div><div><dt>עזיבה</dt><dd>' + he(r.end) + ' · 11:00</dd></div>';
+  }
+
+  function requestCard(r, index) {
+    var busy = state.busy[r.id];
+    var conflict = r.conflicts && r.conflicts.length;
+    var confirming = state.confirming && state.confirming.id === r.id ? state.confirming.decision : null;
+    var html = '<article class="card' + (conflict ? ' conflict' : '') + '" data-request-id="' + esc(r.id) + '" aria-labelledby="req-name-' + index + '">' +
+      '<div class="row"><h4 class="name" id="req-name-' + index + '">' + esc(r.name) + '</h4><span class="ref">' + esc(r.ref) + '</span></div>' +
+      '<div class="kind">' + esc(r.stayLabel) + '</div>' +
+      '<dl class="meta">' + datesMeta(r) +
+      '<div><dt>אורחים</dt><dd>' + adultsText(r.adults) + ' · ' + nightsText(r.nights) + '</dd></div>' +
+      '<div><dt>הערכת מחיר</dt><dd>' + money(r.estimate) + '</dd></div>' +
+      '<div><dt>טלפון</dt><dd><a href="tel:' + esc(r.phone) + '" dir="ltr">' + esc(r.phone) + '</a></dd></div>' +
+      '<div><dt>אימייל</dt><dd dir="ltr">' + (r.email ? esc(r.email) : '—') + '</dd></div></dl>' +
+      (r.notes ? '<div class="note">' + esc(r.notes) + '</div>' : '') +
+      (conflict ? '<p class="warnline">⚠ הלילות ' + r.conflicts.map(heFull).join(', ') + ' כבר תפוסים. אפשר רק לדחות.</p>' : '') +
+      '<div class="row" style="margin-bottom:10px">' + holdText(r) + '</div>';
+    if (confirming) {
+      var approve = confirming === 'approve';
+      html += '<div class="confirm" role="group" aria-label="אישור הפעולה"><p>' + (approve ? 'לאשר' : 'לדחות') + ' את הבקשה של ' + esc(r.name) + '?</p>' +
+        '<div class="actions two"><button type="button" class="btn ' + (approve ? 'primary' : 'danger primary') + '" data-action="confirm" ' + (busy ? 'disabled' : '') + '>' +
+        (busy ? 'שומרים…' : approve ? 'כן, לאשר' : 'כן, לדחות') + '</button>' +
+        '<button type="button" class="btn quiet" data-action="cancel" ' + (busy ? 'disabled' : '') + '>ביטול</button></div></div>';
+    } else {
+      html += '<div class="actions"><button type="button" class="btn primary" data-action="approve"' + (conflict ? ' disabled' : '') + '>✓ אישור</button>' +
+        '<button type="button" class="btn danger" data-action="decline">דחייה</button>' +
+        (r.whatsapp ? '<a class="btn wa icon" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener" aria-label="WhatsApp ל' + esc(r.name) + '">' + waIcon() + '</a>' : '<span></span>') + '</div>';
+    }
+    return html + '</article>';
+  }
+
+  function waIcon() {
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/></svg>';
+  }
+
+  function resultPanel(res) {
+    var ok = res.kind === 'approved' || res.kind === 'declined';
+    var html = '<div class="result ' + (ok ? 'ok' : 'bad') + '" data-result-for="' + esc(res.id) + '">';
+    if (res.kind === 'approved') {
+      html += '<p class="title">✓ ההזמנה של ' + esc(res.name) + ' אושרה ונוספה ליומן ההזמנות.</p>' +
+        '<p>' + (res.invited ? 'נשלח זימון ליומן אל ' + esc(res.email) + '.' : 'לא נשלח זימון: האורח/ת לא השאיר/ה אימייל.') + '</p>';
+    } else if (res.kind === 'declined') {
+      html += '<p class="title">הבקשה של ' + esc(res.name) + ' נדחתה והתאריכים נפתחו שוב.</p><p>האורח/ת לא מקבל/ת הודעה אוטומטית.</p>';
+    } else if (res.kind === 'unavailable') {
+      html += '<p class="title">אי אפשר לאשר: הלילות ' + esc((res.nights || []).join(', ')) + ' כבר תפוסים.</p>';
+    } else if (res.kind === 'not_found') {
+      html += '<p class="title">הבקשה של ' + esc(res.name) + ' כבר טופלה (מהגיליון, מהמייל או כאן).</p>';
+    } else {
+      html += '<p class="title">לא הצלחנו לוודא שהפעולה נשמרה. רעננו ובדקו לפני שמנסים שוב.</p>';
+    }
+    if (res.whatsapp) {
+      html += '<a class="btn wa primary" href="' + esc(res.whatsapp) + '" target="_blank" rel="noopener">' + waIcon() +
+        (res.kind === 'approved' ? 'שליחת אישור ב-WhatsApp' : 'שליחת דחייה ב-WhatsApp') + '</a> ';
+    }
+    return html + '<button type="button" class="btn quiet" data-dismiss="' + esc(res.id) + '">סגירה</button></div>';
+  }
+
+  function renderRequests() {
+    var d = state.data;
+    var pending = d.requests.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    var month = d.today.slice(0, 7);
+    var daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+    var taken = {};
+    d.bookings.concat(d.channels).forEach(function (b) {
+      for (var n = b.start; n < b.end; n = addDays(n, 1)) if (n.slice(0, 7) === month) taken[n] = true;
+    });
+    var soon = d.bookings.filter(function (b) { return b.start >= d.today && b.start <= addDays(d.today, 7); }).length +
+      d.channels.filter(function (c) { return c.start >= d.today && c.start <= addDays(d.today, 7); }).length;
+    var hour = new Date().getHours();
+    $('h-requests').textContent = hour < 12 ? 'בוקר טוב' : hour < 18 ? 'צהריים טובים' : 'ערב טוב';
+    $('requests-sub').textContent = he(d.today) + ' · ' + (pending.length ? (pending.length === 1 ? 'בקשה אחת מחכה לך' : pending.length + ' בקשות מחכות לך') : 'אין בקשות ממתינות');
+    $('stats').innerHTML =
+      '<div class="stat"><b>' + pending.length + '</b><span>בקשות ממתינות</span></div>' +
+      '<div class="stat"><b>' + soon + '</b><span>הגעות ב-7 הימים הקרובים</span></div>' +
+      '<div class="stat"><b>' + Math.round((Object.keys(taken).length / daysInMonth) * 100) + '%</b><span>תפוסת ' + MONTHS[Number(month.slice(5, 7)) - 1] + '</span></div>';
+    $('results').innerHTML = state.results.map(resultPanel).join('');
+    var shown = pending.filter(function (r) { return !state.results.some(function (x) { return x.id === r.id; }); });
+    $('pending').innerHTML = shown.length ? shown.map(requestCard).join('') : '<p class="empty">אין בקשות שמחכות להחלטה.</p>';
+    $('decisions').innerHTML = d.decisions.length
+      ? d.decisions.map(function (x) {
+          var approved = x.result === 'approved';
+          var at = new Date(x.at);
+          return '<li class="item" data-decision-ref="' + esc(x.ref) + '"><div class="date"><b>' + at.getDate() + '</b><span>' + MONTHS[at.getMonth()].slice(0, 3) + '׳</span></div>' +
+            '<div><p class="who">' + esc(x.name) + '</p><p class="what">' + range(x.start, x.end) + ' · ' + esc(x.stayLabel) + '</p></div>' +
+            '<div class="side"><span class="pill ' + (approved ? 'ok' : 'bad') + '">' + (approved ? 'אושרה' : 'נדחתה') + '</span>' +
+            (x.whatsapp ? '<a class="btn wa icon" href="' + esc(x.whatsapp) + '" target="_blank" rel="noopener" aria-label="' + (approved ? 'שליחת אישור' : 'שליחת דחייה') + ' ב-WhatsApp ל' + esc(x.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
+        }).join('')
+      : '<li class="empty">אין החלטות מ-3 הימים האחרונים.</li>';
+    var badge = $('badge');
+    badge.hidden = !pending.length;
+    badge.textContent = pending.length;
+    $('badge-sr').textContent = pending.length ? ', ' + pending.length + ' ממתינות' : '';
+  }
+
+  function decide(id, decision) {
+    var r = state.data.requests.filter(function (x) { return x.id === id; })[0];
+    state.busy[id] = true;
+    renderRequests();
+    announce('שומרים…');
+    var done = decision === 'approve' ? 'approved' : 'declined';
+    call('decide', { id: id, decision: decision })
+      .then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; })
+      .then(function (res) {
+        // Google sometimes loses the answer after the decision was made; a retry then finds the
+        // request gone ("not_found"). Look it up before telling the owner anything went wrong.
+        if (res.ok || (res.error !== 'network' && res.error !== 'not_found')) return res;
+        return call('overview').then(function (o) {
+          var made = (o.decisions || []).filter(function (x) { return x.ref === r.ref && x.result === done; })[0];
+          return made ? { ok: true, result: done, invited: done === 'approved' && !!r.email, whatsapp: made.whatsapp } : res;
+        }, function () { return res; });
+      })
+      .then(function (res) {
+        delete state.busy[id];
+        state.confirming = null;
+        var kind = res.ok ? res.result : res.error;
+        state.results.unshift({ id: id, name: r.name, email: r.email, kind: kind, invited: res.invited, whatsapp: res.whatsapp, nights: res.nights });
+        renderRequests();
+        var panel = document.querySelector('[data-result-for="' + CSS.escape(id) + '"] .title');
+        announce(panel ? panel.textContent : '');
+        if (panel) { panel.setAttribute('tabindex', '-1'); panel.focus(); }
+        load(true);
+      });
+  }
+
+  $('screen-requests').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    var dismiss = btn.getAttribute('data-dismiss');
+    if (dismiss) {
+      state.results = state.results.filter(function (x) { return x.id !== dismiss; });
+      renderRequests();
+      return;
+    }
+    var card = btn.closest('[data-request-id]');
+    if (!card) return;
+    var id = card.getAttribute('data-request-id');
+    var action = btn.getAttribute('data-action');
+    if (action === 'approve' || action === 'decline') state.confirming = { id: id, decision: action };
+    else if (action === 'cancel') state.confirming = null;
+    else if (action === 'confirm') return decide(id, state.confirming.decision);
+    else return;
+    renderRequests();
+    var next = document.querySelector('[data-request-id="' + CSS.escape(id) + '"] [data-action="' + (action === 'cancel' ? 'approve' : 'confirm') + '"]');
+    if (next && !next.disabled) next.focus();
+    else { var d = document.querySelector('[data-request-id="' + CSS.escape(id) + '"] [data-action="decline"]'); if (d) d.focus(); }
+  });
+
+  // ---- Calendar
+
+  function nightKinds() {
+    var d = state.data, out = {};
+    function mark(start, end, kind, label) {
+      for (var n = start; n < end; n = addDays(n, 1)) (out[n] = out[n] || []).push({ kind: kind, label: label });
+    }
+    d.bookings.forEach(function (b) { mark(b.start, b.end, b.source === 'website' ? 'booked' : 'block', (b.source === 'website' ? 'הזמנה · ' : 'ידני · ') + (b.name || b.title) + ' · ' + nightsText(b.nights)); });
+    d.channels.forEach(function (c) { mark(c.start, c.end, 'ota', 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights)); });
+    d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r.start, r.end, 'hold', 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate)); });
+    return out;
+  }
+
+  function renderCalendar() {
+    var d = state.data, kinds = nightKinds();
+    var y = Number(state.month.slice(0, 4)), m = Number(state.month.slice(5, 7)) - 1;
+    $('h-calendar').textContent = MONTHS[m] + ' ' + y;
+    var first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate();
+    var html = DOW.map(function (x) { return '<div class="dow" aria-hidden="true">' + x + '</div>'; }).join('');
+    for (var i = 0; i < first.getDay(); i++) html += '<div class="day out" aria-hidden="true"></div>';
+    for (var day = 1; day <= days; day++) {
+      var date = iso(new Date(y, m, day));
+      var k = kinds[date] || [];
+      var cls = k.length ? k[0].kind : '';
+      var label = he(date) + (k.length ? ': ' + k.map(function (x) { return x.label; }).join('; ') : ': פנוי');
+      html += '<button type="button" class="day ' + cls + (date === d.today ? ' today' : '') + (date < d.today ? ' past' : '') + '" data-date="' + date + '" aria-label="' + esc(label) + '" aria-pressed="' + (state.day === date) + '">' + day + '</button>';
+    }
+    $('cal').innerHTML = html;
+    var panel = $('day-panel');
+    if (state.day && state.day.slice(0, 7) === state.month) {
+      var list = kinds[state.day] || [];
+      panel.hidden = false;
+      panel.innerHTML = '<h3>' + he(state.day) + '</h3>' + (list.length ? '<ul class="list">' + list.map(function (x) { return '<li class="what" style="padding:4px 0">' + esc(x.label) + '</li>'; }).join('') + '</ul>' : '<p class="what">הלילה הזה פנוי.</p>');
+    } else panel.hidden = true;
+  }
+
+  $('cal').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-date]');
+    if (!b) return;
+    state.day = b.getAttribute('data-date');
+    renderCalendar();
+    var again = document.querySelector('[data-date="' + state.day + '"]');
+    if (again) again.focus();
+  });
+  function shiftMonth(delta) {
+    var y = Number(state.month.slice(0, 4)), m = Number(state.month.slice(5, 7)) - 1 + delta;
+    var dt = new Date(y, m, 1);
+    state.month = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+    renderCalendar();
+  }
+  $('prev-month').onclick = function () { shiftMonth(-1); };
+  $('next-month').onclick = function () { shiftMonth(1); };
+
+  // ---- Bookings and channels
+
+  function dateTile(date) {
+    var dt = parse(date);
+    return '<div class="date"><b>' + dt.getDate() + '</b><span>' + MONTHS[dt.getMonth()].slice(0, 3) + '׳ · ' + DOW[dt.getDay()] + '</span></div>';
+  }
+
+  function bookingItem(b) {
+    var website = b.source === 'website';
+    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults)].filter(Boolean).join(' · ');
+    return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.start) +
+      '<div><p class="who">' + esc(website ? b.name || b.title : b.title) + '</p><p class="what">' + esc(what) + '</p>' +
+      (b.phone ? '<p class="what"><a href="tel:' + esc(b.phone) + '" dir="ltr">' + esc(b.phone) + '</a>' + (b.email ? ' · <span dir="ltr">' + esc(b.email) + '</span>' : '') + '</p>' : '') +
+      (b.notes ? '<p class="what">' + esc(b.notes) + '</p>' : '') +
+      (b.ref ? '<p class="what ref">' + esc(b.ref) + '</p>' : '') + '</div>' +
+      '<div class="side"><span class="pill ' + (website ? 'ok' : 'plain') + '">' + (website ? 'אתר' : 'ידני') + '</span>' +
+      (b.whatsapp ? '<a class="btn wa icon" href="' + esc(b.whatsapp) + '" target="_blank" rel="noopener" aria-label="WhatsApp ל' + esc(b.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
+  }
+
+  function renderBookings() {
+    var d = state.data;
+    var sorted = d.bookings.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    var upcoming = sorted.filter(function (b) { return b.end > d.today; });
+    var past = sorted.filter(function (b) { return b.end <= d.today; }).reverse();
+    $('bookings-upcoming').innerHTML = upcoming.length ? upcoming.map(bookingItem).join('') : '<li class="empty">אין הזמנות קרובות.</li>';
+    $('bookings-past').innerHTML = past.length ? past.map(bookingItem).join('') : '<li class="empty">אין שהיות מ-30 הימים האחרונים.</li>';
+  }
+
+  function renderChannels() {
+    var d = state.data;
+    var list = d.channels.filter(function (c) { return c.end > d.today; }).sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    $('channels').innerHTML = list.length
+      ? list.map(function (c) {
+          return '<li class="item">' + dateTile(c.start) + '<div><p class="who">' + esc(c.title) + '</p><p class="what">' + range(c.start, c.end) + ' · ' + nightsText(c.nights) + '</p></div><div class="side"><span class="pill ota">ערוץ</span></div></li>';
+        }).join('')
+      : '<li class="empty">אין הזמנות קרובות מהערוצים.</li>';
+  }
+
+  // ---- Tabs, header
+
+  document.querySelectorAll('nav.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.tab = b.getAttribute('data-tab');
+      document.querySelectorAll('nav.tabs button').forEach(function (x) {
+        if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
+      window.scrollTo(0, 0);
+      var h = document.querySelector('#screen-' + state.tab + ' h2');
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    });
+  });
+  $('refresh-btn').onclick = function () { load(); };
+  $('health-btn').onclick = function () {
+    var p = $('health-panel');
+    p.hidden = !p.hidden;
+    $('health-btn').setAttribute('aria-expanded', String(!p.hidden));
+  };
+
+  if (token()) load(); else showLogin('');
+</script>
+</body>
+</html>
