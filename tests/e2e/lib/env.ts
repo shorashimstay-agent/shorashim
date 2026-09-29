@@ -22,8 +22,8 @@ export interface BackendConfig {
   adminSheetId: string;
   availabilitySheetId: string;
   testHooks?: boolean;
-  /** The owner console's web app (console/, deployed by `deploy.py --app console`). */
-  consoleUrl?: string;
+  /** Staging only: the /admin console password, so the suite can log in (production keeps only a hash). */
+  consolePassword?: string;
 }
 
 interface E2EConfig {

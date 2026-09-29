@@ -50,7 +50,6 @@ const PROTECTED = [
   /^\.githooks\//,
   /^\.claude\//,
   /^apps-script\//,
-  /^console\//,
   /^shared\//,
   /^scripts\//,
   /^tests\//,

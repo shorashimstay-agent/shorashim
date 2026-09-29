@@ -126,9 +126,8 @@ in this public repo.
   checks `diag` reports its version, that an out-of-range price is refused, and that a request's
   stored estimate follows the changed price. It restores the tree's file afterwards.
 
-**O — Owner console** (`console.spec.ts`). A test browser cannot sign in to Google, so the real
-`console/Console.html` runs in the browser with `google.script.run` replaced by a bridge that makes
-the signed `console` call from the test process (the secret never enters the page). Fixture requests
+**O — Owner console** (`console.spec.ts`). The staging build serves `/admin`, pointed at the staging
+web app, and the tests log in with the staging console password, as the owner does. Fixture requests
 are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is needed.
 - O1: `overview` returns the fixture request (holding, no conflicts), a manual block and a channel
   booking; the admin sheet shows the same request; the console shows them in בקשות, הזמנות, ערוצים
@@ -141,10 +140,12 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   reports it as already handled, and after a refresh it appears under recent decisions.
 - O5: a request whose nights got booked meanwhile: the console disables approval and names the
   nights; the backend refuses approval too, and declining still works.
-- O6: a forged signature gets no data, and a signature made for `overview` does not authorize
-  `decide`.
+- O6: a forged signature gets no data (`unauthorized`), and a signature made for `overview` does
+  not authorize `decide`.
 - O7: axe (WCAG + best-practice) on every tab at 390px and 1280px; the tabs work from the keyboard.
-- O8: the staging console deployment exists and redirects to Google sign-in (it is owner-only).
+- O8: the login: without a session only the login shows; a wrong password is refused; five wrong
+  passwords lock the login even for the right one (reset by the staging-only `testResetConsoleLock`);
+  an altered token is refused; "log out everywhere" logs out the page and every earlier token.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
@@ -160,8 +161,9 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
 - Signed `diag` lists all the production triggers.
 - Signed `diag`, given the live `/prices.json` version, reports that same version: the web app
   reads the published prices.
-- The owner console redirects to Google sign-in (it is live and private), and a signed `overview`
-  answers `ok` with its four lists. Only the shape is checked; the guest details are not printed.
+- `/admin` serves the console's login and points at the production web app; a console call with a
+  forged token is refused, and a signed `overview` answers `ok` with its four lists (only the shape is
+  checked; the guest details are not printed).
 - A reCAPTCHA token from the live page verifies with `hostname=shorashimstay.com`.
 - The decision link and the booking POST are not touched, so nothing is written.
 

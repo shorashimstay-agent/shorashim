@@ -66,13 +66,21 @@ export const webApp = (cfg: BackendConfig) => ({
     return call(cfg, { body: { action: 'pruneDecisions', refs, t, sig: sign(cfg, 'prune:' + t) } }, (j) => 'removed' in j);
   },
   /**
-   * The owner console's signed call (Server.js does the same). The signature covers the operation
-   * and its arguments; `sig` overrides it to test refusals.
+   * A console call signed with the HMAC secret, as tools and this suite may make it. The page itself
+   * uses a session token from `consoleLogin` instead. The signature covers the operation and its
+   * arguments; `sig` overrides it to test refusals.
    */
   console: (op: string, args: { id?: string; decision?: string } = {}, sig?: string) => {
     const t = String(Date.now());
     const body = { action: 'console', op, t, id: args.id ?? '', decision: args.decision ?? '' };
     return call(cfg, { body: { ...body, sig: sig ?? sign(cfg, ['console', t, op, body.id, body.decision].join(':')) } }, notDefault);
+  },
+  consoleLogin: (password: string) => call(cfg, { body: { action: 'console', op: 'login', password } }, notDefault),
+  consoleWithToken: (op: string, token: string) => call(cfg, { body: { action: 'console', op, token } }, notDefault),
+  /** Staging only: clears the console's wrong-password lockout. */
+  resetConsoleLock: () => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testResetConsoleLock', t, sig: sign(cfg, 'test:' + t) } }, (j) => 'reset' in j);
   },
   decideUrl: (id: string, sig = sign(cfg, id)) => `${cfg.webAppUrl}?action=decide&id=${encodeURIComponent(id)}&sig=${sig}`,
 });

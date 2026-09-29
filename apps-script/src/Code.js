@@ -49,8 +49,10 @@ function doPost(e) {
     if (body.action === 'testFireSheetEdit' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testFireSheetEdit_(body.row));
     }
-    if (body.action === 'console' && validSig_(consoleSigned_(body), body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
-      return json_(consoleCall_(body));
+    if (body.action === 'console') return json_(consoleRequest_(body));
+    if (body.action === 'testResetConsoleLock' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      CacheService.getScriptCache().remove(CONSOLE_FAILS_KEY);
+      return json_({ ok: true, reset: true });
     }
     if (body.action === 'testSetPrices' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testSetPrices_(body.file));
@@ -776,9 +778,27 @@ function syncAdminSheet_() {
 }
 
 // ---------------------------------------------------------------------------
-// Owner console (console/): a separate, owner-only Apps Script web app. It holds no booking logic
-// and never touches the calendars itself; it calls these signed actions, so every write still goes
-// through this project's lock, caches and decision list.
+// Owner console: the page at shorashimstay.com/admin (public/admin/index.html). The page is public
+// and holds no secrets. The owner logs in with a password checked here against a salted hash in
+// CONFIG (from booking-config.json, never in the repo), and gets a session token signed with the
+// HMAC secret. Sessions do not expire; "log out everywhere" bumps a version that every token names.
+// Every console decision goes through decideAndRecord_, like the email link and the sheet.
+
+var CONSOLE_FAILS_KEY = 'console:fails';
+var CONSOLE_MAX_FAILS = 5;
+var CONSOLE_LOCK_SECONDS = 15 * 60;
+var CONSOLE_SESSION_VERSION_KEY = 'consoleSessionVersion';
+
+/**
+ * A console call is allowed with a session token from the login, or with an HMAC signature over the
+ * operation and its arguments (the test suite and tools, which hold the secret).
+ */
+function consoleRequest_(body) {
+  if (body.op === 'login') return consoleLogin_(body.password);
+  var signed = body.sig && validSig_(consoleSigned_(body), body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000;
+  if (!signed && !validSession_(body.token)) return { ok: false, error: 'unauthorized' };
+  return consoleCall_(body);
+}
 
 /** What a console call's signature covers: the operation and its arguments, not only the time. */
 function consoleSigned_(body) {
@@ -788,7 +808,54 @@ function consoleSigned_(body) {
 function consoleCall_(body) {
   if (body.op === 'overview') return consoleOverview_();
   if (body.op === 'decide') return decideAndRecord_(body.decision, String(body.id || ''), false);
+  if (body.op === 'logoutAll') {
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(CONSOLE_SESSION_VERSION_KEY, String(Number(props.getProperty(CONSOLE_SESSION_VERSION_KEY) || 1) + 1));
+    return { ok: true, loggedOut: true };
+  }
   return { ok: false, error: 'bad_request' };
+}
+
+/**
+ * CONFIG.consolePasswordHash is "salt$hash": web-safe base64 of HMAC-SHA256 over the password, keyed
+ * with the salt and the HMAC secret (deploy.py --set-console-password makes it). After
+ * CONSOLE_MAX_FAILS wrong passwords, logins pause for CONSOLE_LOCK_SECONDS. Apps Script cannot see
+ * who is calling, so the pause applies to everyone; the sheet and the email links still work.
+ */
+function consoleLogin_(password) {
+  var stored = String(CONFIG.consolePasswordHash || '');
+  var salt = stored.split('$')[0];
+  if (!salt || stored.indexOf('$') < 0) return { ok: false, error: 'not_configured' };
+  var cache = CacheService.getScriptCache();
+  var fails = Number(cache.get(CONSOLE_FAILS_KEY) || 0);
+  if (fails >= CONSOLE_MAX_FAILS) return { ok: false, error: 'locked', minutes: CONSOLE_LOCK_SECONDS / 60 };
+  var hash = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(password || ''), salt + CONFIG.hmacSecret)).replace(/=+$/, '');
+  if (salt + '$' + hash !== stored) {
+    cache.put(CONSOLE_FAILS_KEY, String(fails + 1), CONSOLE_LOCK_SECONDS);
+    return { ok: false, error: 'wrong_password', attemptsLeft: CONSOLE_MAX_FAILS - fails - 1 };
+  }
+  cache.remove(CONSOLE_FAILS_KEY);
+  var payload = sessionVersion_() + '.' + Date.now().toString(36) + '.' + Utilities.getUuid().slice(0, 8);
+  return { ok: true, token: payload + '.' + sign_('session:' + payload) };
+}
+
+/**
+ * What every current token must name: the "log out everywhere" counter and the password's salt. A
+ * new password (deploy.py --set-console-password, which makes a new salt) therefore logs out every
+ * device, as does bumping the counter.
+ */
+function sessionVersion_() {
+  var counter = PropertiesService.getScriptProperties().getProperty(CONSOLE_SESSION_VERSION_KEY) || '1';
+  return 'v' + counter + '-' + String(CONFIG.consolePasswordHash || '').split('$')[0].replace(/[^\w]/g, '');
+}
+
+/** A token is "<version>.<issued>.<nonce>.<signature>" and is valid while its version is current. */
+function validSession_(token) {
+  var parts = String(token || '').split('.');
+  if (parts.length !== 4) return false;
+  var payload = parts.slice(0, 3).join('.');
+  if (!validSig_('session:' + payload, parts[3])) return false;
+  return parts[0] === sessionVersion_();
 }
 
 /**
