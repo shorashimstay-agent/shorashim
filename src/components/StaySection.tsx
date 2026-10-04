@@ -136,8 +136,8 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
             <div className="space-y-4">
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
                 <Picture
-                  image={IMAGES.interior}
-                  alt="מטבח מאובזר ואי רחב בשורשים"
+                  image={IMAGES.coffee_corner}
+                  alt="פינת הקפה במטבח: מכונת קפה, מקציף חלב וצנצנות"
                   className="w-full h-64 sm:h-72 object-cover object-center group-hover:scale-103 transition-transform duration-700"
                   sizes="(min-width: 1024px) 25vw, 50vw"
                 />
@@ -148,8 +148,8 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
 
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
                 <Picture
-                  image={IMAGES.bedroom}
-                  alt="חדר שינה נפרד ושקט"
+                  image={IMAGES.towels}
+                  alt="מדף עץ עם מגבות מגולגלות בחדר הרחצה"
                   className="w-full h-44 sm:h-52 object-cover group-hover:scale-103 transition-transform duration-700"
                   sizes="(min-width: 1024px) 25vw, 50vw"
                 />
@@ -162,8 +162,8 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
             <div className="space-y-4 pt-6">
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
                 <Picture
-                  image={IMAGES.rooftop}
-                  alt="מרפסת גג פרטית עם ערסל"
+                  image={IMAGES.pastries}
+                  alt="קפה ומאפים טריים על שיש המטבח"
                   className="w-full h-44 sm:h-52 object-cover group-hover:scale-103 transition-transform duration-700"
                   sizes="(min-width: 1024px) 25vw, 50vw"
                 />
@@ -174,8 +174,8 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
 
               <div className="relative rounded-3xl overflow-hidden shadow-sm border border-[#E4DDD1] group">
                 <Picture
-                  image={IMAGES.courtyard}
-                  alt="החצר ועצי הפיקוס הוותיקים"
+                  image={IMAGES.ficus}
+                  alt="עץ הפיקוס הוותיק בחצר, מול קיר האבן"
                   className="w-full h-64 sm:h-72 object-cover object-center group-hover:scale-103 transition-transform duration-700"
                   sizes="(min-width: 1024px) 25vw, 50vw"
                 />
