@@ -88,13 +88,13 @@ export const BRIDE_PACKAGES: BridePackage[] = [
 ];
 
 export const GALLERY_ITEMS: GalleryItem[] = [
-  { id: '1', title: 'חצר הפיקוס והאבן העתיקה', category: 'courtyard', categoryLabel: 'חצר הבית', image: IMAGES.courtyard, description: 'חצר ירוקה ומוצלת עם עצי פיקוס עתיקים וקירות אבן מקורית' },
-  { id: '2', title: 'חלל אירוח פנימי ומטבח אינטימי', category: 'house', categoryLabel: 'הבית', image: IMAGES.interior, description: 'חלל הסלון והמטבח המאובזר של הצימר' },
-  { id: '3', title: 'התארגנות כלה בחלל המואר', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.bride, description: 'כלה מתארגנת באור יום רך עם מראה גדולה' },
-  { id: '4', title: 'חדר השינה המרגיע', category: 'house', categoryLabel: 'הבית', image: IMAGES.bedroom, description: 'מיטה מרווחת עם מצעים לבנים ואווירה שלווה' },
-  { id: '5', title: 'מרפסת הגג מול צמרות העצים', category: 'courtyard', categoryLabel: 'חוץ ונוף', image: IMAGES.rooftop, description: 'מרפסת עליונה פרטית עם פינת ישיבה מול נוף זכרון' },
-  { id: '6', title: 'פרטי עיצוב היסטוריים ואותנטיים', category: 'details', categoryLabel: 'פרטים', image: IMAGES.heritage, description: 'פינות מעוצבות המשלבות ישן וחדש במשק משפחת פויזנר' },
-  { id: '7', title: 'חדר הרחצה המוקפד', category: 'details', categoryLabel: 'פרטים', image: IMAGES.bathroom, description: 'חדר רחצה מודרני, נקי ואיכותי' },
+  { id: '1', title: 'עץ הפיקוס הוותיק', category: 'courtyard', categoryLabel: 'חצר הבית', image: IMAGES.ficus_trunk, description: 'גזע הפיקוס העתיק וקיר האבן בחצר' },
+  { id: '2', title: 'מה שהיה פעם, חי כאן גם היום', category: 'house', categoryLabel: 'הבית', image: IMAGES.living_room, description: 'הסלון, המזנון העתיק ותמונה משפחתית על הקיר' },
+  { id: '3', title: 'יין צונן ונשנושים ליום הכלה', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.wine_cheese, description: 'בקבוק יין מקומי, כוסות ומגש גבינות שמחכים לכן' },
+  { id: '4', title: 'עיצוב שנבנה משכבות של זמן', category: 'house', categoryLabel: 'הבית', image: IMAGES.lounge, description: 'פינת ישיבה רכה, תמונות משפחה ואור חם' },
+  { id: '5', title: 'מהמרפסת אל צמרות העצים', category: 'courtyard', categoryLabel: 'חוץ ונוף', image: IMAGES.balcony_view, description: 'מבט מהמרפסת אל עץ הפיקוס והבית הישן שממול' },
+  { id: '6', title: 'העבר על הקיר. החיים ממשיכים לפרוח.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.flowers_wall, description: 'פרחים לבנים מול קיר תמונות המשפחה' },
+  { id: '7', title: 'חומרים מתקופות שונות. סיפור אחד.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.corridor_shutter, description: 'מסדרון עם קיר אבן, תמונות משפחה ותריס ירוק' },
 ];
 
 export const LOCAL_PLACES: LocalPlace[] = [
