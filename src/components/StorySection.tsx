@@ -93,8 +93,8 @@ export default function StorySection() {
               <div className="p-1 sm:p-1.5 bg-[#F8F5EE] shadow-[0_4px_22px_rgba(40,30,20,0.06)] border border-[#E5DFD3]/80">
                 <div className="aspect-[4/3] overflow-hidden bg-[#292824]">
                   <Picture
-                    image={IMAGES.heritage}
-                    alt="תצלום היסטורי של משפחת פויזנר בזכרון יעקב"
+                    image={IMAGES.archive_plough}
+                    alt="תצלום היסטורי מארכיון משפחת פויזנר: עבודה בשדה עם סוסים בזכרון יעקב"
                     className="w-full h-full object-cover sepia-[0.35] brightness-[0.95]"
                     sizes="(min-width: 1024px) 40vw, 100vw"
                   />

@@ -21,7 +21,7 @@ const OG_IMAGE = path.join(ROOT, 'public/og-image.jpg');
 // Widths that matter for this layout: phone, tablet/half-column, and full-width hero.
 const WIDTHS = [640, 1024, 1536];
 const FALLBACK_WIDTH = 1024;
-const OG = { width: 1200, height: 630, source: 'courtyard' };
+const OG = { width: 1200, height: 630, source: 'hero' };
 const MANIFEST = path.join(OUT, '.manifest.json');
 
 /** shorashim_kitchen_island_1788698669368.jpg -> kitchen_island */

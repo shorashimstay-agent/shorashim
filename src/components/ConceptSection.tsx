@@ -58,8 +58,8 @@ export default function ConceptSection() {
             <div className="w-full max-w-[280px] sm:max-w-[320px] mr-0 ml-auto lg:mr-0 lg:ml-auto">
               <div className="aspect-[3/4] overflow-hidden bg-[#E8E2D7] shadow-[0_8px_30px_rgba(30,29,26,0.06)]">
                 <Picture
-                  image={IMAGES.bathroom}
-                  alt="פרט אינטימי בבית שורשים, אבן עתיקה, מים ואור רך"
+                  image={IMAGES.kitchen_wall}
+                  alt="פינת המטבח בבית שורשים: כיסאות בר, קיר אבן וקיר תמונות משפחתיות"
                   className="w-full h-full object-cover brightness-[0.98] contrast-[1.02]"
                   sizes="(min-width: 1024px) 45vw, 100vw"
                 />
@@ -110,14 +110,14 @@ export default function ConceptSection() {
               <div className="space-y-2.5">
                 <div className="aspect-[4/5] overflow-hidden bg-[#E8E2D7] shadow-[0_6px_25px_rgba(30,29,26,0.05)]">
                   <Picture
-                    image={IMAGES.rooftop}
-                    alt="מרפסת הגג והעצים, חומרים טבעיים, אבן ואוויר הרים"
+                    image={IMAGES.trough_sink}
+                    alt="חדר הרחצה בשורשים: כיור אבן בצורת שוקת ישנה מתחת לחלון"
                     className="w-full h-full object-cover brightness-[0.98] contrast-[1.02]"
                     sizes="(min-width: 1024px) 45vw, 100vw"
                   />
                 </div>
                 <div className="text-[11px] font-sans text-[#7B6045] tracking-wider text-right" dir="rtl">
-                  אבן עתיקה, מרפסת גג וצמרות העצים
+                  משוקת של פעם לכיור של היום
                 </div>
               </div>
 
@@ -125,8 +125,8 @@ export default function ConceptSection() {
               <div className="space-y-2.5 sm:pt-16">
                 <div className="aspect-[4/5] overflow-hidden bg-[#E8E2D7] shadow-[0_6px_25px_rgba(30,29,26,0.05)]">
                   <Picture
-                    image={IMAGES.bedroom}
-                    alt="חדר השינה בבית שורשים, מצעים טבעיים, שקט ועיצוב עכשווי"
+                    image={IMAGES.bedroom_linen}
+                    alt="חדר השינה בשורשים: מיטה זוגית עם מצעים לבנים ומנורות לילה"
                     className="w-full h-full object-cover brightness-[0.98] contrast-[1.02]"
                     sizes="(min-width: 1024px) 45vw, 100vw"
                   />
@@ -156,8 +156,8 @@ export default function ConceptSection() {
             <div className="lg:col-span-6 order-2 lg:order-1">
               <div className="aspect-[4/3] sm:aspect-[16/11] overflow-hidden bg-[#E8E2D7] shadow-[0_8px_32px_rgba(30,29,26,0.06)]">
                 <Picture
-                  image={IMAGES.interior}
-                  alt="בוקר שמתחיל לאט בשורשים, אור טבעי, שקט ומטבח אינטימי"
+                  image={IMAGES.sunroom}
+                  alt="פינת ישיבה ליד חלון גדול בשורשים, עציץ ואור בוקר"
                   className="w-full h-full object-cover brightness-[0.98] contrast-[1.01]"
                   sizes="(min-width: 1024px) 45vw, 100vw"
                 />
