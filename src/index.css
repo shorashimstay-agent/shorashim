@@ -2,6 +2,8 @@
 
 @layer base {
   html {
+    direction: rtl;
+    text-align: right;
     font-family: 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     scroll-behavior: smooth;
     background-color: #F4F0E8;
@@ -34,6 +36,7 @@
     Clean contemporary Hebrew sans-serif
   */
   body, p, button, input, textarea, nav {
+    direction: rtl;
     font-family: 'Assistant', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 }

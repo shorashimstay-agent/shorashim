@@ -1,7 +1,5 @@
-import { MessageCircle, Instagram, MapPin } from 'lucide-react';
+import { Instagram, MapPin, Phone, Mail, MessageCircle } from 'lucide-react';
 import { BRAND_DATA } from '../data/shorashimData';
-import { EditorialTag } from './RootLine';
-import ShorashimWordmark from './ShorashimWordmark';
 
 interface FooterProps {
   onOpenBooking: () => void;
@@ -15,141 +13,183 @@ export default function Footer({ onOpenBooking }: FooterProps) {
     }
   };
 
+  const navLinks = [
+    { label: 'הבית', href: '#house' },
+    { label: 'הסיפור', href: '#story' },
+    { label: 'כלה בשורשים', href: '#bride' },
+    { label: 'זכרון יעקב', href: '#zichron' },
+    { label: 'גלריה', href: '#gallery' },
+    { label: 'שאלות ותשובות', href: '#faq' },
+  ];
+
   return (
-    <footer className="bg-[#1E1D1A] text-[#F4F0E8] pt-24 pb-14 border-t border-[#292824]">
-      <div className="max-w-7xl mx-auto px-6 sm:px-12">
+    <footer
+      className="bg-[#ECE5DA]/80 text-[#27241F] pt-10 sm:pt-14 lg:pt-16 pb-8 sm:pb-10 border-t border-[#DFD7CB]"
+      dir="rtl"
+      lang="he"
+    >
+      <div className="max-w-7xl mx-auto px-7 sm:px-10 lg:px-14">
         
-        {/* Top Minimal Callout */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between pb-16 border-b border-white/10 gap-8">
+        {/* Top Booking Invitation — Small, Elegant & Quiet */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-8 sm:pb-10 border-b border-[#DFD7CB]/75 text-right">
           <div>
-            <EditorialTag light className="mb-4 block text-[#DED5C8]/70">
-              שורשים · בית אירוח אינטימי למבוגרים
-            </EditorialTag>
-            <h3 className="text-3xl sm:text-4xl md:text-5xl text-[#F4F0E8] font-light leading-snug">
+            <h3 className="text-xl sm:text-2xl md:text-3xl text-[#1E1D1A] font-light tracking-tight leading-snug">
               מקום להתחבר אליו.
             </h3>
-            <p className="mt-3 text-sm sm:text-base text-[#DED5C8]/70 font-light max-w-lg">
-              אירוח זוגי שליו וחוויית כלה מרגשת בחצר משפחתית היסטורית משנת 1882 בזכרון יעקב.
+            <p className="text-xs sm:text-sm text-[#665548] font-light mt-1">
+              אירוח זוגי ושקט בלב זכרון יעקב.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="shrink-0 pt-1 sm:pt-0">
             <button
               type="button"
               onClick={onOpenBooking}
-              className="px-7 py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-sm font-normal tracking-wide cursor-pointer rounded-[2px]"
+              className="px-6 py-2.5 sm:px-7 sm:py-2.5 bg-[#40362F] text-[#F3EFE7] hover:bg-[#665548] transition-colors duration-300 text-xs sm:text-sm font-normal tracking-wide cursor-pointer rounded-[6px]"
             >
-              לבדיקת זמינות
+              בדיקת זמינות
             </button>
-            <a
-              href={`https://wa.me/${BRAND_DATA.whatsappNumber}?text=${encodeURIComponent('שלום שורשים, אשמח לפרטים')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-7 py-3 border border-white/30 text-white hover:bg-white/10 transition-colors duration-300 text-sm font-normal tracking-wide rounded-[2px]"
-            >
-              שיחה ב-WhatsApp
-            </a>
           </div>
         </div>
 
-        {/* Footer Navigation & Details */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-12 py-16 border-b border-white/10 text-sm">
+        {/* Clean, Balanced Main Footer Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 sm:gap-10 lg:gap-12 py-8 sm:py-10 text-right">
           
-          <div className="md:col-span-4 space-y-4">
-            {/* Primary Wordmark in Footer */}
-            <div className="w-48 sm:w-56">
-              <ShorashimWordmark variant="footer" theme="light" className="w-full" />
-            </div>
-            <p className="text-xs text-[#DED5C8]/70 font-light leading-relaxed">
-              {BRAND_DATA.subtitle}
+          {/* Column 1: Logo & Brief Description */}
+          <div className="md:col-span-5 space-y-3">
+            <a
+              href="#home"
+              onClick={(e) => {
+                e.preventDefault();
+                handleScrollTo('#home');
+              }}
+              className="inline-block"
+              aria-label="שורשים - דף הבית"
+            >
+              <img
+                src="/shorashim-logo-transparent.png"
+                alt="שורשים – מקום להתחבר אליו"
+                width={256}
+                height={256}
+                className="w-auto h-12 sm:h-14 object-contain brightness-90"
+                referrerPolicy="no-referrer"
+              />
+            </a>
+
+            <p className="text-xs sm:text-[13px] text-[#55473A] font-light leading-relaxed max-w-sm">
+              אירוח זוגי שליו וחוויית כלה אינטימית בחצר משפחתית היסטורית משנת <bdi>1882</bdi> בזכרון יעקב.
             </p>
-            <div className="pt-1 text-xs text-[#DED5C8]/60 font-mono">
-              משק פויזנר · המייסדים 71, זכרון יעקב
+
+            <div className="flex items-center gap-1.5 text-xs text-[#7B6045] font-light pt-1">
+              <MapPin className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
+              <span>{BRAND_DATA.address}, זכרון יעקב</span>
             </div>
           </div>
 
-          <nav aria-label="ניווט באתר" className="md:col-span-3 space-y-2">
-            <div className="text-xs font-mono uppercase tracking-widest text-[#DED5C8]/60 mb-3">
+          {/* Column 2: Navigation Links */}
+          <div className="md:col-span-3 space-y-2.5">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-[#7B6045]">
               ניווט
             </div>
-            {[
-              { label: 'הבית', href: '#house' },
-              { label: 'הסיפור', href: '#story' },
-              { label: 'כלה בשורשים', href: '#bride' },
-              { label: 'זכרון יעקב', href: '#zichron' },
-              { label: 'גלריה', href: '#gallery' },
-              { label: 'שאלות ותשובות', href: '#faq' },
-            ].map((link) => (
-              <div key={link.label}>
+            <nav aria-label="ניווט באתר" className="flex flex-col space-y-2">
+              {navLinks.map((link) => (
                 <button
                   type="button"
+                  key={link.label}
                   onClick={() => handleScrollTo(link.href)}
-                  className="text-xs text-[#DED5C8]/80 hover:text-white transition-colors cursor-pointer"
+                  className="text-xs sm:text-[13px] text-[#55473A] hover:text-[#1E1D1A] transition-colors cursor-pointer text-right w-fit font-light"
                 >
                   {link.label}
                 </button>
-              </div>
-            ))}
-          </nav>
+              ))}
+            </nav>
+          </div>
 
-          <div className="md:col-span-5 space-y-4">
-            <div className="text-xs font-mono uppercase tracking-widest text-[#DED5C8]/60 mb-2">
-              יצירת קשר והגעה
+          {/* Column 3: Contact & Hospitality Details */}
+          <div className="md:col-span-4 space-y-2.5">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-[#7B6045]">
+              יצירת קשר
             </div>
-            <div className="text-xs text-[#DED5C8]/80 space-y-2 leading-relaxed">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-3.5 h-3.5 mt-0.5 text-[#A18A70] shrink-0" />
-                <span>{BRAND_DATA.address} — מרחק פסיעות בודדות ממדרחוב המייסדים</span>
+            
+            <div className="space-y-2 text-xs sm:text-[13px] text-[#55473A] font-light">
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
+                <a
+                  href={`tel:${BRAND_DATA.phone}`}
+                  className="hover:text-[#1E1D1A] transition-colors"
+                  dir="ltr"
+                >
+                  {BRAND_DATA.phoneFormatted}
+                </a>
               </div>
-              <div>טלפון: {BRAND_DATA.phoneFormatted}</div>
-              <div>דוא״ל: saray.poisner@gmail.com</div>
-              <div>שעות מענה: 08:30 – 20:30 בכל ימות השבוע</div>
-            </div>
 
-            <div className="pt-2 flex items-center gap-3">
-              <a
-                href={BRAND_DATA.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs text-[#DED5C8] hover:text-white transition-colors"
-              >
-                <Instagram className="w-4 h-4 text-[#A18A70]" />
-                <span>Instagram @shorashim.zichron</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
+                <a
+                  href={`https://wa.me/${BRAND_DATA.whatsappNumber}?text=${encodeURIComponent('שלום שורשים, אשמח לפרטים')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#1E1D1A] transition-colors"
+                >
+                  שיחה ב-WhatsApp
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
+                <a
+                  href="mailto:saray.poisner@gmail.com"
+                  className="hover:text-[#1E1D1A] transition-colors"
+                  dir="ltr"
+                >
+                  saray.poisner@gmail.com
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                <Instagram className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
+                <a
+                  href={BRAND_DATA.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#1E1D1A] transition-colors"
+                  dir="ltr"
+                >
+                  @shorashim.zichron
+                </a>
+              </div>
             </div>
           </div>
 
         </div>
 
-        {/* Bottom Bar */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-[#DED5C8]/75 gap-4">
+        {/* Bottom Bar: Copyright & Heritage Tag */}
+        <div className="pt-6 border-t border-[#DFD7CB]/60 flex flex-col sm:flex-row items-center justify-between text-[11px] sm:text-xs text-[#7B6045] gap-2 text-right">
           <div>
-            © {new Date().getFullYear()} שורשים. כל הזכויות שמורות למשפחת פויזנר, זכרון יעקב.
+            © <bdi>{new Date().getFullYear()}</bdi> שורשים. משק פויזנר, זכרון יעקב. כל הזכויות שמורות.
           </div>
-          <div className="flex items-center gap-6">
-            <span>אירוח בוטיק למבוגרים</span>
-            <span aria-hidden="true">|</span>
-            <span>משק חקלאי היסטורי 1882</span>
+          <div>
+            אירוח בוטיק למבוגרים · משק חקלאי היסטורי <bdi>1882</bdi>
           </div>
           <nav aria-label="מסמכים">
             <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
               <li>
-                <a href="/terms/" className="underline hover:text-white">
+                <a href="/terms/" className="underline hover:text-[#1E1D1A]">
                   תנאי הזמנה ושימוש
                 </a>
               </li>
               <li>
-                <a href="/privacy/" className="underline hover:text-white">
+                <a href="/privacy/" className="underline hover:text-[#1E1D1A]">
                   מדיניות פרטיות
                 </a>
               </li>
               <li>
-                <a href="/accessibility/" className="underline hover:text-white">
+                <a href="/accessibility/" className="underline hover:text-[#1E1D1A]">
                   הצהרת נגישות
                 </a>
               </li>
               <li>
-                <a href="/en/terms/" lang="en" hrefLang="en" className="underline hover:text-white">
+                <a href="/en/terms/" lang="en" hrefLang="en" className="underline hover:text-[#1E1D1A]">
                   English
                 </a>
               </li>

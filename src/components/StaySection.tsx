@@ -118,7 +118,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
                 <CheckCircle2 className="w-4 h-4 text-[#816342]" />
-                צמוד למדרחוב – קולינריה, יין וחיי לילה
+                צמוד למדרחוב · קולינריה, יין וחיי לילה
               </span>
               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ECE4D8] text-[#2C2926] text-sm font-medium">
                 <CheckCircle2 className="w-4 h-4 text-[#816342]" />
@@ -249,7 +249,7 @@ export default function StaySection({ onOpenBooking }: StaySectionProps) {
                 משק פויזנר, המייסדים 71, זכרון יעקב, כמה בתים מהמדרחוב.
               </p>
               <p className="text-sm sm:text-base text-[#574E43] leading-relaxed">
-                יוצאים מהשער ותוך רגע נמצאים בין בתי הקפה, המסעדות, הפאבים, הגלידריות, היין והאווירה של המושבה. וכשמתחשק לעצור — חוזרים לשקט של שורשים.
+                יוצאים מהשער ותוך רגע נמצאים בין בתי הקפה, המסעדות, הפאבים, הגלידריות, היין והאווירה של המושבה. וכשמתחשק לעצור, חוזרים לשקט של שורשים.
               </p>
             </div>
             <div className="pt-4 border-t border-[#F0EAE1]">

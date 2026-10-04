@@ -17,7 +17,9 @@ export default function Hero({ onOpenBooking }: HeroProps) {
   return (
     <section
       id="home"
-      className="relative w-full min-h-screen flex flex-col justify-end text-white overflow-hidden select-none"
+      dir="rtl"
+      lang="he"
+      className="relative w-full min-h-screen flex flex-col justify-end text-white overflow-hidden select-none text-right"
     >
       {/* 
         IMMERSIVE CINEMATIC PHOTOGRAPHY
@@ -60,8 +62,8 @@ export default function Hero({ onOpenBooking }: HeroProps) {
               מקום להתחבר אליו
                   בית אירוח אינטימי למבוגרים · זכרון יעקב
       */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 w-full pb-24 sm:pb-36 lg:pb-44 pt-32">
-        <div className="mr-0 md:mr-6 lg:mr-12 max-w-2xl">
+      <div className="relative z-10 max-w-7xl mx-auto px-7 sm:px-10 lg:px-14 w-full pb-24 sm:pb-36 lg:pb-44 pt-20 sm:pt-32">
+        <div className="mr-0 md:mr-6 lg:mr-12 w-full max-w-none md:max-w-2xl">
           
           {/* 
             01 — SHORASHIM WORDMARK
@@ -69,7 +71,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             Warm ivory (#F4EFE5). Refined contemporary Hebrew serif with old soul.
             The ONLY logo/brand moment on the initial screen.
           */}
-          <div className="mb-6 sm:mb-8">
+          <div className="mb-5 sm:mb-8">
             <ShorashimWordmark
               variant="hero"
               theme="light"
@@ -85,8 +87,8 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             Slightly softer ivory (#DED5C8).
             Intimate whisper after the wordmark.
           */}
-          <div className="pr-2 sm:pr-4">
-            <div className="text-[25px] sm:text-[27px] md:text-[29px] lg:text-[30px] text-[#DED5C8] font-light tracking-wide leading-snug">
+          <div className="pr-1 sm:pr-4">
+            <div className="text-[23px] sm:text-[27px] md:text-[29px] lg:text-[30px] text-[#DED5C8] font-light tracking-wide leading-snug">
               {BRAND_DATA.tagline}
             </div>
           </div>
@@ -99,7 +101,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             Lower visual opacity (~70% #DED5C8/70).
             Letter spacing slightly airy.
           */}
-          <div className="pr-4 sm:pr-8 mt-5 sm:mt-7">
+          <div className="pr-2 sm:pr-8 mt-4 sm:mt-7">
             <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
               בית אירוח אינטימי למבוגרים · זכרון יעקב
             </div>
@@ -108,21 +110,21 @@ export default function Hero({ onOpenBooking }: HeroProps) {
           {/* 
             Generous breathing space to the CTA
           */}
-          <div className="h-10 sm:h-12 lg:h-14" />
+          <div className="h-6 sm:h-12 lg:h-14" />
 
           {/* 
             ACTIONS:
             CTA: Warm ivory background (#F4EFE5), dark charcoal typography (#27241F),
-            minimal padding, subtle soft corners (rounded-[2px]), no pill shape, no icon.
+            minimal padding, subtle soft corners (rounded-[6px]), no pill shape, no icon.
             
             Secondary Link: "הסיפור של שורשים ↓" placed at an editorial distance.
           */}
-          <div className="flex flex-wrap items-center gap-8 sm:gap-12 pr-2 sm:pr-4">
+          <div className="flex flex-wrap items-center gap-6 sm:gap-12 pr-1 sm:pr-4">
             <button
               type="button"
               id="hero-check-availability-btn"
               onClick={onOpenBooking}
-              className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[2px]"
+              className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
             >
               בדיקת זמינות והזמנה
             </button>
