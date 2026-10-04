@@ -36,7 +36,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F0E8] text-[#1E1D1A] font-sans antialiased selection:bg-[#DED5C8] selection:text-[#1E1D1A]">
+    <div dir="rtl" lang="he" className="min-h-screen bg-[#F4F0E8] text-[#1E1D1A] font-sans antialiased selection:bg-[#DED5C8] selection:text-[#1E1D1A] text-right">
       <a href="#main" className="skip-link">
         דלגו לתוכן העיקרי
       </a>

@@ -98,16 +98,17 @@ export function TimeLineMotif({
 
   return (
     <div
+      dir="rtl"
       className={`flex items-center gap-3 font-mono text-[10px] sm:text-[11px] tracking-widest uppercase select-none ${textColor} ${className}`}
       aria-label={`${startYear} עד ${endYear}`}
     >
-      <span className="font-medium shrink-0">{startYear}</span>
+      <span className="font-medium shrink-0"><bdi>{startYear}</bdi></span>
       <span className={`grow border-t ${lineColor} min-w-[36px] sm:min-w-[60px]`} />
       <span className="font-light shrink-0 text-[9px] sm:text-[10px] tracking-[0.25em] opacity-80">
         שכבות של זמן
       </span>
       <span className={`grow border-t ${lineColor} min-w-[36px] sm:min-w-[60px]`} />
-      <span className="font-medium shrink-0">{endYear}</span>
+      <span className="font-medium shrink-0"><bdi>{endYear}</bdi></span>
     </div>
   );
 }
@@ -121,13 +122,27 @@ export function EditorialTag({
   className?: string;
   light?: boolean;
 }) {
+  // If children is a string with "02 · המפגש", isolate the number and the Hebrew text
+  let content = children;
+  if (typeof children === 'string') {
+    const match = children.match(/^(\d+)\s*·\s*(.+)$/);
+    if (match) {
+      content = (
+        <>
+          <bdi>{match[1]}</bdi> · <span>{match[2]}</span>
+        </>
+      );
+    }
+  }
+
   return (
     <span
-      className={`inline-block font-sans text-[11px] sm:text-[12px] tracking-[0.2em] uppercase font-normal select-none ${
+      dir="rtl"
+      className={`inline-block font-sans text-[11px] sm:text-[12px] tracking-[0.2em] uppercase font-normal select-none text-right ${
         light ? 'text-[#DED5C8]/80' : 'text-[#7B6045]'
       } ${className}`}
     >
-      {children}
+      {content}
     </span>
   );
 }

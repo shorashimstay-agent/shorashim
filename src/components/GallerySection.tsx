@@ -31,32 +31,32 @@ export default function GallerySection() {
       : GALLERY_ITEMS.filter((item) => item.category === activeTab);
 
   return (
-    <section id="gallery" className="py-28 sm:py-36 bg-[#DED5C8]/30 relative">
-      <div className="max-w-7xl mx-auto px-6 sm:px-12">
+    <section id="gallery" className="py-12 sm:py-24 lg:py-36 bg-[#DED5C8]/30 relative" dir="rtl" lang="he">
+      <div className="max-w-7xl mx-auto px-7 sm:px-10 lg:px-12">
         
         {/* Section Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 pb-8 border-b border-[#DED5C8]">
-          <div className="max-w-2xl">
-            <EditorialTag className="mb-4 block">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8]">
+          <div className="w-full max-w-none md:max-w-2xl text-right">
+            <EditorialTag className="mb-3 sm:mb-4 block">
               09 · גלריה
             </EditorialTag>
-            <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4">
+            <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
               לראות. להרגיש. להגיע.
             </h2>
-            <p className="text-base sm:text-lg text-[#292824]/75 font-light">
+            <p className="text-sm sm:text-lg text-[#292824]/75 font-light text-right">
               הצצה לפינות השונות של שורשים, בין השקט של החצר הירוקה לאבן החמה ולחללים המעוצבים.
             </p>
           </div>
 
           {/* Curated Editorial Filter */}
-          <div role="group" aria-label="סינון התמונות לפי נושא" className="mt-8 lg:mt-0 flex flex-wrap gap-2">
+          <div role="group" aria-label="סינון התמונות לפי נושא" className="mt-6 lg:mt-0 flex flex-wrap gap-2" dir="rtl">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 aria-pressed={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`text-xs px-4 py-2 transition-all cursor-pointer font-sans tracking-wide ${
+                className={`text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all cursor-pointer font-sans tracking-wide rounded-[6px] ${
                   activeTab === tab.id
                     ? 'bg-[#1E1D1A] text-white'
                     : 'text-[#292824]/70 hover:text-[#1E1D1A] border border-[#DED5C8]'
@@ -69,7 +69,7 @@ export default function GallerySection() {
         </div>
 
         {/* 09 — CURATED EDITORIAL GALLERY: Mixed scales and aspect ratios */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-5 sm:gap-8 items-start">
           {filteredItems.map((item, idx) => {
             // Assign varying spans and aspect ratios for rhythmic editorial layout
             const spanClass =
@@ -101,14 +101,14 @@ export default function GallerySection() {
                 />
 
                 {/* Subtle, restrained hover overlay with editorial caption */}
-                <span className="absolute inset-0 bg-gradient-to-t from-[#1E1D1A]/85 via-[#1E1D1A]/20 to-transparent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300 p-6 flex flex-col justify-end text-white">
-                  <span className="text-[10px] font-mono tracking-widest text-[#DED5C8]/80 mb-1">
+                <span className="absolute inset-0 bg-gradient-to-t from-[#1E1D1A]/85 via-[#1E1D1A]/20 to-transparent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300 p-6 flex flex-col justify-end text-white text-right" dir="rtl">
+                  <span className="text-[10px] font-mono tracking-widest text-[#DED5C8]/80 mb-1 text-right">
                     {item.categoryLabel}
                   </span>
-                  <span className="block font-serif text-xl font-normal">
+                  <span className="block font-serif text-xl font-normal text-right">
                     {item.title}
                   </span>
-                  <span className="block text-xs text-[#DED5C8]/90 font-light mt-1 line-clamp-2">
+                  <span className="block text-xs text-[#DED5C8]/90 font-light mt-1 line-clamp-2 text-right">
                     {item.description}
                   </span>
                 </span>

@@ -18,15 +18,15 @@ const STAY_OPTIONS: { id: StayType; title: string }[] = [
   { id: 'wedding_night', title: 'ליל כלולות' },
 ];
 
-const labelClass = 'block text-xs font-mono uppercase tracking-widest text-[#7B6045] mb-2';
+const labelClass = 'block text-xs font-mono uppercase tracking-widest text-[#7B6045] mb-2 text-right';
 
 const inputClass = (hasError?: string) =>
-  `w-full p-3 border bg-transparent text-[#1E1D1A] text-sm focus:outline-hidden focus:border-[#1E1D1A] focus-visible:ring-2 focus-visible:ring-[#7B6045]/40 transition-colors ${
+  `w-full p-3 border bg-transparent text-[#1E1D1A] text-sm focus:outline-hidden focus:border-[#1E1D1A] focus-visible:ring-2 focus-visible:ring-[#7B6045]/40 transition-colors text-right rounded-[6px] ${
     hasError ? 'border-[#B3261E]' : 'border-[#CFC4B4]'
   }`;
 
 const toggleClass = (active: boolean) =>
-  `border text-sm font-sans transition-all cursor-pointer ${
+  `border text-sm font-sans transition-all cursor-pointer rounded-[6px] ${
     active ? 'border-[#1E1D1A] bg-[#1E1D1A] text-white' : 'border-[#CFC4B4] text-[#292824] hover:border-[#7B6045] bg-transparent'
   }`;
 
@@ -39,36 +39,36 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
     : `${nights ? (nights === 1 ? 'לילה אחד' : `${nights} לילות`) : 'לילה אחד'}, ${adultsCount === 1 ? 'מבוגר אחד' : `${adultsCount} מבוגרים`}`;
 
   return (
-    <section id="booking" className="py-28 sm:py-36 bg-[#F4F0E8] relative">
-      <div className="max-w-5xl mx-auto px-6 sm:px-12">
+    <section id="booking" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative" dir="rtl" lang="he">
+      <div className="max-w-5xl mx-auto px-7 sm:px-10 lg:px-12">
 
         {/* Section Header */}
-        <div className="max-w-2xl mb-16 pb-8 border-b border-[#DED5C8]">
-          <EditorialTag className="mb-4 block">
+        <div className="w-full max-w-none md:max-w-2xl mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8] text-right">
+          <EditorialTag className="mb-3 sm:mb-4 block">
             10 · בדיקת זמינות והזמנה
           </EditorialTag>
 
-          <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4">
+          <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
             לבקש תאריכים
           </h2>
 
-          <p className="text-base sm:text-lg text-[#292824]/80 font-light leading-relaxed">
+          <p className="text-sm sm:text-lg text-[#292824]/80 font-light leading-relaxed text-right">
             בחרו את מועדי השהייה המבוקשים. אנחנו בודקים זמינות באופן אישי וחוזרים אליכם ישירות עם אישור והתאמה מדויקת.
           </p>
         </div>
 
         {/* 10 — BOOKING: Architectural, unboxed form layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
 
           {/* Booking Form */}
-          <div className="lg:col-span-7 space-y-8">
+          <div className="lg:col-span-7 space-y-6 sm:space-y-8 text-right w-full max-w-none" dir="rtl">
 
             {/* Stay Type Selection */}
             <div>
               <span id={ids.stayType} className={labelClass}>
                 סוג האירוח
               </span>
-              <div role="group" aria-labelledby={ids.stayType} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div role="group" aria-labelledby={ids.stayType} className="grid grid-cols-1 sm:grid-cols-2 gap-2" dir="rtl">
                 {STAY_OPTIONS.map((t) => (
                   <button
                     key={t.id}
@@ -76,7 +76,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                     data-stay-type={t.id}
                     aria-pressed={form.stayType === t.id}
                     onClick={() => form.setStayType(t.id)}
-                    className={`text-right p-3.5 text-xs tracking-wide ${toggleClass(form.stayType === t.id)}`}
+                    className={`text-right p-3 sm:p-3.5 text-xs tracking-wide ${toggleClass(form.stayType === t.id)}`}
                   >
                     {t.title}
                   </button>
@@ -144,7 +144,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               <span id={ids.adultsLabel} className={labelClass}>
                 מספר אורחים מבוגרים
               </span>
-              <div className="flex flex-wrap gap-3 items-center">
+              <div className="flex flex-wrap gap-3 items-center" dir="rtl">
                 <div role="group" aria-labelledby={ids.adultsLabel} className="flex gap-3">
                   {[1, 2, 3].map((num) => (
                     <button
@@ -154,20 +154,20 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                       aria-pressed={adultsCount === num}
                       aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
                       onClick={() => form.setAdultsCount(num)}
-                      className={`w-12 h-11 flex items-center justify-center ${toggleClass(adultsCount === num)}`}
+                      className={`w-11 h-10 sm:w-12 sm:h-11 flex items-center justify-center ${toggleClass(adultsCount === num)}`}
                     >
-                      {num}
+                      <bdi>{num}</bdi>
                     </button>
                   ))}
                 </div>
                 <span className="text-xs text-[#5E574D] font-light">
-                  אירוח למבוגרים בלבד · לזוגות ועד 3 אורחים (אורח שלישי על ספה נפתחת)
+                  אירוח למבוגרים בלבד · לזוגות ועד <bdi>3</bdi> אורחים (אורח שלישי על ספה נפתחת)
                 </span>
               </div>
             </div>
 
             {/* Contact Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-[#DED5C8]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t border-[#DED5C8]" dir="rtl">
               <div>
                 <label htmlFor={ids.fullName} className={labelClass}>
                   שם מלא *
@@ -250,7 +250,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
 
             {/* Actions */}
             {submission.state === 'sent' ? (
-              <div role="status" className="p-6 border border-[#1E1D1A] bg-[#FBF9F5] text-[#1E1D1A]">
+              <div role="status" className="p-6 border border-[#1E1D1A] bg-[#FBF9F5] text-[#1E1D1A] rounded-[6px]">
                 <SentHeading form={form} className="flex items-center gap-2 font-serif text-2xl font-normal mb-2 outline-none">
                   <Check className="w-5 h-5 text-[#7B6045]" />
                   <span>הבקשה נשלחה!</span>
@@ -284,7 +284,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   id="submit-booking-request"
                   onClick={form.submit}
                   disabled={form.sending}
-                  className="w-full py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] disabled:opacity-70 transition-colors duration-300 text-sm font-medium tracking-wide flex items-center justify-center gap-3 cursor-pointer disabled:cursor-wait"
+                  className="w-full py-3.5 sm:py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] disabled:opacity-70 transition-colors duration-300 text-xs sm:text-sm font-medium tracking-wide flex items-center justify-center gap-2.5 sm:gap-3 cursor-pointer disabled:cursor-wait rounded-[6px]"
                 >
                   {form.sending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" /> : <Send className="w-4 h-4" />}
                   <span>{form.sending ? form.sendingLabel : 'שליחת בקשת הזמנה'}</span>
@@ -300,7 +300,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                   type="button"
                   id="submit-booking-whatsapp"
                   onClick={() => form.openWhatsApp()}
-                  className="mt-3 w-full py-3 border border-[#1E1D1A]/40 text-[#1E1D1A] hover:border-[#1E1D1A] text-sm tracking-wide transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="mt-3 w-full py-3 border border-[#1E1D1A]/40 text-[#1E1D1A] hover:border-[#1E1D1A] text-xs sm:text-sm tracking-wide transition-colors flex items-center justify-center gap-2 cursor-pointer rounded-[6px]"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>מעדיפים WhatsApp? שלחו לנו את הפרטים ישירות</span>
@@ -316,7 +316,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
                 type="button"
                 id="submit-booking-whatsapp"
                 onClick={() => form.openWhatsApp()}
-                className="w-full py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] transition-colors duration-300 text-sm font-medium tracking-wide flex items-center justify-center gap-3 cursor-pointer"
+                className="w-full py-3.5 sm:py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] transition-colors duration-300 text-xs sm:text-sm font-medium tracking-wide flex items-center justify-center gap-2.5 sm:gap-3 cursor-pointer rounded-[6px]"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>שליחת בקשת זמינות ב-WhatsApp</span>
@@ -332,14 +332,14 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
           </div>
 
           {/* Pricing & Policy Summary Column */}
-          <div className="lg:col-span-5 space-y-8">
-            <div className="p-8 bg-[#DED5C8]/40 border border-[#DED5C8]">
-              <EditorialTag className="mb-4 block">
+          <div className="lg:col-span-5 space-y-6 sm:space-y-8 text-right w-full max-w-none" dir="rtl">
+            <div className="p-6 sm:p-8 bg-[#DED5C8]/40 border border-[#DED5C8] text-right rounded-[6px]">
+              <EditorialTag className="mb-3 sm:mb-4 block">
                 הערכת עלות משוערת
               </EditorialTag>
 
-              <div className="font-serif text-3xl sm:text-4xl text-[#1E1D1A] mb-2 font-normal">
-                ₪{form.estimate.toLocaleString()}
+              <div className="font-serif text-3xl sm:text-4xl text-[#1E1D1A] mb-2 font-normal text-right" dir="rtl">
+                <span dir="ltr">₪{form.estimate.toLocaleString()}</span>
               </div>
 
               <div className="text-xs text-[#6B5037] font-mono mb-2">
@@ -348,36 +348,36 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               {wedding && checkIn && (
                 <div className="text-xs text-[#6B5037] font-mono mb-2">תאריך החתונה: {formatHebrewDate(checkIn)}</div>
               )}
-              <p className="text-xs text-[#5E574D] font-light mb-6">
+              <p className="text-xs text-[#5E574D] font-light mb-4 sm:mb-6">
                 הערכה בלבד. המחיר הסופי יימסר באישור ההזמנה.
               </p>
 
-              <div className="space-y-2.5 text-xs text-[#4A463F] font-light pt-6 border-t border-[#DED5C8]">
+              <div className="space-y-2.5 text-xs text-[#4A463F] font-light pt-5 sm:pt-6 border-t border-[#DED5C8] text-right">
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045]" />
+                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
                   <span>אירוח אינטימי למבוגרים בלבד</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045]" />
+                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
                   <span>שימוש בלעדי בכל הבית, הגג והחצר</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045]" />
+                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
                   <span>מטבח שלם מאובזר ומכונת קפה איכותית</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045]" />
+                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
                   <span>חניה פרטית צמודה בתוך המשק</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border border-[#DED5C8] text-xs text-[#4A463F] font-light space-y-2">
+            <div className="p-5 sm:p-6 border border-[#DED5C8] text-xs text-[#4A463F] font-light space-y-2 text-right rounded-[6px]" dir="rtl">
               <h3 className="font-serif text-sm font-normal text-[#1E1D1A] mb-1">
                 נהלי צ׳ק-אין וביטול
               </h3>
-              <p>כניסה: 15:00 | יציאה: 11:00 (גמישות בתיאום מראש).</p>
-              <p>ביטול ללא עלות עד 7 ימים מראש.</p>
+              <p>כניסה: <bdi>15:00</bdi> | יציאה: <bdi>11:00</bdi> (גמישות בתיאום מראש).</p>
+              <p>ביטול ללא עלות עד <bdi>7</bdi> ימים מראש.</p>
               <a
                 href={`tel:${BRAND_DATA.phone}`}
                 className="pt-2 inline-flex items-center gap-2 text-[#6B5037] hover:text-[#1E1D1A]"

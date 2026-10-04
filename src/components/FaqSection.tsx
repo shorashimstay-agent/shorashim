@@ -11,38 +11,39 @@ export default function FaqSection() {
   };
 
   return (
-    <section id="faq" className="py-28 sm:py-36 bg-[#DED5C8]/30 relative">
-      <div className="max-w-4xl mx-auto px-6 sm:px-12">
+    <section id="faq" className="py-12 sm:py-24 lg:py-36 bg-[#DED5C8]/30 relative" dir="rtl" lang="he">
+      <div className="max-w-4xl mx-auto px-7 sm:px-10 lg:px-12">
         
         {/* Section Header */}
-        <div className="max-w-2xl mb-16 pb-8 border-b border-[#DED5C8]">
-          <EditorialTag className="mb-4 block">
+        <div className="w-full max-w-none md:max-w-2xl mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8] text-right">
+          <EditorialTag className="mb-3 sm:mb-4 block">
             11 · שאלות נפוצות
           </EditorialTag>
-          <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4">
+          <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
             כל מה שחשוב לדעת
           </h2>
-          <p className="text-base sm:text-lg text-[#292824]/75 font-light">
+          <p className="text-sm sm:text-lg text-[#292824]/75 font-light text-right">
             פרטים על האירוח, ההתארגנות ונהלי המקום בשורשים.
           </p>
         </div>
 
         {/* Minimal Editorial Accordion (no heavy cards or drop-shadows) */}
-        <div className="divide-y divide-[#DED5C8] border-y border-[#DED5C8]">
+        <div className="divide-y divide-[#DED5C8] border-y border-[#DED5C8]" dir="rtl">
           {FAQ_ITEMS.map((item, idx) => {
             const isOpen = openIndex === idx;
             return (
-              <div key={idx} className="py-6">
+              <div key={idx} className="py-4 sm:py-6 text-right" dir="rtl">
                 <h3 className="m-0">
                 <button
                   type="button"
                   id={`faq-q-${idx}`}
                   onClick={() => toggleAccordion(idx)}
                   aria-controls={isOpen ? `faq-a-${idx}` : undefined}
-                  className="w-full text-right flex items-center justify-between gap-6 cursor-pointer group"
+                  className="w-full text-right flex items-center justify-between gap-4 sm:gap-6 cursor-pointer group"
                   aria-expanded={isOpen}
+                  dir="rtl"
                 >
-                  <span className="font-serif text-xl sm:text-2xl text-[#1E1D1A] group-hover:text-[#7B6045] transition-colors font-normal">
+                  <span className="font-serif text-lg sm:text-2xl text-[#1E1D1A] group-hover:text-[#7B6045] transition-colors font-normal text-right">
                     {item.question}
                   </span>
                   <span className="inline-flex shrink-0 p-1 text-[#7B6045] transition-transform duration-300">
@@ -56,9 +57,10 @@ export default function FaqSection() {
                     id={`faq-a-${idx}`}
                     role="region"
                     aria-labelledby={`faq-q-${idx}`}
-                    className="pt-4 text-base text-[#292824]/75 font-light leading-relaxed animate-fadeIn"
+                    className="pt-3 sm:pt-4 text-sm sm:text-base text-[#292824]/75 font-light leading-relaxed animate-fadeIn text-right"
+                    dir="rtl"
                   >
-                    <p>{item.answer}</p>
+                    <p className="text-right">{item.answer}</p>
                   </div>
                 )}
               </div>

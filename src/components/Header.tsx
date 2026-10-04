@@ -93,33 +93,23 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
   return (
     <header
       id="main-header"
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ease-in-out h-[84px] sm:h-[90px] lg:h-[94px] flex items-center ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ease-in-out h-[64px] sm:h-[74px] md:h-[84px] lg:h-[94px] flex items-center bg-[#F3EFE7]/96 backdrop-blur-[4px] border-b border-[#E5DFD3]/75 text-[#665548] shadow-[0_2px_18px_rgba(64,54,47,0.035)] ${
         isSolid
-          ? 'bg-[#F3EFE7]/96 backdrop-blur-[4px] border-b border-[#E5DFD3]/75 text-[#665548] shadow-[0_2px_18px_rgba(64,54,47,0.035)]'
-          : 'bg-transparent text-[#F4EFE5]'
+          ? 'md:bg-[#F3EFE7]/96 md:backdrop-blur-[4px] md:border-b md:border-[#E5DFD3]/75 md:text-[#665548] md:shadow-[0_2px_18px_rgba(64,54,47,0.035)]'
+          : 'md:bg-transparent md:border-transparent md:text-[#F4EFE5] md:shadow-none'
       }`}
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 w-full flex items-center justify-between">
         
         {/* 
           LOGO CONTAINER:
-          Maintains exact fixed width (w-[130px] sm:w-[150px] lg:w-[160px]) so hiding or showing
-          the logo NEVER causes the navigation links to move horizontally.
+          Maintains exact fixed width so hiding or showing
+          the logo NEVER causes the navigation links to move horizontally on desktop.
           
-          LOGO VISIBILITY:
-          When showLogo is false (Homepage at top):
-          - opacity: 0
-          - visibility: hidden
-          - pointer-events: none
-          - Genuinely invisible: No tree, no text, no replacement branding.
-          
-          When showLogo is true (Homepage scrolled >= 50px OR any internal page):
-          - opacity: 1
-          - visibility: visible
-          - pointer-events: auto
-          - Smooth transition (350ms ease)
+          On mobile: Always visible, elegant, compact on the right.
+          On desktop: Follows showLogo rule (hidden at top of homepage, visible on scroll).
         */}
-        <div className="flex items-center w-[130px] sm:w-[150px] lg:w-[160px] shrink-0 justify-start select-none">
+        <div className="flex items-center w-[100px] sm:w-[130px] md:w-[140px] lg:w-[160px] shrink-0 justify-start select-none">
           <a
             href="#home"
             id="header-brand-logo"
@@ -129,16 +119,11 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
             }}
             tabIndex={showLogo ? 0 : -1}
             aria-hidden={!showLogo}
-            className={`inline-flex items-center cursor-pointer py-1 transition-all duration-350 ease-in-out ${
+            className={`inline-flex items-center cursor-pointer py-0.5 sm:py-1 transition-all duration-350 ease-in-out opacity-100 visible pointer-events-auto ${
               showLogo
-                ? 'opacity-100 visible pointer-events-auto'
-                : 'opacity-0 invisible pointer-events-none'
+                ? 'md:opacity-100 md:visible md:pointer-events-auto'
+                : 'md:opacity-0 md:invisible md:pointer-events-none'
             }`}
-            style={{
-              opacity: showLogo ? 1 : 0,
-              visibility: showLogo ? 'visible' : 'hidden',
-              pointerEvents: showLogo ? 'auto' : 'none',
-            }}
             aria-label="שורשים - בית אירוח אינטימי למבוגרים זכרון יעקב"
           >
             {/* The official approved original logo image */}
@@ -147,7 +132,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
               alt="שורשים – מקום להתחבר אליו"
               width={256}
               height={256}
-              className="w-auto h-[68px] sm:h-[76px] lg:h-[82px] object-contain"
+              className="w-auto h-[44px] sm:h-[56px] md:h-[70px] lg:h-[82px] object-contain"
               referrerPolicy="no-referrer"
             />
           </a>
@@ -179,21 +164,22 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
 
         {/* 
           Opposite Side (Left in RTL):
-          Action button "בדיקת זמינות"
+          Action button "בדיקת זמינות" + Hamburger Menu
           Balances: BRAND LOGO CONTAINER (fixed width)  ←  NAVIGATION  →  BOOKING (fixed width)
         */}
-        <div className="flex items-center gap-3 sm:gap-4 w-[130px] sm:w-[150px] lg:w-[160px] shrink-0 justify-end">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0 justify-end">
           <button
             type="button"
             id="header-check-availability-btn"
             onClick={onOpenBooking}
-            className={`text-[13px] sm:text-[14px] tracking-wide font-normal px-4 py-2 border transition-all duration-300 cursor-pointer rounded-[2px] ${
+            className={`text-[11px] leading-[1.15] md:text-[13.5px] md:leading-normal tracking-wide font-normal px-3.5 py-1 md:px-5 md:py-1.5 border border-[0.75px] transition-all duration-300 cursor-pointer rounded-[6px] text-center border-[#665548]/35 text-[#665548] hover:border-[#665548]/60 hover:bg-[#665548]/5 ${
               isSolid
-                ? 'border-[#665548]/35 text-[#665548] hover:border-[#40362F] hover:bg-[#40362F] hover:text-[#F3EFE7]'
-                : 'border-[#F4EFE5]/50 text-[#F4EFE5] hover:border-white hover:bg-white hover:text-[#1E1D1A] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
+                ? 'md:border-[#665548]/30 md:text-[#665548] md:hover:border-[#665548]/50 md:hover:bg-[#665548]/5'
+                : 'md:border-[#F4EFE5]/40 md:text-[#F4EFE5] md:hover:border-[#F4EFE5]/65 md:hover:bg-white/5'
             }`}
           >
-            בדיקת זמינות
+            <span className="block md:inline">בדיקת</span>{' '}
+            <span className="block md:inline">זמינות</span>
           </button>
 
           {/* Minimal Mobile Menu Toggle */}
@@ -204,14 +190,10 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-controls={mobileMenuOpen ? 'mobile-nav-drawer' : undefined}
-            className={`md:hidden p-1.5 transition-colors cursor-pointer rounded-[2px] ${
-              isSolid
-                ? 'text-[#665548]'
-                : 'text-[#F4EFE5] drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
-            }`}
+            className="md:hidden p-1 transition-colors cursor-pointer rounded-[6px] text-[#665548]"
             aria-label={mobileMenuOpen ? 'סגירת התפריט' : 'פתיחת התפריט'}
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -221,7 +203,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
         <nav
           id="mobile-nav-drawer"
           aria-label="ניווט ראשי"
-          className="md:hidden fixed top-[84px] sm:top-[90px] left-0 right-0 bg-[#F3EFE7] border-b border-[#E5DFD3] px-8 py-8 shadow-xl text-[#665548] animate-fadeIn z-50"
+          className="md:hidden fixed top-[64px] sm:top-[74px] left-0 right-0 bg-[#F3EFE7] border-b border-[#E5DFD3] px-8 py-8 shadow-xl text-[#665548] animate-fadeIn z-50"
         >
           <div className="flex flex-col gap-6">
             {navLinks.map((link) => (
@@ -242,7 +224,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
                   setMobileMenuOpen(false);
                   onOpenBooking();
                 }}
-                className="w-full text-center py-3 bg-[#40362F] text-sm tracking-wide text-[#F3EFE7] hover:bg-[#665548] transition-colors rounded-[2px]"
+                className="w-full text-center py-2.5 bg-[#40362F] text-sm tracking-wide text-[#F3EFE7] hover:bg-[#665548] transition-colors rounded-[6px]"
               >
                 בדיקת זמינות
               </button>
