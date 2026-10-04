@@ -74,8 +74,8 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
           <div className="lg:col-span-7">
             <div className="aspect-[16/11] overflow-hidden bg-[#292824] shadow-[0_4px_25px_rgba(30,29,26,0.06)]">
               <Picture
-                image={IMAGES.bride}
-                alt="בוקר כלה בשורשים"
+                image={IMAGES.bride_dress}
+                alt="שמלת כלה תלויה על מתלה בחדר השינה בשורשים"
                 className="w-full h-full object-cover brightness-[0.98]"
                 sizes="(min-width: 1024px) 58vw, 100vw"
               />

@@ -28,8 +28,8 @@ export default function Hero({ onOpenBooking }: HeroProps) {
       */}
       <div className="absolute inset-0 z-0">
         <Picture
-          image={IMAGES.courtyard}
-          alt="חצר בית האירוח שורשים בזכרון יעקב — עץ הפיקוס, האבן והאווירה הים-תיכונית"
+          image={IMAGES.hero}
+          alt="בית האירוח שורשים בזכרון יעקב מבחוץ: חזית לבנה, דלתות זכוכית, מרפסת גג וחצר מוצלת בעצים"
           className="w-full h-full object-cover object-[55%_center] sm:object-center brightness-[0.82] contrast-[1.03] saturate-[0.98]"
           sizes="100vw"
           priority

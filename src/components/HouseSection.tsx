@@ -43,28 +43,32 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
       title: 'חדר השינה',
       subtitle: 'בוקר שמתחיל לאט',
       desc: 'מיטה מרווחת, מזרן אורתופדי פרימיום ומצעי כותנה טבעיים. חלונות אל צמרות העצים המכניסים אור בוקר רך וצללים עדינים.',
-      image: IMAGES.bedroom,
+      image: IMAGES.bedroom_linen,
+      alt: 'חדר השינה: מיטה זוגית עם מצעים לבנים ומנורות לילה',
       tag: '01 · שינה ושקט',
     },
     {
       title: 'המטבח והאי המרכזי',
       subtitle: 'קפה, יין ובישול אמיתי',
       desc: 'מטבח שלם מאובזר בכלים איכותיים, כיריים, תנור, מקרר מלא, מכונת קפה עם פולים טריים ואי ישיבה רחב לשיחות אל תוך הלילה.',
-      image: IMAGES.interior,
+      image: IMAGES.shutters,
+      alt: 'קיר הבית עם תריסי עץ ירוקים וחלונות',
       tag: '02 · קולינריה ושהייה',
     },
     {
       title: 'חדר הרחצה',
       subtitle: 'מקלחון גשם ומגבות עבות',
       desc: 'חלל רחצה מוקפד עם מקלחון מרווח, ראש גשם מרגיע, חלוקי כותנה רכים ומוצרי טיפוח מובחרים בניחוח ים-תיכוני.',
-      image: IMAGES.bathroom,
+      image: IMAGES.rain_shower,
+      alt: 'מקלחון גשם עם דלתות זכוכית ואור שמש',
       tag: '03 · מים ורוגע',
     },
     {
       title: 'מרפסת הגג והחצר',
       subtitle: 'בריזה מזכרון וציוץ ציפורים',
       desc: 'חצר ירוקה פרטית תחת עצי פיקוס עתיקים משנת 1882, ועליית גג אינטימית עם ערסל רביצה מול השקיעה.',
-      image: IMAGES.rooftop,
+      image: IMAGES.zichron_book,
+      alt: 'ספר ישן על זכרון יעקב לצד טלפון חוגה עתיק',
       tag: '04 · טבע ומרחב פתוח',
     },
   ];
@@ -106,7 +110,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
                   <div className="aspect-[16/11] sm:aspect-[16/10] overflow-hidden bg-[#292824] shadow-[0_4px_25px_rgba(30,29,26,0.05)]">
                     <Picture
                       image={space.image}
-                      alt={space.title}
+                      alt={space.alt}
                       className="w-full h-full object-cover brightness-[0.97] hover:scale-102 transition-transform duration-700 ease-out"
                       sizes="(min-width: 1024px) 58vw, 100vw"
                     />
@@ -176,14 +180,14 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
             <div className="lg:col-span-7">
               <div className="aspect-[16/11] overflow-hidden bg-[#292824] shadow-[0_4px_25px_rgba(30,29,26,0.06)]">
                 <Picture
-                  image={IMAGES.courtyard}
-                  alt="שקט וחצר ירוקה בשורשים, זכרון יעקב"
+                  image={IMAGES.robes}
+                  alt="שני חלוקי רחצה לבנים על מתלה עץ בחדר השינה בשורשים"
                   className="w-full h-full object-cover brightness-[0.98] hover:scale-102 transition-transform duration-700 ease-out"
                   sizes="(min-width: 1024px) 58vw, 100vw"
                 />
               </div>
               <div className="mt-2 text-[11px] font-sans text-[#7B6045] tracking-wider text-right" dir="rtl">
-                החצר השקטה, עצי הפיקוס והאבן ההיסטורית · שורשים, זכרון יעקב
+                להיכנס לחלוק. ולצאת מהשגרה. · שורשים, זכרון יעקב
               </div>
             </div>
 
