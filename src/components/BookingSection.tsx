@@ -339,7 +339,7 @@ export default function BookingSection({ initialStayType = 'couple' }: BookingSe
               </EditorialTag>
 
               <div className="font-serif text-3xl sm:text-4xl text-[#1E1D1A] mb-2 font-normal text-right" dir="rtl">
-                <span dir="ltr">₪{form.estimate.toLocaleString()}</span>
+                {form.estimate === null ? <span>מחיר בתיאום אישי</span> : <span dir="ltr">₪{form.estimate.toLocaleString()}</span>}
               </div>
 
               <div className="text-xs text-[#6B5037] font-mono mb-2">

@@ -50,6 +50,11 @@ export function snapshotCsvUrl(cfg: BackendConfig): string {
   return `https://docs.google.com/spreadsheets/d/${cfg.availabilitySheetId}/gviz/tq?tqx=out:csv&range=A1:D2&headers=0`;
 }
 
+/** CSV export of the prices sheet, as the site reads it (src/data/bookingConfig.ts). */
+export function pricesCsvUrl(cfg: BackendConfig): string {
+  return `https://docs.google.com/spreadsheets/d/${cfg.pricesSheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('מחירים')}&range=A1:C20`;
+}
+
 /** Every run tags what it creates with this, so cleanup can find it even after a crash. */
 export const RUN_PREFIX = 'E2E-';
 export const runId = (process.env.E2E_RUN_ID ??= Date.now().toString(36).slice(-6).toUpperCase());

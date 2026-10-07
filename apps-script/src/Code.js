@@ -12,7 +12,6 @@
 
 var TZ = 'Asia/Jerusalem';
 var AVAILABILITY_CACHE_KEY = 'availability:v1';
-var PRICES_URL_DEFAULT = 'https://shorashimstay.com/prices.json';
 var PRICES_TAB = 'מחירים';
 var PRICES_CACHE_KEY = 'prices:v1';
 var PRICES_REFETCH_KEY = 'prices:refetched';
@@ -25,7 +24,6 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (p.action === 'availability') return json_(getAvailability_());
-    if (p.action === 'prices') return json_(pricesReply_(p.pv));
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
     if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
     return json_({ ok: true, service: 'shorashim-booking' });
@@ -138,11 +136,11 @@ function invalidateAvailability_() {
 }
 
 /**
- * The prices in force: { version, prices }. They come from the owner's prices spreadsheet
- * (CONFIG.pricesSheetId; without one, from the site's /prices.json), kept in the cache for 10
- * minutes. A caller that expects another version (the page saw newer prices) triggers a re-read, at
- * most once a minute. When the source cannot be read or fails checkPrices, the last good copy is
- * used, and before any copy exists the built-in PRICES (shared/rules.js).
+ * The prices in force: { version, prices }, from the owner's prices spreadsheet (CONFIG.pricesSheetId),
+ * kept in the cache for 10 minutes. The site reads the same sheet as a public CSV; a request that
+ * carries another version (the page saw a newer edit) triggers a re-read, at most once a minute. When
+ * the sheet cannot be read or fails checkPrices, the last good copy is used; before any copy exists
+ * there are no prices ({ version: 'none', prices: null }) and requests carry no estimate.
  * @param {string} wantedVersion the version the caller expects, or '' for any
  */
 function currentPrices_(wantedVersion) {
@@ -158,7 +156,7 @@ function currentPrices_(wantedVersion) {
     if (!wantedVersion || current.version === wantedVersion || cache.get(PRICES_REFETCH_KEY)) return current;
   }
   cache.put(PRICES_REFETCH_KEY, '1', 60);
-  var fetched = CONFIG.pricesSheetId ? readPricesSheet_() : fetchPrices_();
+  var fetched = readPricesSheet_();
   if (fetched) {
     var text = JSON.stringify(fetched);
     cache.put(PRICES_CACHE_KEY, text, 600);
@@ -170,17 +168,15 @@ function currentPrices_(wantedVersion) {
     cache.put(PRICES_CACHE_KEY, lastGood, 60);
     return JSON.parse(lastGood);
   }
-  return { version: 'built-in', prices: PRICES };
-}
-
-/** ?action=prices: what the site shows. Public on purpose: these are the prices on the page. */
-function pricesReply_(wantedVersion) {
-  var current = currentPrices_(String(wantedVersion || ''));
-  return { ok: true, version: current.version, prices: current.prices };
+  return { version: 'none', prices: null };
 }
 
 /** Reads and checks the prices tab of the prices spreadsheet; null on any failure. */
 function readPricesSheet_() {
+  if (!CONFIG.pricesSheetId) {
+    console.warn('no pricesSheetId in the config');
+    return null;
+  }
   try {
     var sheet = SpreadsheetApp.openById(CONFIG.pricesSheetId).getSheetByName(PRICES_TAB);
     if (!sheet) {
@@ -195,26 +191,6 @@ function readPricesSheet_() {
     return { version: checked.version, prices: checked.prices };
   } catch (err) {
     console.warn('prices sheet unreadable', err);
-    return null;
-  }
-}
-
-/** Reads and checks prices.json; null on any failure. The query string gets past the CDN's cache. */
-function fetchPrices_() {
-  try {
-    var res = UrlFetchApp.fetch((CONFIG.pricesUrl || PRICES_URL_DEFAULT) + '?t=' + Date.now(), { muteHttpExceptions: true });
-    if (res.getResponseCode() !== 200) {
-      console.warn('prices.json answered ' + res.getResponseCode());
-      return null;
-    }
-    var checked = checkPrices(JSON.parse(res.getContentText()));
-    if (!checked.ok) {
-      console.warn('prices.json rejected: ' + checked.error);
-      return null;
-    }
-    return { version: checked.version, prices: checked.prices };
-  } catch (err) {
-    console.warn('prices.json unreadable', err);
     return null;
   }
 }
@@ -932,8 +908,8 @@ function consoleOverview_() {
 }
 
 /**
- * Staging only (CONFIG.testHooks): the suite's site is built on localhost from the working tree, so
- * the web app cannot fetch that tree's prices.json. The suite hands it over here instead; null clears it.
+ * Staging only (CONFIG.testHooks): pins the web app to the suite's test prices, the same ones its
+ * site is built with, instead of the staging prices sheet; null clears it.
  */
 function testSetPrices_(file) {
   var props = PropertiesService.getScriptProperties();
@@ -1150,7 +1126,7 @@ function ownerLines_(req) {
   if (STAY_TYPES[req.stayType].wedding) {
     lines.push('שמור ביומן: הלילה שלפני (' + heDate_(req.start) + ') וליל החתונה');
   }
-  lines.push('הערכת מחיר: ₪' + Number(req.estimate).toLocaleString('en-US'));
+  lines.push('הערכת מחיר: ' + (req.estimate ? '₪' + Number(req.estimate).toLocaleString('en-US') : 'לא חושבה (אין מחירים זמינים) — לתמחר ידנית'));
   lines.push('שם: ' + req.name);
   lines.push('טלפון: ' + req.phone);
   if (req.email) lines.push('אימייל: ' + req.email);

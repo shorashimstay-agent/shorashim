@@ -28,19 +28,10 @@ export var STAY_TYPES = {
   bride_night_day: { label: 'לילה לפני + יום כלה', wedding: true },
 };
 
-// The live prices are in the owner's prices spreadsheet (one row per key, see pricesFromRows). The
-// web app reads it and serves it at ?action=prices, and the site loads it from there when the page
-// opens, so a price change needs no build and no deploy. public/prices.json is the copy the site is
-// built with and shows until the live prices arrive; these built-in values are only the web app's
-// last resort when it has never managed to read the sheet.
-export var PRICES = {
-  perNight: 850,
-  weekendPerNight: 1050,
-  thirdGuestPerNight: 150,
-  bride_day: 1850,
-  bride_night_day: 2650,
-  wedding_night: 1150,
-};
+// Prices are not in the code. They live in the owner's prices spreadsheet (one row per key, see
+// pricesFromRows), which the site reads as a public CSV and the web app reads directly, so a price
+// change needs no build and no deploy. Without prices there is no estimate (null): the page and the
+// request say the price will be set personally.
 export var PRICE_KEYS = ['perNight', 'weekendPerNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night'];
 // Prices that may be missing (files from before they existed), and the price they fall back to.
 export var PRICE_DEFAULTS = { weekendPerNight: 'perNight' };
@@ -201,12 +192,13 @@ export function isWeekendNight(date) {
 
 /**
  * @param {StayType} stayType @param {number} nights @param {number} adults
- * @param {Record<string, number>} [prices] checked prices; the built-in PRICES when omitted
+ * @param {Record<string, number> | null} prices checked prices; without them there is no estimate
  * @param {string} [start] the first night; without it every night is priced as a weeknight
- * @returns {number}
+ * @returns {number | null}
  */
 export function estimatePrice(stayType, nights, adults, prices, start) {
-  var p = prices || PRICES;
+  var p = prices;
+  if (!p) return null;
   if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night') {
     return p[stayType];
   }
@@ -238,7 +230,7 @@ export function whatsappNumber(phone) {
  * submitting and the web app calls it again on arrival; the server's answer is the authoritative one.
  * @param {Record<string, unknown>} input
  * @param {string} today
- * @param {Record<string, number>} [prices] passed on to estimatePrice
+ * @param {Record<string, number> | null} [prices] passed on to estimatePrice; none gives estimate null
  * @returns {{ ok: true, value: Record<string, any> } | { ok: false, errors: Record<string, string> }}
  */
 export function validateRequest(input, today, prices) {
@@ -298,7 +290,7 @@ export function validateRequest(input, today, prices) {
       phone: phone,
       email: email,
       notes: notes,
-      estimate: estimatePrice(stayType, blockedCount, adults, prices, range.start),
+      estimate: estimatePrice(stayType, blockedCount, adults, prices || null, range.start),
     },
   };
 }

@@ -185,7 +185,7 @@ export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
                     </div>
                     <div className="flex items-baseline gap-3">
                       <span className="text-xl sm:text-2xl font-light text-[#1E1D1A]" dir="ltr">
-                        {PRICES[pkg.id as keyof typeof PRICES].toLocaleString()} ₪
+                        {PRICES ? `${PRICES[pkg.id].toLocaleString()} ₪` : 'מחיר בתיאום אישי'}
                       </span>
                     </div>
                   </div>

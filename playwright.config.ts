@@ -13,6 +13,11 @@ const PORT = 4173;
 // Playwright's bundled Chromium 153 never runs requestAnimationFrame or IntersectionObserver under
 // this WSL setup (checked 2026-09-27), so the site never loads reCAPTCHA. Chrome 147 works. Use
 // E2E_CHROME, else ~/.local/bin/google-chrome when present, else the bundled browser.
+// The test site reads these test prices instead of a prices sheet: a CSV like the sheet's, as a data
+// URL. tests/e2e/booking.spec.ts pins the staging web app to the same prices.
+const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8')).prices as Record<string, number>;
+const testPricesCsv = Object.entries(testPrices).map(([key, price]) => `"${key}","","${price}"`).join('\n');
+
 const localChrome = path.join(os.homedir(), '.local/bin/google-chrome');
 const executablePath = process.env.E2E_CHROME || (fs.existsSync(localChrome) ? localChrome : undefined);
 
@@ -55,6 +60,7 @@ export default defineConfig({
           VITE_BOOKING_API_URL: staging.webAppUrl,
           VITE_AVAILABILITY_SNAPSHOT_URL: snapshotCsvUrl(staging),
           VITE_RECAPTCHA_SITE_KEY: staging.recaptchaSiteKey,
+          VITE_PRICES_CSV_URL: `data:text/csv;charset=utf-8,${encodeURIComponent(testPricesCsv)}`,
         },
       },
 });
