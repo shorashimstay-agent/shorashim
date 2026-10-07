@@ -5,7 +5,6 @@ import {
   MAX_NIGHTS,
   NOTES_MAX,
   STAY_TYPES,
-  checkPrices,
   addDays,
   daysBetween,
   estimatePrice as estimateWith,
@@ -13,21 +12,17 @@ import {
   stayRange,
   validateRequest,
 } from '../../shared/rules.js';
-// The same file the web app fetches from /prices.json; bundling it keeps the page and its prices in step.
-import pricesFile from '../../public/prices.json';
+import { getPrices } from './prices';
 
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night';
 
 export { MAX_NIGHTS, NOTES_MAX, STAY_TYPES, addDays, daysBetween, nightsOf, stayRange, validateRequest };
 
-const checked = checkPrices(pricesFile);
-// shared/rules.test.mjs checks the file, so a broken one never gets this far.
-if (!checked.ok) throw new Error(`public/prices.json: ${checked.error}`);
-export const PRICES = checked.prices;
-/** Sent with each request; the web app re-reads /prices.json when its copy is a different version. */
-export const PRICES_VERSION = checked.version;
+export { getPrices, getPricesVersion, usePrices } from './prices';
 
-export const estimatePrice = (type: StayType, nights: number, adults: number) => estimateWith(type, nights, adults, PRICES);
+/** With `start`, Friday and Saturday nights take the weekend price. Uses the prices in force. */
+export const estimatePrice = (type: StayType, nights: number, adults: number, start?: string) =>
+  estimateWith(type, nights, adults, getPrices(), start);
 
 /** Wedding-type stays are keyed by the wedding date; a wedding night is an ordinary one-night stay. */
 export const isWeddingStay = (type: StayType) => STAY_TYPES[type].wedding;

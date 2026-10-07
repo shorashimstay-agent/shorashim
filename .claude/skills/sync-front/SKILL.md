@@ -19,7 +19,6 @@ node scripts/front-sync.mjs prepare
 - It stops on a **secret** in front-2's files → stop. Tell the user the file and kind of key (never
   the key), that it must be removed in AI Studio and the key replaced, and that nothing was merged.
   Report history-only findings the same way, but they do not stop the sync.
-- It stops on **prices** → stop and tell the user the reason and the numbers.
 - Otherwise read the report: it lists what was taken, merged, in conflict, and not taken.
 
 ## 2. Resolve and rewire
@@ -43,9 +42,10 @@ production. For each file in the report:
   onto its markup.
 - **Images**: where the site renders a photo through `Picture` (responsive AVIF/WebP), keep it.
   New master photos in `src/assets/images/` get variants from `npm run images` automatically.
-- **Prices**: the page shows prices only through `form.estimate` or `PRICES` from `src/lib/stay.ts`.
-  front-2's `BRAND_DATA` price fields may stay in `shorashimData.ts` (they feed `prices.json`), but
-  nothing should render them directly.
+- **Prices**: the page shows prices only through `form.estimate` or `usePrices()` from
+  `src/lib/stay.ts`, which load the live prices from the prices sheet (docs/front-sync.md, Prices).
+  front-2 never sets prices: replace any price constant or ₪ amount in its components with those.
+  `check` fails if a ₪ amount is written into the build.
 - **Content** (texts, section order, new sections, removed sections) is front-2's call: take it. If
   front-2 removed a section the site had, remove it, unless it carries a production function (then
   keep the function in front-2's style and say so in the summary).

@@ -50,13 +50,16 @@ export const webApp = (cfg: BackendConfig) => ({
     const pv = pricesVersion ? `&pv=${encodeURIComponent(pricesVersion)}` : '';
     return call(cfg, { query: `?action=diag&t=${t}&sig=${sign(cfg, 'diag:' + t)}${pv}` }, (j) => Array.isArray(j.triggers));
   },
+  /** The prices the site shows (?action=prices); `pricesVersion` asks for a re-read as a page would. */
+  prices: (pricesVersion = '') =>
+    call(cfg, { query: `?action=prices${pricesVersion ? `&pv=${encodeURIComponent(pricesVersion)}` : ''}` }, (j) => j.ok === true && typeof j.version === 'string'),
   post: (body: Record<string, unknown>) => call(cfg, { body }, notDefault),
   decide: (action: 'approve' | 'decline', id: string, sig = sign(cfg, id)) => call(cfg, { body: { action, id, sig } }, notDefault),
   fireSheetEdit: (row: number) => {
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testFireSheetEdit', row, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'confirmTicked' in j);
   },
-  /** Staging only: the prices the web app uses instead of fetching /prices.json; null clears them. */
+  /** Staging only: the prices the web app uses instead of reading its prices sheet; null clears them. */
   setPrices: (file: unknown) => {
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testSetPrices', file, t, sig: sign(cfg, 'test:' + t) } }, (j) => j.ok === false || 'version' in j || 'cleared' in j);

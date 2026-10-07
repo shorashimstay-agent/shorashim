@@ -2,13 +2,14 @@ import { MessageCircle, Check } from 'lucide-react';
 import { BRAND_DATA, BRIDE_PACKAGES, IMAGES } from '../data/shorashimData';
 import { RootLine, EditorialTag } from './RootLine';
 import Picture from './Picture';
-import { PRICES } from '../lib/stay';
+import { usePrices } from '../lib/stay';
 
 interface BrideSectionProps {
   onSelectPackage?: (packageId: string) => void;
 }
 
 export default function BrideSection({ onSelectPackage }: BrideSectionProps) {
+  const PRICES = usePrices();
   const handleWhatsAppBrideInquiry = (pkgTitle?: string) => {
     const text = encodeURIComponent(
       `היי שורשים, אשמח לפרטים ולהתאמה אישית לגבי חוויית כלה בשורשים${

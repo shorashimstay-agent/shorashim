@@ -18,8 +18,8 @@ every check passes.
   paste a key without knowing. `gitleaks` scans front-2's files before anything is merged and the
   built site before anything ships. A finding stops the sync, and the report names the file and
   the kind of key, never the key itself. GitHub push protection on this repo is the second net.
-- **The backend is never deployed by a sync.** Prices are data (below), so a sync is a site-only
-  change.
+- **The backend is never deployed by a sync.** Prices are data in a sheet (below), so a sync is a
+  site-only change.
 
 ## How a sync works (`scripts/front-sync.mjs`)
 
@@ -31,13 +31,12 @@ every check passes.
      commit has vanished from front-2 (rewritten history), the sync stops.
    - Scans front-2's files for secrets (stop) and the new commits' history (reported: those keys
      are not published, but they are exposed in AI Studio and must be replaced).
-   - Reads front-2's prices and plans `public/prices.json` (stop on the checks below).
    - On a `sync/front-<sha>` branch, merges every file front-2 changed since the base, file by
      file with `git merge-file`, according to the ownership rules.
 2. **Resolve and rewire** (Claude, following the skill): conflicts, and putting front-2's design
    back onto the production hooks where it replaced them (booking, accessibility, images).
 3. **check**: contract checks, lint, unit tests, a build, a secret scan of the changed files and
-   of the build, and the ₪ check of the build. Records the checked tree.
+   of the build, and the ₪ check of the build (no price written into the page). Records the checked tree.
 4. **ship**: commits with the `Front-2-Sync:` trailer, runs the staging suite (`npm run test:e2e`,
    which includes the axe accessibility tests and the booking round trip), fast-forwards `main`,
    pushes, waits for the Pages deploy, and runs the production smoke test (one retry). If the live
@@ -64,16 +63,23 @@ development workflow first.
 
 ## Prices
 
-front-2 sets the prices, in `BRAND_DATA` in its `src/data/shorashimData.ts`:
-`basePricePerNight`, `thirdGuestSurcharge`, `brideDayPrice`, `brideNightDayPrice`,
-`weddingNightPrice`. The sync copies them to `public/prices.json` (`version: front-2@<sha>`),
-which the site bundles and the web app reads at runtime (`apps-script/README.md`), so no backend
-deploy is needed. The sync stops when:
+Prices are not part of either repo's code. They live in the owner's Google Sheet
+**"שורשים — מחירים (Shorashim prices)"** (`pricesSheetId` in `booking-config.json`; staging has its
+own copy), tab `מחירים`, one row per key: `perNight` (weeknights), `weekendPerNight` (Friday and
+Saturday nights), `thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`. The owner
+and the front agent's account edit column C; the web app checks every value (`checkPrices`: whole
+shekels, 100–20,000) and keeps the last good prices if an edit fails.
 
-- a price field is missing, renamed or not a plain number;
-- a price is not a whole number from ₪100 to ₪20,000;
-- a price moves by more than 50% in one sync;
-- a ₪ amount written in the built site's text is not one of the prices in `prices.json`.
+- The web app reads the sheet (cached 10 minutes) and serves it at `?action=prices`; the site loads
+  that when the page opens (`src/lib/prices.ts`, `usePrices`). A price change needs no build, no
+  sync and no deploy.
+- `public/prices.json` is only the copy the site is built with and shows until the live prices
+  arrive. Keep it equal to the sheet when convenient; it is never the source.
+- The version names the prices themselves (`sheet-850-1050-…`), so the page and the web app agree
+  on it with no shared state.
+- front-2 never sets prices. A sync does not read them from front-2 and `check` stops if any ₪
+  amount is written into the built site (legal pages excepted): front-2's components must show
+  prices from `usePrices` / `form.estimate`. front-2's `LIVE_SITE.md` tells the front agent the same.
 
 ## Checks that stop a sync (`check`)
 

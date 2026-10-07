@@ -13,6 +13,7 @@
 var TZ = 'Asia/Jerusalem';
 var AVAILABILITY_CACHE_KEY = 'availability:v1';
 var PRICES_URL_DEFAULT = 'https://shorashimstay.com/prices.json';
+var PRICES_TAB = 'מחירים';
 var PRICES_CACHE_KEY = 'prices:v1';
 var PRICES_REFETCH_KEY = 'prices:refetched';
 var PRICES_LAST_GOOD_KEY = 'pricesLastGood';
@@ -24,6 +25,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (p.action === 'availability') return json_(getAvailability_());
+    if (p.action === 'prices') return json_(pricesReply_(p.pv));
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
     if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
     return json_({ ok: true, service: 'shorashim-booking' });
@@ -136,10 +138,11 @@ function invalidateAvailability_() {
 }
 
 /**
- * The prices in force: { version, prices }. They come from the site's /prices.json (see
- * shared/rules.js), kept in the cache for 10 minutes. A caller that expects another version (the
- * page it was built from is newer) triggers a re-read, at most once a minute. When the file cannot be
- * read or fails checkPrices, the last good copy is used, and before any copy exists the built-in PRICES.
+ * The prices in force: { version, prices }. They come from the owner's prices spreadsheet
+ * (CONFIG.pricesSheetId; without one, from the site's /prices.json), kept in the cache for 10
+ * minutes. A caller that expects another version (the page saw newer prices) triggers a re-read, at
+ * most once a minute. When the source cannot be read or fails checkPrices, the last good copy is
+ * used, and before any copy exists the built-in PRICES (shared/rules.js).
  * @param {string} wantedVersion the version the caller expects, or '' for any
  */
 function currentPrices_(wantedVersion) {
@@ -155,7 +158,7 @@ function currentPrices_(wantedVersion) {
     if (!wantedVersion || current.version === wantedVersion || cache.get(PRICES_REFETCH_KEY)) return current;
   }
   cache.put(PRICES_REFETCH_KEY, '1', 60);
-  var fetched = fetchPrices_();
+  var fetched = CONFIG.pricesSheetId ? readPricesSheet_() : fetchPrices_();
   if (fetched) {
     var text = JSON.stringify(fetched);
     cache.put(PRICES_CACHE_KEY, text, 600);
@@ -168,6 +171,32 @@ function currentPrices_(wantedVersion) {
     return JSON.parse(lastGood);
   }
   return { version: 'built-in', prices: PRICES };
+}
+
+/** ?action=prices: what the site shows. Public on purpose: these are the prices on the page. */
+function pricesReply_(wantedVersion) {
+  var current = currentPrices_(String(wantedVersion || ''));
+  return { ok: true, version: current.version, prices: current.prices };
+}
+
+/** Reads and checks the prices tab of the prices spreadsheet; null on any failure. */
+function readPricesSheet_() {
+  try {
+    var sheet = SpreadsheetApp.openById(CONFIG.pricesSheetId).getSheetByName(PRICES_TAB);
+    if (!sheet) {
+      console.warn('prices sheet has no tab ' + PRICES_TAB);
+      return null;
+    }
+    var checked = pricesFromRows(sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 3).getValues());
+    if (!checked.ok) {
+      console.warn('prices sheet rejected: ' + checked.error);
+      return null;
+    }
+    return { version: checked.version, prices: checked.prices };
+  } catch (err) {
+    console.warn('prices sheet unreadable', err);
+    return null;
+  }
 }
 
 /** Reads and checks prices.json; null on any failure. The query string gets past the CDN's cache. */

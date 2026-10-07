@@ -2,8 +2,8 @@
 // Blends the design from the private AI Studio repo (front-2) into this site. docs/front-sync.md
 // explains the design; the /sync-front skill (.claude/skills/sync-front/) runs these steps:
 //
-//   node scripts/front-sync.mjs prepare   fetch front-2, scan it for secrets, check its prices, and
-//                                         three-way merge its changes onto a sync/front-<sha> branch
+//   node scripts/front-sync.mjs prepare   fetch front-2, scan it for secrets, and three-way merge
+//                                         its changes onto a sync/front-<sha> branch
 //   node scripts/front-sync.mjs check     after conflicts are resolved: the contract checks, lint,
 //                                         unit tests, a build, and secret and price scans of the build
 //   node scripts/front-sync.mjs ship      commit, staging suite, push, wait for Pages, smoke test;
@@ -18,7 +18,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkPrices, PRICE_KEYS } from '../shared/rules.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONT = path.join(ROOT, '.front-2');
@@ -72,16 +71,6 @@ const DESIGN = [/^src\//, /^public\//, /^index\.html$/];
 
 const isProtected = (p) => PROTECTED.some((re) => re.test(p));
 const category = (p) => (isProtected(p) ? 'protected' : DESIGN.some((re) => re.test(p)) ? 'design' : 'ignored');
-
-/** front-2's price fields in BRAND_DATA (src/data/shorashimData.ts) → prices.json keys. */
-const FRONT_PRICE_FIELDS = {
-  basePricePerNight: 'perNight',
-  thirdGuestSurcharge: 'thirdGuestPerNight',
-  brideDayPrice: 'bride_day',
-  brideNightDayPrice: 'bride_night_day',
-  weddingNightPrice: 'wedding_night',
-};
-const MAX_PRICE_CHANGE = 0.5;
 
 /** Domains the site may link to or load from. A new one stops the sync until someone adds it here. */
 const ALLOWED_DOMAINS = [
@@ -202,37 +191,6 @@ function ensureClone() {
   return frontGit(['rev-parse', 'origin/HEAD']);
 }
 
-/** front-2's prices, read from its BRAND_DATA. Returns an error string when a field is missing. */
-function frontPrices(newSha) {
-  let source;
-  try {
-    source = frontGit(['show', `${newSha}:src/data/shorashimData.ts`]);
-  } catch {
-    return { error: 'front-2 no longer has src/data/shorashimData.ts, where its prices are' };
-  }
-  const prices = {};
-  for (const [field, key] of Object.entries(FRONT_PRICE_FIELDS)) {
-    const m = source.match(new RegExp(`\\b${field}\\s*:\\s*([0-9][0-9_]*)\\s*[,}\\n]`));
-    if (!m) return { error: `front-2's price field ${field} is missing or not a plain number` };
-    prices[key] = Number(m[1].replace(/_/g, ''));
-  }
-  return { prices };
-}
-
-function planPrices(newSha) {
-  const current = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/prices.json'), 'utf8'));
-  const found = frontPrices(newSha);
-  if (found.error) return { stop: found.error };
-  const changes = PRICE_KEYS.filter((k) => found.prices[k] !== current.prices[k]).map((k) => ({ key: k, from: current.prices[k], to: found.prices[k] }));
-  if (!changes.length) return { changes };
-  const file = { version: `front-2@${sha7(newSha)}`, prices: found.prices };
-  const checked = checkPrices(file);
-  if (!checked.ok) return { stop: `front-2's prices fail the checks (${checked.error}): ${JSON.stringify(found.prices)}` };
-  const big = changes.filter((c) => Math.abs(c.to - c.from) / c.from > MAX_PRICE_CHANGE);
-  if (big.length) return { stop: `price change over ${MAX_PRICE_CHANGE * 100}%: ${big.map((c) => `${c.key} ${c.from} → ${c.to}`).join(', ')}` };
-  return { changes, file };
-}
-
 function prepare() {
   if (git(['rev-parse', '--abbrev-ref', 'HEAD']) !== 'main') fail('Start from main.');
   if (git(['status', '--porcelain', '--', '.', ':!.claude'])) fail('The working tree has uncommitted changes. Commit or stash them first.');
@@ -268,11 +226,7 @@ function prepare() {
     fail(`Possible secrets in front-2's files. Nothing was merged.\n  ${inFiles.join('\n  ')}\nAsk for the key to be removed in AI Studio and replaced (it is exposed there already), then sync again.`);
   }
 
-  // 2. Prices.
-  const prices = planPrices(newSha);
-  if (prices.stop) fail(`Prices: ${prices.stop}. Nothing was merged.`);
-
-  // 3. Three-way merge of the design files, on a branch.
+  // 2. Three-way merge of the design files, on a branch.
   const branch = `sync/front-${sha7(newSha)}`;
   git(['checkout', '--quiet', '-B', branch]);
   const baseFiles = lsTree(baseGit, base.rev);
@@ -344,14 +298,12 @@ function prepare() {
     else report.conflicts.push({ file, why: `${res.status} conflicting hunk(s), marked <<<<<<< site / ||||||| base / ======= / >>>>>>> front-2` });
   }
 
-  if (prices.file) fs.writeFileSync(path.join(ROOT, 'public/prices.json'), JSON.stringify(prices.file, null, 2) + '\n');
-
-  const state = { newSha, base, branch, startMain: git(['rev-parse', 'main']), report, prices: prices.changes, historySecrets: inHistory, checkedTree: null, preparedAt: new Date().toISOString() };
+  const state = { newSha, base, branch, startMain: git(['rev-parse', 'main']), report, historySecrets: inHistory, checkedTree: null, preparedAt: new Date().toISOString() };
   writeState(state);
   printReport(state);
 }
 
-function printReport({ newSha, base, branch, report, prices, historySecrets }) {
+function printReport({ newSha, base, branch, report, historySecrets }) {
   const list = (title, items) => items.length && console.log(`\n${title} (${items.length}):\n  ${items.map((i) => (typeof i === 'string' ? i : `${i.file}: ${i.why}`)).join('\n  ')}`);
   console.log(`\nBranch ${branch}: front-2 ${sha7(newSha)} merged onto the site (base: ${base.label}).`);
   list('Taken from front-2 (unchanged on the site)', report.taken);
@@ -361,8 +313,6 @@ function printReport({ newSha, base, branch, report, prices, historySecrets }) {
   list('CONFLICTS to resolve', report.conflicts);
   list('Production-owned, front-2 changes NOT taken', report.notTaken);
   list('Ignored (outside the design files)', report.ignored);
-  if (prices?.length) console.log(`\nPrices: ${prices.map((c) => `${c.key} ${c.from} → ${c.to}`).join(', ')} (public/prices.json updated)`);
-  else console.log('\nPrices: unchanged.');
   if (historySecrets?.length) console.log(`\n⚠ Possible secrets in front-2's commit history (not in the files taken, so not published):\n  ${historySecrets.join('\n  ')}\n  They are exposed inside AI Studio and front-2: have them replaced.`);
   console.log('\nNext: resolve the conflicts and rewire (see the /sync-front skill), then: node scripts/front-sync.mjs check');
 }
@@ -392,12 +342,11 @@ function contractProblems(state) {
   const read = (f) => (fs.existsSync(path.join(ROOT, f)) ? fs.readFileSync(path.join(ROOT, f), 'utf8') : '');
 
   for (const file of changedPaths()) {
-    if (isProtected(file) && file !== 'public/prices.json') problems.push(`${file} is production-owned; a sync may not change it (docs/front-sync.md).`);
+    if (isProtected(file)) problems.push(`${file} is production-owned; a sync may not change it (docs/front-sync.md).`);
     if (fs.existsSync(path.join(ROOT, file)) && !isBinary(fs.readFileSync(path.join(ROOT, file))) && /^(<<<<<<<|>>>>>>>|\|\|\|\|\|\|\|) /m.test(read(file))) {
       problems.push(`${file} still has conflict markers.`);
     }
   }
-  if (state.prices?.length && !changedPaths().includes('public/prices.json')) problems.push('front-2 changed prices but public/prices.json is unchanged.');
 
   const booking = read('src/components/BookingSection.tsx');
   for (const [needle, why] of [
@@ -457,13 +406,14 @@ const SHEKEL_AMOUNT = /₪\s?(\d{1,3}(?:,\d{3})+|\d{3,})|(\d{1,3}(?:,\d{3})+|\d{
 const amountsIn = (text) => [...text.matchAll(SHEKEL_AMOUNT)].map((m) => ({ text: m[0], value: Number((m[1] ?? m[2]).replace(/,/g, '')) }));
 
 /**
- * ₪ amounts in the built site must be prices from prices.json. Amounts in the legal pages' text
- * (production-owned, e.g. the consumer-law cancellation cap) are not prices and are allowed.
+ * The page shows prices only from the prices sheet, at runtime (usePrices / form.estimate), so no ₪
+ * amount may be written into the built site: it would go stale the moment the sheet changes.
+ * Amounts in the legal pages' text (production-owned, e.g. the consumer-law cancellation cap) are
+ * not prices and are allowed.
  */
 function priceProblems(distDir) {
-  const { prices } = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/prices.json'), 'utf8'));
   const legal = sourceFiles('src/legal').map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-  const allowed = new Set([...Object.values(prices), ...amountsIn(legal).map((a) => a.value)]);
+  const allowed = new Set(amountsIn(legal).map((a) => a.value));
   const problems = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -472,7 +422,7 @@ function priceProblems(distDir) {
       else if (/\.(js|html)$/.test(entry.name)) {
         const text = fs.readFileSync(p, 'utf8');
         for (const a of amountsIn(text)) {
-          if (!allowed.has(a.value)) problems.push(`"${a.text}" in ${path.relative(distDir, p)} is not a price in public/prices.json`);
+          if (!allowed.has(a.value)) problems.push(`"${a.text}" in ${path.relative(distDir, p)} is written into the page; prices must come from the prices sheet (usePrices)`);
         }
       }
     }
@@ -497,8 +447,8 @@ function check() {
   if (leaks.length) fail(`Possible secrets in the site:\n  ${leaks.join('\n  ')}`);
   console.log('✓ no secrets in the changed files or the build');
   const wrongPrices = priceProblems(dist);
-  if (wrongPrices.length) fail(`Prices in the page text do not match public/prices.json:\n  ${wrongPrices.join('\n  ')}`);
-  console.log('✓ every ₪ amount in the build is a price from prices.json');
+  if (wrongPrices.length) fail(`₪ amounts written into the page (docs/front-sync.md, Prices):\n  ${wrongPrices.join('\n  ')}`);
+  console.log('✓ no ₪ amount is written into the build; prices come from the prices sheet');
 
   git(['add', '-A', '--', '.', ':!.claude']);
   state.checkedTree = git(['write-tree']);
@@ -559,7 +509,6 @@ function ship() {
         r.conflicts.length ? `Resolved by hand: ${r.conflicts.map((c) => c.file).join(', ')}.` : '',
         r.deleted.length ? `Deleted by front-2: ${r.deleted.join(', ')}.` : '',
         r.notTaken.length ? `Production-owned, not taken: ${r.notTaken.join(', ')}.` : '',
-        state.prices?.length ? `Prices: ${state.prices.map((c) => `${c.key} ${c.from} -> ${c.to}`).join(', ')}.` : '',
         '',
         `${TRAILER}: ${state.newSha}`,
       ].filter((l, i, all) => l !== '' || all[i - 1] !== '');

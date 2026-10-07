@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { snapshot, webApp } from './lib/backend';
 import { production as cfg } from './lib/env';
 import { recaptchaToken } from './lib/site';
+import { pricesVersionOf } from '../../shared/rules.js';
 
 const api = webApp(cfg);
 
@@ -37,11 +38,13 @@ test('production availability, snapshot and triggers are healthy', async () => {
   expect(diag.triggers).toEqual(expect.arrayContaining(['onSheetEdit:ON_EDIT', 'onSnapshotTimer:CLOCK']));
 });
 
-test('the production web app prices from the live /prices.json', async ({ request }) => {
-  const file = await (await request.get(`/prices.json?t=${Date.now()}`)).json();
-  expect(typeof file.version).toBe('string');
-  // Passing the version, as a page would, makes the web app re-read the file if its copy is older.
-  expect((await api.diag(file.version)).pricesVersion).toBe(file.version);
+test('the production web app serves the prices from the prices sheet', async () => {
+  const live = await api.prices();
+  // A sheet-derived version names its prices, so it proves the sheet was read and checked.
+  expect(live.version).toMatch(/^sheet-/);
+  expect(live.version).toBe(pricesVersionOf(live.prices));
+  // Passing the version, as a page does, keeps the web app on the same prices for requests.
+  expect((await api.diag(live.version)).pricesVersion).toBe(live.version);
 });
 
 test('the owner console at /admin is live and its backend refuses calls without a login', async ({ request }) => {

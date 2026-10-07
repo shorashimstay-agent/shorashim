@@ -21,6 +21,7 @@ import {
   webApp,
 } from './lib/backend';
 import { e2e, runTag, staging as cfg } from './lib/env';
+import { pricesFromRows, pricesVersionOf } from '../../shared/rules.js';
 import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, recaptchaToken, submitBooking } from './lib/site';
 
 const api = webApp(cfg);
@@ -31,8 +32,8 @@ const slot = (i: number) => addDays(base, i * 5);
 
 const guestName = (who: string) => `${runTag} ${who}`;
 
-// The site under test is built from this tree's prices.json; the staging web app cannot fetch it
-// from localhost, so the suite hands it over (see testSetPrices_ in Code.js).
+// The site under test is built from this tree's prices.json and, against staging, would show the
+// staging prices sheet; the suite pins the web app to the tree's file so both agree (testSetPrices_).
 const pricesFile = JSON.parse(fs.readFileSync('public/prices.json', 'utf8'));
 
 async function blocked(date: string[]): Promise<boolean> {
@@ -371,6 +372,31 @@ test('G8: a bride-day request holds the night before and the wedding night', asy
   expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({ ref, stayType: 'bride_day', checkIn: wedding });
   expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+});
+
+test('G10: the web app reads its prices from the prices sheet, and picks up an edit', async () => {
+  test.skip(!cfg.pricesSheetId, 'staging has no pricesSheetId');
+  const range = 'מחירים!A1:C20';
+  const rows = await owner.values(cfg.pricesSheetId!, range);
+  const original = pricesFromRows(rows);
+  if (!original.ok) throw new Error(`the staging prices sheet fails the checks: ${original.error}`);
+  await api.setPrices(null);
+  const row = rows.findIndex((r) => r[0] === 'perNight') + 1;
+  try {
+    expect(await api.prices(original.version)).toMatchObject({ version: original.version, prices: original.prices });
+    // The owner (or the front agent) edits the sheet; a page that asks for the new version gets it
+    // once the one-a-minute re-read allows, with no deploy.
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight + 7]]);
+    const wanted = pricesVersionOf({ ...original.prices, perNight: original.prices.perNight + 7 });
+    const seen = await waitFor('web app sees the edited price', async () => {
+      const r = await api.prices(wanted);
+      return r.version === wanted ? r : null;
+    }, 150_000, 10_000);
+    expect(seen.prices.perNight).toBe(original.prices.perNight + 7);
+  } finally {
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight]]);
+    await api.setPrices(pricesFile);
+  }
 });
 
 test('G9: the web app prices requests from prices.json, not from its own code', async ({ page }) => {

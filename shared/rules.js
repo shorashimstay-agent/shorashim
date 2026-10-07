@@ -28,24 +28,29 @@ export var STAY_TYPES = {
   bride_night_day: { label: 'לילה לפני + יום כלה', wedding: true },
 };
 
-// The live prices are in public/prices.json, published with the site at /prices.json. The site
-// bundles that file and the web app fetches it, so a price change ships with the site and needs no
-// backend deploy. These built-in values are only the web app's last resort when it has never managed
-// to read the file.
+// The live prices are in the owner's prices spreadsheet (one row per key, see pricesFromRows). The
+// web app reads it and serves it at ?action=prices, and the site loads it from there when the page
+// opens, so a price change needs no build and no deploy. public/prices.json is the copy the site is
+// built with and shows until the live prices arrive; these built-in values are only the web app's
+// last resort when it has never managed to read the sheet.
 export var PRICES = {
-  perNight: 950,
-  thirdGuestPerNight: 200,
-  bride_day: 1800,
-  bride_night_day: 2800,
-  wedding_night: 1200,
+  perNight: 850,
+  weekendPerNight: 1050,
+  thirdGuestPerNight: 150,
+  bride_day: 1850,
+  bride_night_day: 2650,
+  wedding_night: 1150,
 };
-export var PRICE_KEYS = ['perNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night'];
+export var PRICE_KEYS = ['perNight', 'weekendPerNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night'];
+// Prices that may be missing (files from before they existed), and the price they fall back to.
+export var PRICE_DEFAULTS = { weekendPerNight: 'perNight' };
 export var PRICE_MIN = 100;
 export var PRICE_MAX = 20000;
 
 /**
- * Checks the contents of prices.json: { version, prices: { perNight, ... } }, every price a whole
- * number of shekels between PRICE_MIN and PRICE_MAX. Unknown keys are ignored.
+ * Checks a prices file: { version, prices: { perNight, ... } }, every price a whole number of
+ * shekels between PRICE_MIN and PRICE_MAX. Unknown keys are ignored; a missing optional key takes
+ * the price PRICE_DEFAULTS names.
  * @param {unknown} file
  * @returns {{ ok: true, version: string, prices: Record<string, number> } | { ok: false, error: string }}
  */
@@ -59,12 +64,43 @@ export function checkPrices(file) {
   for (var i = 0; i < PRICE_KEYS.length; i++) {
     var key = PRICE_KEYS[i];
     var value = source[key];
+    if (value === undefined && PRICE_DEFAULTS[key]) value = source[PRICE_DEFAULTS[key]];
     if (typeof value !== 'number' || Math.floor(value) !== value || value < PRICE_MIN || value > PRICE_MAX) {
       return { ok: false, error: 'bad price ' + key };
     }
     prices[key] = value;
   }
   return { ok: true, version: version, prices: prices };
+}
+
+/**
+ * A version that names the prices themselves, so the site and the web app agree on it without
+ * sharing any state: the same prices always get the same version.
+ * @param {Record<string, number>} prices
+ * @returns {string}
+ */
+export function pricesVersionOf(prices) {
+  return 'sheet-' + PRICE_KEYS.map(function (key) {
+    return prices[key];
+  }).join('-');
+}
+
+/**
+ * The prices file for the rows of the prices spreadsheet: [key, label, price] per row, in any order.
+ * Prices typed as text ("1,050 ₪") are read as numbers; checkPrices still judges the result.
+ * @param {unknown[][]} rows
+ * @returns {{ ok: true, version: string, prices: Record<string, number> } | { ok: false, error: string }}
+ */
+export function pricesFromRows(rows) {
+  var prices = {};
+  (rows || []).forEach(function (row) {
+    var key = String((row && row[0]) || '').trim();
+    if (PRICE_KEYS.indexOf(key) === -1) return;
+    var raw = row[2];
+    prices[key] = typeof raw === 'number' ? raw : raw === '' || raw == null ? undefined : Number(String(raw).replace(/[^\d.]/g, ''));
+  });
+  var checked = checkPrices({ version: 'sheet', prices: prices });
+  return checked.ok ? { ok: true, version: pricesVersionOf(checked.prices), prices: checked.prices } : checked;
 }
 
 export var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -156,17 +192,30 @@ export function conflictingNights(blocked, start, end) {
   });
 }
 
+/** Friday and Saturday nights are weekend nights. A night is named by the date it starts. */
+/** @param {string} date @returns {boolean} */
+export function isWeekendNight(date) {
+  var day = new Date(toDayNumber(date) * 86400000).getUTCDay();
+  return day === 5 || day === 6;
+}
+
 /**
  * @param {StayType} stayType @param {number} nights @param {number} adults
- * @param {Record<string, number>} [prices] the checked prices.json prices; the built-in PRICES when omitted
+ * @param {Record<string, number>} [prices] checked prices; the built-in PRICES when omitted
+ * @param {string} [start] the first night; without it every night is priced as a weeknight
  * @returns {number}
  */
-export function estimatePrice(stayType, nights, adults, prices) {
+export function estimatePrice(stayType, nights, adults, prices, start) {
   var p = prices || PRICES;
   if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night') {
     return p[stayType];
   }
-  return p.perNight * nights + (adults === 3 ? p.thirdGuestPerNight * nights : 0);
+  var weekend = p.weekendPerNight || p.perNight;
+  var total = 0;
+  for (var i = 0; i < nights; i++) {
+    total += start && isWeekendNight(addDays(start, i)) ? weekend : p.perNight;
+  }
+  return total + (adults === 3 ? p.thirdGuestPerNight * nights : 0);
 }
 
 /** @param {string | undefined} createdAtIso @param {number} nowMs @returns {boolean} */
@@ -249,7 +298,7 @@ export function validateRequest(input, today, prices) {
       phone: phone,
       email: email,
       notes: notes,
-      estimate: estimatePrice(stayType, blockedCount, adults, prices),
+      estimate: estimatePrice(stayType, blockedCount, adults, prices, range.start),
     },
   };
 }
