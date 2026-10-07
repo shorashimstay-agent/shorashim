@@ -9,11 +9,15 @@ import vm from 'node:vm';
 
 import {
   PRICES,
+  PRICE_KEYS,
   blockedNights,
   checkPrices,
   conflictingNights,
   estimatePrice,
   isHoldActive,
+  isWeekendNight,
+  pricesFromRows,
+  pricesVersionOf,
   stayRange,
   validateRequest,
   whatsappNumber,
@@ -54,17 +58,56 @@ test('back-to-back stays do not conflict', () => {
 });
 
 test('price estimate matches the site', () => {
-  assert.equal(estimatePrice('couple', 2, 2), 1900);
-  assert.equal(estimatePrice('couple', 2, 3), 2300);
-  assert.equal(estimatePrice('bride_day', 2, 3), 1800);
-  assert.equal(estimatePrice('wedding_night', 1, 2), 1200);
+  assert.equal(estimatePrice('couple', 2, 2), 1700);
+  assert.equal(estimatePrice('couple', 2, 3), 2000);
+  assert.equal(estimatePrice('bride_day', 2, 3), 1850);
+  assert.equal(estimatePrice('wedding_night', 1, 2), 1150);
+});
+
+test('Friday and Saturday nights are priced as weekend nights', () => {
+  assert.deepEqual(['2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'].map(isWeekendNight), [false, true, true, false]);
+  // Thursday to Sunday: one weeknight and two weekend nights; check-out day is not a night.
+  assert.equal(estimatePrice('couple', 3, 2, PRICES, '2026-10-08'), 850 + 1050 + 1050);
+  assert.equal(estimatePrice('couple', 1, 3, PRICES, '2026-10-09'), 1050 + 150);
+  // A month and a year boundary.
+  assert.equal(estimatePrice('couple', 2, 2, PRICES, '2026-12-31'), 850 + 1050);
+  // Package prices do not depend on the day.
+  assert.equal(estimatePrice('wedding_night', 1, 2, PRICES, '2026-10-09'), 1150);
+  // Prices from before weekendPerNight existed price every night as a weeknight.
+  const { weekendPerNight, ...old } = PRICES;
+  assert.equal(estimatePrice('couple', 2, 2, old, '2026-10-09'), 1700);
 });
 
 test('estimates use the prices they are given', () => {
-  const prices = { ...PRICES, perNight: 1000, thirdGuestPerNight: 300, bride_day: 2000 };
+  const prices = { ...PRICES, perNight: 1000, weekendPerNight: 1200, thirdGuestPerNight: 300, bride_day: 2000 };
   assert.equal(estimatePrice('couple', 2, 3, prices), 2600);
   assert.equal(estimatePrice('bride_day', 2, 2, prices), 2000);
-  assert.equal(validateRequest({ ...valid }, '2026-09-15', prices).value.estimate, 2000);
+  // valid is Thursday and Friday night.
+  assert.equal(validateRequest({ ...valid }, '2026-09-15', prices).value.estimate, 1000 + 1200);
+});
+
+test('the prices spreadsheet rows become a checked prices file', () => {
+  const rows = [
+    ['מפתח (לא לשנות)', 'מה המחיר', 'מחיר ב־₪'],
+    ['perNight', 'לילה', 850],
+    ['weekendPerNight', 'סוף שבוע', '1,050 ₪'],
+    ['thirdGuestPerNight', 'אורח שלישי', 150],
+    ['bride_day', 'יום כלה', 1850],
+    ['bride_night_day', 'לילה לפני', 2650],
+    ['wedding_night', 'ליל כלולות', 1150],
+    ['', '', ''],
+  ];
+  const res = pricesFromRows(rows);
+  assert.deepEqual(res, { ok: true, version: 'sheet-850-1050-150-1850-2650-1150', prices: PRICES });
+  assert.equal(pricesFromRows(rows.slice().reverse()).version, res.version, 'row order does not matter');
+  assert.equal(pricesFromRows(rows.map((r) => (r[0] === 'bride_day' ? [r[0], r[1], ''] : r))).ok, false, 'an empty price is refused');
+  assert.equal(pricesFromRows(rows.map((r) => (r[0] === 'bride_day' ? [r[0], r[1], 18.5] : r))).ok, false, 'not whole shekels');
+  assert.equal(pricesFromRows(rows.filter((r) => r[0] !== 'perNight')).ok, false, 'a missing row is refused');
+  assert.equal(pricesFromRows(rows.filter((r) => r[0] !== 'weekendPerNight')).prices.weekendPerNight, 850, 'weekend falls back to the weeknight price');
+  assert.equal(pricesFromRows([]).ok, false);
+  assert.equal(pricesVersionOf(PRICES), res.version);
+  assert.ok(checkPrices({ version: res.version, prices: PRICES }).ok, 'the version passes the version check');
+  assert.equal(PRICE_KEYS.length, Object.keys(PRICES).length);
 });
 
 test('the published prices.json passes the checks', () => {
@@ -75,6 +118,8 @@ test('the published prices.json passes the checks', () => {
 
 test('checkPrices refuses anything but whole shekels in range, with a version', () => {
   const good = { version: 'front-2@6695fc4', prices: { ...PRICES } };
+  const { weekendPerNight, ...old } = PRICES;
+  assert.equal(checkPrices({ ...good, prices: old }).prices.weekendPerNight, PRICES.perNight, 'an older file without weekendPerNight still passes');
   assert.deepEqual(checkPrices(good), { ok: true, version: good.version, prices: PRICES });
   assert.equal(checkPrices({ ...good, prices: { ...PRICES, extra: 5 } }).ok, true);
   for (const bad of [
@@ -147,7 +192,7 @@ test('the Apps Script form of the module is plain globals that behave the same',
   // Apps Script evaluates every file into one shared global scope.
   const globals = vm.createContext({});
   vm.runInContext(stripped, globals);
-  for (const name of ['STAY_TYPES', 'PRICES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices']) {
+  for (const name of ['STAY_TYPES', 'PRICES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf']) {
     assert.ok(globals[name] !== undefined, `Code.js calls ${name}, so it must be a global`);
   }
   assert.equal(globals.estimatePrice('couple', 2, 3), estimatePrice('couple', 2, 3));

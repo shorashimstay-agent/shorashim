@@ -9,6 +9,7 @@ import {
   addDays,
   daysBetween,
   estimatePrice,
+  usePrices,
   formatHebrewDate,
   isWeddingStay,
   israelToday,
@@ -121,8 +122,10 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     return () => observer.disconnect();
   }, []);
 
-  // Shown before check-out is picked too, so quote at least one night.
-  const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount);
+  // Shown before check-out is picked too, so quote at least one night. usePrices re-renders the
+  // form when the live prices arrive; the first night decides which nights are weekend nights.
+  usePrices();
+  const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount, checkIn || undefined);
   const stayTypeName = STAY_TYPE_NAMES[stayType];
 
   const datesText = (() => {

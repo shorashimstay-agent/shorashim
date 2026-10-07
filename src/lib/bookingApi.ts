@@ -1,5 +1,5 @@
 import { AVAILABILITY_SNAPSHOT_URL, BOOKING_API_URL } from '../data/bookingConfig';
-import { PRICES_VERSION, type StayType } from './stay';
+import { getPricesVersion, type StayType } from './stay';
 
 export const bookingApiEnabled = Boolean(BOOKING_API_URL);
 
@@ -165,8 +165,8 @@ export async function submitBookingRequest(request: BookingRequest): Promise<Boo
     return await callApi(
       (d) => (d?.ok === true && typeof d.ref === 'string') || (d?.ok === false && typeof d.error === 'string' && d.error !== 'in_progress'),
       WRITE_POLICY,
-      // pricesVersion tells the web app which prices.json the page was built with (see stay.ts).
-      { method: 'POST', body: JSON.stringify({ action: 'request', requestId, pricesVersion: PRICES_VERSION, ...request }) }
+      // pricesVersion tells the web app which prices the page showed (see prices.ts).
+      { method: 'POST', body: JSON.stringify({ action: 'request', requestId, pricesVersion: getPricesVersion(), ...request }) }
     );
   } catch {
     return { ok: false, error: 'network' };

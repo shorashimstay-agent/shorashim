@@ -1,10 +1,11 @@
 {
-  "version": "initial",
+  "version": "sheet-850-1050-150-1850-2650-1150",
   "prices": {
-    "perNight": 950,
-    "thirdGuestPerNight": 200,
-    "bride_day": 1800,
-    "bride_night_day": 2800,
-    "wedding_night": 1200
+    "perNight": 850,
+    "weekendPerNight": 1050,
+    "thirdGuestPerNight": 150,
+    "bride_day": 1850,
+    "bride_night_day": 2650,
+    "wedding_night": 1150
   }
 }
