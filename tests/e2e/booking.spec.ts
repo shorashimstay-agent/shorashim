@@ -21,7 +21,7 @@ import {
   webApp,
 } from './lib/backend';
 import { e2e, runTag, staging as cfg } from './lib/env';
-import { pricesFromRows, pricesVersionOf } from '../../shared/rules.js';
+import { estimatePrice, pricesFromRows, pricesVersionOf } from '../../shared/rules.js';
 import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, recaptchaToken, submitBooking } from './lib/site';
 
 const api = webApp(cfg);
@@ -32,9 +32,9 @@ const slot = (i: number) => addDays(base, i * 5);
 
 const guestName = (who: string) => `${runTag} ${who}`;
 
-// The site under test is built from this tree's prices.json and, against staging, would show the
-// staging prices sheet; the suite pins the web app to the tree's file so both agree (testSetPrices_).
-const pricesFile = JSON.parse(fs.readFileSync('public/prices.json', 'utf8'));
+// The site under test is built with the suite's test prices (playwright.config.ts); the suite pins the
+// staging web app to the same prices so both agree (testSetPrices_).
+const pricesFile = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8'));
 
 async function blocked(date: string[]): Promise<boolean> {
   const a = await api.availability();
@@ -383,23 +383,19 @@ test('G10: the web app reads its prices from the prices sheet, and picks up an e
   await api.setPrices(null);
   const row = rows.findIndex((r) => r[0] === 'perNight') + 1;
   try {
-    expect(await api.prices(original.version)).toMatchObject({ version: original.version, prices: original.prices });
+    expect((await api.diag(original.version)).pricesVersion).toBe(original.version);
     // The owner (or the front agent) edits the sheet; a page that asks for the new version gets it
     // once the one-a-minute re-read allows, with no deploy.
     await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight + 7]]);
     const wanted = pricesVersionOf({ ...original.prices, perNight: original.prices.perNight + 7 });
-    const seen = await waitFor('web app sees the edited price', async () => {
-      const r = await api.prices(wanted);
-      return r.version === wanted ? r : null;
-    }, 150_000, 10_000);
-    expect(seen.prices.perNight).toBe(original.prices.perNight + 7);
+    await waitFor('web app sees the edited price', async () => (await api.diag(wanted)).pricesVersion === wanted, 150_000, 10_000);
   } finally {
     await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight]]);
     await api.setPrices(pricesFile);
   }
 });
 
-test('G9: the web app prices requests from prices.json, not from its own code', async ({ page }) => {
+test('G9: the web app prices requests from the prices it is given, not from its own code', async ({ page }) => {
   const changed = { version: `e2e-${runTag}`, prices: { ...pricesFile.prices, perNight: pricesFile.prices.perNight + 111 } };
   expect(await api.setPrices(changed)).toMatchObject({ ok: true, version: changed.version });
   try {
@@ -410,7 +406,8 @@ test('G9: the web app prices requests from prices.json, not from its own code', 
     await openBooking(page);
     expect(await postRequest(page, { stayType: 'couple', checkIn, checkOut, adults: 2, name, phone: randomPhone(), pricesVersion: changed.version })).toMatchObject({ ok: true });
     const ev = await onlyRequestEvent(name);
-    expect(JSON.parse(ev.extendedProperties!.shared!.request).estimate).toBe(2 * changed.prices.perNight);
+    // The dates are random, so they may include Friday or Saturday nights.
+    expect(JSON.parse(ev.extendedProperties!.shared!.request).estimate).toBe(estimatePrice('couple', 2, 2, changed.prices, checkIn));
     expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
   } finally {
     await api.setPrices(pricesFile);

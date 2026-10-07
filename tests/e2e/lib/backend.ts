@@ -44,15 +44,12 @@ const notDefault = (j: any) => !(j.ok === true && j.service);
 export const webApp = (cfg: BackendConfig) => ({
   ping: () => call(cfg, { query: '?action=ping' }, (j) => j.service === 'shorashim-booking'),
   availability: () => call(cfg, { query: '?action=availability' }, (j) => Array.isArray(j.blocked)),
-  /** `pricesVersion` is the prices.json version the caller expects, as a page would send it. */
+  /** `pricesVersion` is the prices version the caller expects, as a page would send it. */
   diag: (pricesVersion = '') => {
     const t = String(Date.now());
     const pv = pricesVersion ? `&pv=${encodeURIComponent(pricesVersion)}` : '';
     return call(cfg, { query: `?action=diag&t=${t}&sig=${sign(cfg, 'diag:' + t)}${pv}` }, (j) => Array.isArray(j.triggers));
   },
-  /** The prices the site shows (?action=prices); `pricesVersion` asks for a re-read as a page would. */
-  prices: (pricesVersion = '') =>
-    call(cfg, { query: `?action=prices${pricesVersion ? `&pv=${encodeURIComponent(pricesVersion)}` : ''}` }, (j) => j.ok === true && typeof j.version === 'string'),
   post: (body: Record<string, unknown>) => call(cfg, { body }, notDefault),
   decide: (action: 'approve' | 'decline', id: string, sig = sign(cfg, id)) => call(cfg, { body: { action, id, sig } }, notDefault),
   fireSheetEdit: (row: number) => {

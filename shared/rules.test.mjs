@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import {
-  PRICES,
   PRICE_KEYS,
   blockedNights,
   checkPrices,
@@ -22,6 +21,9 @@ import {
   validateRequest,
   whatsappNumber,
 } from './rules.js';
+
+// Test prices only; the site's prices are in the owner's prices sheet.
+const PRICES = { perNight: 850, weekendPerNight: 1050, thirdGuestPerNight: 150, bride_day: 1850, bride_night_day: 2650, wedding_night: 1150 };
 
 const allDay = (start, end) => ({ allDay: true, start, end });
 const timed = (start, end) => ({ allDay: false, start, end });
@@ -58,10 +60,18 @@ test('back-to-back stays do not conflict', () => {
 });
 
 test('price estimate matches the site', () => {
-  assert.equal(estimatePrice('couple', 2, 2), 1700);
-  assert.equal(estimatePrice('couple', 2, 3), 2000);
-  assert.equal(estimatePrice('bride_day', 2, 3), 1850);
-  assert.equal(estimatePrice('wedding_night', 1, 2), 1150);
+  assert.equal(estimatePrice('couple', 2, 2, PRICES), 1700);
+  assert.equal(estimatePrice('couple', 2, 3, PRICES), 2000);
+  assert.equal(estimatePrice('bride_day', 2, 3, PRICES), 1850);
+  assert.equal(estimatePrice('wedding_night', 1, 2, PRICES), 1150);
+});
+
+test('without prices there is no estimate, and the request is still valid', () => {
+  assert.equal(estimatePrice('couple', 2, 2, null), null);
+  assert.equal(estimatePrice('bride_day', 0, 2, null), null);
+  const res = validateRequest({ ...valid }, '2026-09-15');
+  assert.equal(res.ok, true);
+  assert.equal(res.value.estimate, null);
 });
 
 test('Friday and Saturday nights are priced as weekend nights', () => {
@@ -110,12 +120,6 @@ test('the prices spreadsheet rows become a checked prices file', () => {
   assert.equal(PRICE_KEYS.length, Object.keys(PRICES).length);
 });
 
-test('the published prices.json passes the checks', () => {
-  const file = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../public/prices.json'), 'utf8'));
-  const checked = checkPrices(file);
-  assert.ok(checked.ok, checked.error);
-});
-
 test('checkPrices refuses anything but whole shekels in range, with a version', () => {
   const good = { version: 'front-2@6695fc4', prices: { ...PRICES } };
   const { weekendPerNight, ...old } = PRICES;
@@ -154,10 +158,10 @@ test('whatsapp numbers use the Israeli country code', () => {
 const valid = { stayType: 'couple', checkIn: '2026-10-01', checkOut: '2026-10-03', adults: 2, name: 'ישראל ישראלי', phone: '050-0000000' };
 
 test('a valid request is normalized', () => {
-  const res = validateRequest({ ...valid, email: '', notes: '  ' }, '2026-09-15');
+  const res = validateRequest({ ...valid, email: '', notes: '  ' }, '2026-09-15', PRICES);
   assert.equal(res.ok, true);
   assert.equal(res.value.nights, 2);
-  assert.equal(res.value.estimate, 1900);
+  assert.equal(res.value.estimate, 850 + 1050, 'Thursday and Friday night');
   assert.equal(res.value.notes, '');
 });
 
@@ -192,12 +196,13 @@ test('the Apps Script form of the module is plain globals that behave the same',
   // Apps Script evaluates every file into one shared global scope.
   const globals = vm.createContext({});
   vm.runInContext(stripped, globals);
-  for (const name of ['STAY_TYPES', 'PRICES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf']) {
+  assert.equal(globals.PRICES, undefined, 'no prices in the code');
+  for (const name of ['STAY_TYPES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf']) {
     assert.ok(globals[name] !== undefined, `Code.js calls ${name}, so it must be a global`);
   }
-  assert.equal(globals.estimatePrice('couple', 2, 3), estimatePrice('couple', 2, 3));
+  assert.equal(globals.estimatePrice('couple', 2, 3, PRICES, '2026-10-09'), estimatePrice('couple', 2, 3, PRICES, '2026-10-09'));
   // Objects built inside the vm carry that realm's prototypes, so compare them as plain JSON.
   const plain = (v) => JSON.parse(JSON.stringify(v));
   assert.deepEqual(plain(globals.stayRange('bride_day', '2026-10-10', '')), stayRange('bride_day', '2026-10-10', ''));
-  assert.equal(globals.validateRequest({ ...valid }, '2026-09-15').value.estimate, validateRequest({ ...valid }, '2026-09-15').value.estimate);
+  assert.equal(globals.validateRequest({ ...valid }, '2026-09-15', PRICES).value.estimate, validateRequest({ ...valid }, '2026-09-15', PRICES).value.estimate);
 });

@@ -1,9 +1,10 @@
 // Read-only checks of the live site and production backend (tests/e2e/PLAN.md §5). Writes nothing.
 import { expect, test } from '@playwright/test';
 import { snapshot, webApp } from './lib/backend';
-import { production as cfg } from './lib/env';
+import { pricesCsvUrl, production as cfg } from './lib/env';
 import { recaptchaToken } from './lib/site';
-import { pricesVersionOf } from '../../shared/rules.js';
+import { pricesFromRows } from '../../shared/rules.js';
+import { parseCsv } from '../../src/lib/csv';
 
 const api = webApp(cfg);
 
@@ -38,12 +39,12 @@ test('production availability, snapshot and triggers are healthy', async () => {
   expect(diag.triggers).toEqual(expect.arrayContaining(['onSheetEdit:ON_EDIT', 'onSnapshotTimer:CLOCK']));
 });
 
-test('the production web app serves the prices from the prices sheet', async () => {
-  const live = await api.prices();
-  // A sheet-derived version names its prices, so it proves the sheet was read and checked.
-  expect(live.version).toMatch(/^sheet-/);
-  expect(live.version).toBe(pricesVersionOf(live.prices));
-  // Passing the version, as a page does, keeps the web app on the same prices for requests.
+test('the prices sheet is public, and the production web app prices from the same sheet', async ({ request }) => {
+  // What every page reads: the sheet's CSV, with no login.
+  const csv = await (await request.get(pricesCsvUrl(cfg))).text();
+  const live = pricesFromRows(parseCsv(csv));
+  if (!live.ok) throw new Error(`the prices sheet fails the checks: ${live.error}`);
+  // Passing the version, as a page does, makes the web app re-read the sheet if its copy is older.
   expect((await api.diag(live.version)).pricesVersion).toBe(live.version);
 });
 

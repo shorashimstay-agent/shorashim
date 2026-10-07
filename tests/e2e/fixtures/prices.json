@@ -1,0 +1,12 @@
+{
+  "//": "Test prices for the staging suite: the test site is built with them (playwright.config.ts) and the staging web app is pinned to them (testSetPrices). Deliberately not the real prices.",
+  "version": "sheet-900-1100-175-1900-2700-1250",
+  "prices": {
+    "perNight": 900,
+    "weekendPerNight": 1100,
+    "thirdGuestPerNight": 175,
+    "bride_day": 1900,
+    "bride_night_day": 2700,
+    "wedding_night": 1250
+  }
+}

@@ -43,7 +43,8 @@ production. For each file in the report:
 - **Images**: where the site renders a photo through `Picture` (responsive AVIF/WebP), keep it.
   New master photos in `src/assets/images/` get variants from `npm run images` automatically.
 - **Prices**: the page shows prices only through `form.estimate` or `usePrices()` from
-  `src/lib/stay.ts`, which load the live prices from the prices sheet (docs/front-sync.md, Prices).
+  `src/lib/stay.ts`, which read the prices sheet (docs/front-sync.md, Prices); both can be null
+  (sheet unreadable), so show "מחיר בתיאום אישי" then.
   front-2 never sets prices: replace any price constant or ₪ amount in its components with those.
   `check` fails if a ₪ amount is written into the build.
 - **Content** (texts, section order, new sections, removed sections) is front-2's call: take it. If

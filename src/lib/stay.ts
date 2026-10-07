@@ -20,7 +20,7 @@ export { MAX_NIGHTS, NOTES_MAX, STAY_TYPES, addDays, daysBetween, nightsOf, stay
 
 export { getPrices, getPricesVersion, usePrices } from './prices';
 
-/** With `start`, Friday and Saturday nights take the weekend price. Uses the prices in force. */
+/** With `start`, Friday and Saturday nights take the weekend price. Null until the prices arrive. */
 export const estimatePrice = (type: StayType, nights: number, adults: number, start?: string) =>
   estimateWith(type, nights, adults, getPrices(), start);
 

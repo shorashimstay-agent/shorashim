@@ -121,10 +121,14 @@ in this public repo.
 - G7: hold expiry: a fixture request with `createdAt` 25h ago no longer blocks, availability marks
   it ⌛ expired, and it can still be approved while its nights are free.
 - G8: wedding stay (`bride_day` on day D) holds D-1 → D+1, two nights.
-- G9: prices come from `prices.json`. The suite hands staging this tree's `public/prices.json` before
-  the run (signed `testSetPrices`; staging cannot fetch a localhost site). G9 swaps in a changed file,
-  checks `diag` reports its version, that an out-of-range price is refused, and that a request's
-  stored estimate follows the changed price. It restores the tree's file afterwards.
+- G9: requests are priced from the prices the web app is given, not from code. The suite builds the
+  test site with its test prices (`tests/e2e/fixtures/prices.json`) and pins the staging web app to
+  them (signed `testSetPrices`). G9 swaps in changed prices, checks `diag` reports their version,
+  that an out-of-range price is refused, and that a request's stored estimate follows the changed
+  prices (weekend nights included). It restores the test prices afterwards.
+- G10: the web app reads the staging prices sheet: with the pin cleared, `diag` reports the sheet's
+  version; after the suite edits a price in the sheet, `diag` reports the new version within about
+  a minute, with no deploy. The edit is undone afterwards.
 
 **O — Owner console** (`console.spec.ts`). The staging build serves `/admin`, pointed at the staging
 web app, and the tests log in with the staging console password, as the owner does. Fixture requests
@@ -159,8 +163,8 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   and the page's JS/CSS load.
 - `availability` returns `ok` and the snapshot is fresh (under 15 minutes old).
 - Signed `diag` lists all the production triggers.
-- Signed `diag`, given the live `/prices.json` version, reports that same version: the web app
-  reads the published prices.
+- The prices sheet's CSV is public and passes the checks, and signed `diag`, given its version,
+  reports that same version: the site and the web app read the same prices.
 - `/admin` serves the console's login and points at the production web app; a console call with a
   forged token is refused, and a signed `overview` answers `ok` with its four lists (only the shape is
   checked; the guest details are not printed).

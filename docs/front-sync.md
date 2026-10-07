@@ -46,7 +46,7 @@ every check passes.
 
 | Owner | Files | Rule |
 |---|---|---|
-| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `public/prices.json`, `public/admin/`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
+| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `public/admin/`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
 | Design | everything else under `src/` and `public/`, and `index.html` | three-way merge: front-2's change is taken where the site did not change the same lines |
 | Ignored | anything else front-2 has (`metadata.json`, AI Studio config) | not taken |
 
@@ -63,23 +63,30 @@ development workflow first.
 
 ## Prices
 
-Prices are not part of either repo's code. They live in the owner's Google Sheet
-**"שורשים — מחירים (Shorashim prices)"** (`pricesSheetId` in `booking-config.json`; staging has its
-own copy), tab `מחירים`, one row per key: `perNight` (weeknights), `weekendPerNight` (Friday and
-Saturday nights), `thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`. The owner
-and the front agent's account edit column C; the web app checks every value (`checkPrices`: whole
-shekels, 100–20,000) and keeps the last good prices if an edit fails.
+Prices are in neither repo. They live in one place, the owner's Google Sheet
+**"שורשים — מחירים (Shorashim prices)"** (`pricesSheetId` in `booking-config.json`), tab `מחירים`,
+one row per key: `perNight` (weeknights), `weekendPerNight` (Friday and Saturday nights),
+`thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`. The owner and the front
+agent's account (`sarayagent@gmail.com`) edit column C; anyone with the link can view it. This
+sheet is separate from the admin and availability sheets and holds nothing else.
 
-- The web app reads the sheet (cached 10 minutes) and serves it at `?action=prices`; the site loads
-  that when the page opens (`src/lib/prices.ts`, `usePrices`). A price change needs no build, no
-  sync and no deploy.
-- `public/prices.json` is only the copy the site is built with and shows until the live prices
-  arrive. Keep it equal to the sheet when convenient; it is never the source.
+- **Both sites read the sheet directly** as a public CSV when a page opens (`PRICES_CSV_URL` in
+  `src/data/bookingConfig.ts`, `src/lib/prices.ts`, `usePrices`; front-2's `src/lib/prices.ts`).
+  A page open never runs the backend, so traffic cannot use up the free Apps Script quota.
+- **The web app reads the same sheet** to price booking requests (cached 10 minutes, re-read when a
+  request carries a newer version, last good copy kept if an edit fails the checks).
+- Every reader checks the values (`checkPrices`: whole shekels, 100–20,000). If the sheet cannot be
+  read, the page shows "מחיר בתיאום אישי" and the request is accepted with no estimate. There is no
+  copy of the prices in code to fall back to, so nothing can go stale.
 - The version names the prices themselves (`sheet-850-1050-…`), so the page and the web app agree
   on it with no shared state.
+- A price change is an edit in the sheet: within about a minute on both sites, no build, no sync,
+  no deploy.
 - front-2 never sets prices. A sync does not read them from front-2 and `check` stops if any ₪
   amount is written into the built site (legal pages excepted): front-2's components must show
   prices from `usePrices` / `form.estimate`. front-2's `LIVE_SITE.md` tells the front agent the same.
+- The staging suite uses its own test prices (`tests/e2e/fixtures/prices.json`), built into the
+  test site and pinned on the staging web app; scenario G10 edits the staging copy of the sheet.
 
 ## Checks that stop a sync (`check`)
 
