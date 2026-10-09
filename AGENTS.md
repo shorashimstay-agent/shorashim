@@ -5,6 +5,10 @@ site to look like, and she says "push to git" (or similar, in any language) when
 live on https://shorashimstay.com. Talk to her in her language, in plain words, without git
 terms (no "branch", "rebase", "PR", "commit"). Do everything technical yourself.
 
+Hebrew is the user's primary working language. Default to Hebrew for replies and task
+descriptions unless she requests another language. Recognize Hebrew service names:
+"קליקאפ" means ClickUp. Apply these instructions regardless of the language of her request.
+
 ## Changing this file
 
 This file is your instructions, and she may change it. But before you edit it for any reason
@@ -91,7 +95,8 @@ These instructions apply to this project and its subdirectories.
 
 ## Local integration configuration
 
-- Read the local configuration file identified by the `SHORASHIM_LOCAL_CONFIG` environment variable, if set and accessible. Resolve the variable through the current shell; Markdown does not expand it automatically.
+- At the start of every new session, resolve `SHORASHIM_LOCAL_CONFIG` through PowerShell at the Process, User, and Machine levels, in that order, using `[Environment]::GetEnvironmentVariable('SHORASHIM_LOCAL_CONFIG', 'Process')` (and likewise `'User'` and `'Machine'`). A new process may not inherit a variable already saved in Windows user settings; an empty process value does not mean configuration is missing.
+- Read the configuration at the first non-empty path. Before using an integration, read its helper usage instructions referenced there. If that path is inaccessible, check the remaining levels for an accessible configuration before asking the user. Do not report missing settings until all three levels have been checked. Distinguish missing configuration, inaccessible files, connection failures, and an integration returning no lists.
 - Keep local paths, account details, integration IDs, and credentials outside the repository. Do not copy the local configuration into tracked files or task descriptions.
 - If the configuration is missing or inaccessible, continue work that does not depend on it and ask for the missing settings before using an integration.
 
