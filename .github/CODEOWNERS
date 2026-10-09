@@ -22,11 +22,10 @@
 /en/ @shorashimstay-agent
 /src/components/AccessibilityMenu.tsx @shorashimstay-agent
 
-# The pipeline itself: workflows, these rules, the agent's instructions, tests and build setup
+# The pipeline itself: workflows, these rules, tests and build setup
 /.github/ @shorashimstay-agent
 /.githooks/ @shorashimstay-agent
 /.claude/ @shorashimstay-agent
-/AGENTS.md @shorashimstay-agent
 /tests/ @shorashimstay-agent
 /scripts/ @shorashimstay-agent
 /package.json @shorashimstay-agent
