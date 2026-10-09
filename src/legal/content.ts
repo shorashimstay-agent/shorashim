@@ -13,7 +13,7 @@ export interface LegalDoc {
   sections: { heading: string; body: (string | string[])[] }[];
 }
 
-const UPDATED = { he: 'עודכן לאחרונה: 28.9.2026', en: 'Last updated: 28 September 2026' };
+const UPDATED = { he: 'עודכן לאחרונה: 9.10.2026', en: 'Last updated: 9 October 2026' };
 const CONTACT_HE = ['טלפון ו-WhatsApp: 052-322-4220', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
 const CONTACT_EN = ['Phone and WhatsApp: +972-52-322-4220', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
 
@@ -28,15 +28,16 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
         {
           heading: 'בקשת הזמנה',
           body: [
-            'טופס ההזמנה באתר שולח בקשה, ואינו הזמנה מחייבת. לאחר השליחה התאריכים שביקשתם שמורים עבורכם למשך 24 שעות.',
-            'ההזמנה מאושרת רק כשאנחנו מאשרים אותה במפורש: בטלפון, ב-WhatsApp או בדוא"ל. מי שמסר כתובת דוא"ל מקבל עם האישור גם זימון ליומן. אם הבקשה לא אושרה תוך 24 שעות, התאריכים נפתחים שוב להזמנה.',
+            'טופס ההזמנה באתר שולח בקשה, ואינו הזמנה מחייבת. לאחר השליחה התאריכים שביקשתם מוחזקים עבורכם באופן זמני למשך 24 שעות, עד שנבדוק את הבקשה.',
+            'התאריך נשמר רק לאחר אישור מפורש שלנו ושלכם, בדרך כלל ב-WhatsApp, הכולל את המסלול, התאריך, המחיר ותנאי הביטול. מי שמסר כתובת דוא"ל מקבל עם האישור גם זימון ליומן. אם הבקשה לא אושרה תוך 24 שעות, התאריכים נפתחים שוב להזמנה.',
             'אנחנו רשאים לדחות בקשה, למשל כשהתאריכים אינם פנויים. הודעה על דחייה תימסר לכם בטלפון או ב-WhatsApp.',
           ],
         },
         {
           heading: 'מחירים ותשלום',
           body: [
-            'המחיר המוצג בטופס ההזמנה הוא הערכה בלבד. המחיר הסופי, אופן התשלום ומועדו יסוכמו איתכם לפני אישור ההזמנה.',
+            'המחיר המוצג באתר הוא הערכה בלבד. המחיר הסופי והזמינות יאושרו אישית לפי המועד והמסלול.',
+            'אין צורך במקדמה; התשלום הוא בתחילת האירוח. ללא מקדמה אין פירושו פטור מדמי ביטול.',
             'האתר אינו גובה תשלום ואינו מבקש פרטי כרטיס אשראי.',
             'מסלולי הכלה (יום כלה, לילה לפני + יום כלה, ליל כלולות) מתומחרים בנפרד, בהתאם לשעות ולצרכים של יום החתונה.',
           ],
@@ -46,15 +47,16 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'אפשר לבטל הזמנה בטלפון, ב-WhatsApp או בדוא"ל. מועד הביטול הוא המועד שבו קיבלנו את ההודעה. דמי הביטול מחושבים ממחיר ההזמנה הכולל:',
             [
-              'ביטול עד 7 ימים לפני יום ההגעה – ללא עלות.',
-              'ביטול אחרי המועד הזה ועד 48 שעות לפני יום ההגעה – 50% ממחיר ההזמנה.',
-              'ביטול בפחות מ-48 שעות לפני יום ההגעה, או אי-הגעה – 100% ממחיר ההזמנה.',
+              'ביטול לפחות 14 ימים לפני תחילת האירוח – ללא חיוב.',
+              'ביטול כשנותרו לפחות 7 ימים ופחות מ-14 ימים – 50% ממחיר ההזמנה.',
+              'ביטול פחות מ-7 ימים מראש, או אי-הגעה – 100% ממחיר ההזמנה.',
             ],
+            'המועדים נספרים לפי שעת תחילת האירוח שסוכמה, בשעון ישראל; בחבילה עם לילה לפני – מתחילת הלינה.',
+            'אם התאריך הוזמן מחדש באותו מחיר, יוחזרו דמי הביטול שנגבו.',
             'זכות הביטול לפי חוק הגנת הצרכן: אם תבטלו תוך 14 ימים מיום אישור ההזמנה, ובתנאי שנותרו לפחות 7 ימים שאינם ימי מנוחה עד יום ההגעה, דמי הביטול יהיו 5% ממחיר ההזמנה או 100 ₪, הנמוך מביניהם. במקרה של סתירה, הזכות לפי החוק גוברת על האמור בסעיף זה.',
-            'שינוי מועד: עד 7 ימים לפני יום ההגעה אפשר להעביר את ההזמנה, פעם אחת וללא עלות, לתאריך פנוי אחר בתוך 6 חודשים.',
+            'שינוי מועד: פעם אחת וללא דמי שינוי, בהודעה של לפחות 14 ימים לפני תחילת האירוח, בכפוף לזמינות ולהפרש מחיר.',
             'עזיבה מוקדמת אינה מזכה בהחזר על הלילות שלא נוצלו.',
-            'אם הנחיות פיקוד העורף אוסרות הגעה או שהייה באזור זכרון יעקב במועד ההזמנה, תוכלו לבטל ללא דמי ביטול או להעביר את ההזמנה למועד אחר.',
-            'אם נבטל אנחנו את ההזמנה, יוחזר לכם מלוא הסכום ששילמתם.',
+            'אם אנחנו מבטלים את ההזמנה, או שאיסור רשמי (למשל הנחיות פיקוד העורף) מונע את האירוח, תקבלו לבחירתכם החזר מלא או שינוי מועד.',
             'החזר כספי יבוצע תוך 14 ימים מיום קבלת הודעת הביטול, באמצעי התשלום שבו שילמתם.',
           ],
         },
@@ -65,6 +67,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'האירוח מיועד למבוגרים בלבד.',
               'עד שלושה מבוגרים. האורח השלישי לן על ספה נפתחת בסלון.',
               "צ'ק-אין החל מהשעה 15:00, וצ'ק-אאוט עד השעה 11:00. שינוי בשעות אפשרי בתיאום מראש.",
+              'יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג.',
+              'במסלולי יום הכלה משתתפים עד 5 אנשים, כולל הכלה, המלוות ואנשי המקצוע.',
               'האירוח הוא ללא בעלי חיים.',
               'העישון מותר בחצר ובמרפסת הגג בלבד, ואסור בתוך החלל הסגור.',
               'צילומים מקצועיים בחללי המקום ובחצר מתקיימים במסגרת מסלולי הכלה ובתיאום מראש.',
@@ -107,15 +111,16 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
         {
           heading: 'Booking requests',
           body: [
-            'The booking form sends a request, not a binding reservation. After you send it, the dates you asked for are held for you for 24 hours.',
-            'A booking is confirmed only when we confirm it explicitly, by phone, WhatsApp or email. If you gave an email address, the confirmation also includes a calendar invitation. If a request is not confirmed within 24 hours, its dates become available again.',
+            'The booking form sends a request, not a binding reservation. After you send it, the dates you asked for are held for you temporarily, for 24 hours, while we check the request.',
+            'A date is reserved only after explicit confirmation by us and by you, usually on WhatsApp, stating the package, date, price and cancellation terms. If you gave an email address, the confirmation also includes a calendar invitation. If a request is not confirmed within 24 hours, its dates become available again.',
             'We may decline a request, for example when the dates are not available. We will tell you by phone or WhatsApp.',
           ],
         },
         {
           heading: 'Prices and payment',
           body: [
-            'The price shown in the booking form is an estimate only. The final price, payment method and payment date are agreed with you before the booking is confirmed.',
+            'Prices shown on the site are estimates. The final price and availability are confirmed personally for your date and package.',
+            'No deposit is needed; payment is made at the start of your stay. No deposit does not mean no cancellation fee.',
             'The site does not take payments and never asks for credit card details.',
             'The bride packages (bride day, night before + bride day, wedding night) are priced separately, according to the hours and needs of the wedding day.',
           ],
@@ -125,15 +130,16 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'You can cancel by phone, WhatsApp or email. The cancellation time is when we receive your message. Fees are a share of the total booking price:',
             [
-              'Cancel up to 7 days before arrival – free of charge.',
-              'Cancellation after that and up to 48 hours before arrival – 50% of the booking price.',
-              'Cancellation less than 48 hours before arrival, or not arriving – 100% of the booking price.',
+              'Cancel at least 14 days before the stay begins – free of charge.',
+              'Cancel with at least 7 but fewer than 14 days to go – 50% of the booking price.',
+              'Cancel fewer than 7 days ahead, or not arriving – 100% of the booking price.',
             ],
+            'Days are counted from the agreed start time of the stay, Israel time; for the night-before package, from the start of the night.',
+            'If your date is rebooked at the same price, any cancellation fee you paid is refunded.',
             'Your statutory right under the Israeli Consumer Protection Law: if you cancel within 14 days of the booking confirmation, and at least 7 days that are not rest days remain before arrival, the fee is 5% of the booking price or ILS 100, whichever is lower. Where they differ, this statutory right prevails over the terms above.',
-            'Changing dates: up to 7 days before arrival you can move your booking once, free of charge, to another available date within 6 months.',
+            'Changing dates: once, without a change fee, with at least 14 days notice before the stay begins, subject to availability and any price difference.',
             'Leaving early does not entitle you to a refund for unused nights.',
-            'If Home Front Command instructions prohibit arriving at or staying in the Zichron Ya’akov area on your dates, you may cancel free of charge or move your booking to other dates.',
-            'If we cancel your booking, you get a full refund of everything you paid.',
+            'If we cancel your booking, or an official prohibition (for example Home Front Command instructions) prevents the stay, you choose between a full refund and new dates.',
             'Refunds are made within 14 days of receiving your cancellation notice, to the payment method you used.',
           ],
         },
@@ -144,6 +150,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Adults only.',
               'Up to three adults. The third guest sleeps on a sofa bed in the living room.',
               'Check-in from 15:00, check-out by 11:00. Other times can be arranged in advance.',
+              'Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple.',
+              'Bride-day packages host up to 5 people during the day, including the bride, her companions and the professionals.',
               'No pets.',
               'Smoking is allowed only in the courtyard and on the roof terrace, never indoors.',
               'Professional photo shoots on the premises take place as part of the bride packages and by prior arrangement.',
@@ -190,7 +198,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'המידע שאנחנו אוספים',
           body: [
             'כשאתם שולחים בקשת הזמנה, אנחנו מקבלים את הפרטים שמילאתם בטופס:',
-            ['שם מלא ומספר טלפון (חובה)', 'כתובת דוא"ל (לא חובה)', 'סוג האירוח, התאריכים ומספר האורחים', 'הערות או בקשות מיוחדות שכתבתם'],
+            ['שם מלא ומספר טלפון (חובה)', 'כתובת דוא"ל (לא חובה)', 'סוג האירוח, התאריכים, מספר האורחים ובמסלולי יום הכלה גם מספר משתתפי היום', 'הערות או בקשות מיוחדות שכתבתם'],
             'איננו מבקשים ואיננו שומרים פרטי תשלום. האתר אינו משתמש בכלי מעקב, סטטיסטיקה או פרסום.',
           ],
         },
@@ -269,7 +277,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'What we collect',
           body: [
             'When you send a booking request, we receive the details you entered in the form:',
-            ['Full name and phone number (required)', 'Email address (optional)', 'Type of stay, dates and number of guests', 'Any notes or special requests you wrote'],
+            ['Full name and phone number (required)', 'Email address (optional)', 'Type of stay, dates, number of guests and, for bride-day packages, the number of people present during the day', 'Any notes or special requests you wrote'],
             'We do not ask for or store payment details. The site uses no tracking, analytics or advertising tools.',
           ],
         },
