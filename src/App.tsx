@@ -12,6 +12,9 @@ import FaqSection from './components/FaqSection';
 import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
 import AccessibilityMenu from './components/AccessibilityMenu';
+import AtAGlance from './components/AtAGlance';
+import StayPaths from './components/StayPaths';
+import { navigateTo } from './components/navigate';
 
 export default function App() {
   const [selectedStayType, setSelectedStayType] = useState<
@@ -19,10 +22,7 @@ export default function App() {
   >('couple');
 
   const scrollToBooking = () => {
-    const bookingEl = document.getElementById('booking');
-    if (bookingEl) {
-      bookingEl.scrollIntoView({ behavior: 'smooth' });
-    }
+    navigateTo('booking');
   };
 
   const handleSelectPackage = (packageId: string) => {
@@ -32,6 +32,7 @@ export default function App() {
       packageId === 'wedding_night'
     ) {
       setSelectedStayType(packageId);
+      scrollToBooking();
     }
   };
 
@@ -48,29 +49,16 @@ export default function App() {
       <main id="main" tabIndex={-1} className="outline-none">
         {/* 01 | Arrival & Hero — Cinematic, unboxed, pure desire */}
         <Hero onOpenBooking={scrollToBooking} />
+        <AtAGlance onSelectCouple={() => { setSelectedStayType('couple'); scrollToBooking(); }} />
 
-        {/* 02 & 03 | Layers of Time & Old x New — "העבר לא נשאר מאחור", "ישן. חדש. וכל מה שביניהם." */}
-        <ConceptSection />
-
-        {/* 04, 05 & 06 | The House, Stay for Two & Details — Living spaces, tactile intimacy, unboxed specs */}
+        <StayPaths onSelectCouple={() => { setSelectedStayType('couple'); scrollToBooking(); }} />
         <HouseSection onOpenBooking={scrollToBooking} />
-
-        {/* 07 | The Story of Shorashim — 5 generations, Tzipi & Yossi, curated archival fragment */}
-        <StorySection />
-
-        {/* 08 | Bride Experience — Mature, understated, natural backdrops, 3 packages */}
         <BrideSection onSelectPackage={handleSelectPackage} />
-
-        {/* 09 | Zichron Yaakov — "לצאת מהבית. ולהיות כבר בזכרון." */}
+        <BookingSection stayType={selectedStayType} onStayTypeChange={setSelectedStayType} />
+        <ConceptSection />
+        <StorySection />
         <ZichronGuide />
-
-        {/* 10 | Curated Gallery — Mixed scales, asymmetrical editorial layout */}
         <GallerySection />
-
-        {/* 11 | Booking & Availability — Functional, architectural, direct WhatsApp dispatch */}
-        <BookingSection initialStayType={selectedStayType} />
-
-        {/* 12 | FAQ — Minimal typographic lines */}
         <FaqSection />
       </main>
 

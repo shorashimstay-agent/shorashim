@@ -7,19 +7,14 @@ interface HeroProps {
 }
 
 export default function Hero({ onOpenBooking }: HeroProps) {
-  const scrollToConcept = () => {
-    const el = document.getElementById('concept');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
+
 
   return (
     <section
       id="home"
       dir="rtl"
       lang="he"
-      className="relative w-full min-h-screen flex flex-col justify-end text-white overflow-hidden select-none text-right"
+      className="relative w-full hero-section flex flex-col justify-end text-white overflow-hidden select-none text-right"
     >
       {/* 
         IMMERSIVE CINEMATIC PHOTOGRAPHY
@@ -62,7 +57,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
               מקום להתחבר אליו
                   בית אירוח אינטימי למבוגרים · זכרון יעקב
       */}
-      <div className="relative z-10 max-w-7xl mx-auto px-7 sm:px-10 lg:px-14 w-full pb-24 sm:pb-36 lg:pb-44 pt-20 sm:pt-32">
+      <div className="relative z-10 max-w-7xl mx-auto px-7 sm:px-10 lg:px-14 w-full pb-10 sm:pb-20 lg:pb-24 pt-28 sm:pt-32">
         <div className="mr-0 md:mr-6 lg:mr-12 w-full max-w-none md:max-w-2xl">
           
           {/* 
@@ -102,8 +97,8 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             Letter spacing slightly airy.
           */}
           <div className="pr-2 sm:pr-8 mt-4 sm:mt-7">
-            <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
-              בית אירוח אינטימי למבוגרים · זכרון יעקב
+            <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] hero-descriptor tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
+              סוויטה בזכרון יעקב<br />לחופשה זוגית ולהתארגנות כלה · למבוגרים בלבד
             </div>
           </div>
 
@@ -126,20 +121,19 @@ export default function Hero({ onOpenBooking }: HeroProps) {
               onClick={onOpenBooking}
               className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
             >
-              בדיקת זמינות והזמנה
+              בקשת תאריכים
             </button>
 
-            <button
-              type="button"
+            <a href="#house"
               id="hero-discover-btn"
-              onClick={scrollToConcept}
-              className="group inline-flex items-center gap-2 text-[13px] sm:text-[14px] text-[#DED5C8]/70 hover:text-[#F4EFE5] transition-colors duration-300 cursor-pointer font-light tracking-wide select-none"
+
+              className="hero-secondary group inline-flex items-center gap-2 text-[13px] sm:text-[14px] text-[#DED5C8]/70 hover:text-[#F4EFE5] transition-colors duration-300 cursor-pointer font-light tracking-wide select-none"
             >
-              <span>הסיפור של שורשים</span>
+              <span>לראות את הבית</span>
               <span aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-y-[2px] opacity-70">
                 ↓
               </span>
-            </button>
+            </a>
           </div>
 
         </div>
@@ -147,3 +141,6 @@ export default function Hero({ onOpenBooking }: HeroProps) {
     </section>
   );
 }
+
+
+

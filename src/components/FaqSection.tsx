@@ -4,20 +4,20 @@ import { FAQ_ITEMS } from '../data/shorashimData';
 import { EditorialTag } from './RootLine';
 
 export default function FaqSection() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggleAccordion = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
   return (
-    <section id="faq" className="py-12 sm:py-24 lg:py-36 bg-[#DED5C8]/30 relative" dir="rtl" lang="he">
+    <section tabIndex={-1} id="faq" className="py-12 sm:py-24 lg:py-36 bg-[#DED5C8]/30 relative" dir="rtl" lang="he">
       <div className="max-w-4xl mx-auto px-7 sm:px-10 lg:px-12">
         
         {/* Section Header */}
-        <div className="w-full max-w-none md:max-w-2xl mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8] text-right">
+        <div className="w-full max-w-none md:max-w-2xl mb-6 text-right">
           <EditorialTag className="mb-3 sm:mb-4 block">
-            11 · שאלות נפוצות
+            שאלות נפוצות
           </EditorialTag>
           <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
             כל מה שחשוב לדעת
@@ -32,7 +32,7 @@ export default function FaqSection() {
           {FAQ_ITEMS.map((item, idx) => {
             const isOpen = openIndex === idx;
             return (
-              <div key={idx} className="py-4 sm:py-6 text-right" dir="rtl">
+              <div key={idx} className="py-3 text-right" dir="rtl">
                 <h3 className="m-0">
                 <button
                   type="button"
@@ -43,7 +43,7 @@ export default function FaqSection() {
                   aria-expanded={isOpen}
                   dir="rtl"
                 >
-                  <span className="font-serif text-lg sm:text-2xl text-[#1E1D1A] group-hover:text-[#7B6045] transition-colors font-normal text-right">
+                  <span className="font-serif text-lg sm:text-xl text-[#1E1D1A] group-hover:text-[#7B6045] transition-colors font-normal text-right">
                     {item.question}
                   </span>
                   <span className="inline-flex shrink-0 p-1 text-[#7B6045] transition-transform duration-300">
@@ -72,3 +72,5 @@ export default function FaqSection() {
     </section>
   );
 }
+
+

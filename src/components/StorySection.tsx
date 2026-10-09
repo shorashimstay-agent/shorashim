@@ -5,7 +5,7 @@ import Picture from './Picture';
 
 export default function StorySection() {
   return (
-    <section id="story" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative overflow-hidden" dir="rtl" lang="he">
+    <section tabIndex={-1} id="story" className="py-12 sm:py-16 bg-[#F4F0E8] relative overflow-hidden" dir="rtl" lang="he">
       
       {/* Subtle architectural root motif */}
       <div className="absolute left-10 top-0 bottom-0 w-8 z-0 hidden lg:block opacity-30 pointer-events-none">
@@ -15,9 +15,9 @@ export default function StorySection() {
       <div className="max-w-7xl mx-auto px-7 sm:px-10 lg:px-12 relative z-10">
         
         {/* Section Header — Discovered deeper down the page */}
-        <div className="w-full max-w-none md:max-w-3xl mb-8 sm:mb-16 text-right">
+        <div className="w-full max-w-none md:max-w-3xl mb-6 sm:mb-8 text-right">
           <EditorialTag className="mb-3 sm:mb-4 block">
-            06 · הסיפור של שורשים
+            הסיפור של שורשים
           </EditorialTag>
           
           <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4 sm:mb-6 text-right">
@@ -32,6 +32,8 @@ export default function StorySection() {
           </p>
         </div>
 
+        <figure className="story-photo mb-6"><Picture image={IMAGES.family_book} alt="ספר זכרון יעקב וטלפון חוגה ישן על שולחן עץ" className="w-full h-auto" sizes="(max-width: 639px) 100vw, 520px" /><figcaption className="mt-2 text-sm text-[#7B6045]">הסיפור המשפחתי נשאר בבית</figcaption></figure>
+        <p className="mb-4">אנחנו שרי ויואב פויזנר. שורשים נולד מתוך רצון לחזור לבית המשפחתי בזכרון ולפתוח את הדלת גם לאורחים שמחפשים שקט.</p><details><summary>לסיפור המשפחתי המלא</summary>
         {/* The Authentic Story & Archival Discovery */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-20 items-start mb-12 sm:mb-24">
           
@@ -59,7 +61,7 @@ export default function StorySection() {
                 <span>הבית של ציפי ויוסי</span>
               </div>
               <p className="mb-2 text-right">
-                ולצד האדמה של אבא הייתה אמא. <strong className="font-medium text-[#1E1D1A]">ציפי</strong>.
+                ולצד האדמה של אבא הייתה אמא. ציפי.
               </p>
               <p className="font-serif italic text-base sm:text-xl text-[#7B6045] mb-3 sm:mb-4 text-right">
                 סטייל. הכלה. הקשבה. חיוך. עיניים ירוקות וטובות. וקפה איכותי.
@@ -130,9 +132,12 @@ export default function StorySection() {
 
           </div>
 
-        </div>
+        </div></details>
 
       </div>
     </section>
   );
 }
+
+
+

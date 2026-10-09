@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Coffee, Utensils, Wine, Compass, MapPin } from 'lucide-react';
-import { LOCAL_PLACES } from '../data/shorashimData';
+import { BRAND_DATA, LOCAL_PLACES } from '../data/shorashimData';
 import { RootLine, EditorialTag } from './RootLine';
 
 export default function ZichronGuide() {
+  const [showAll, setShowAll] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categories = [
@@ -20,14 +21,14 @@ export default function ZichronGuide() {
       : LOCAL_PLACES.filter((p) => p.category === activeCategory);
 
   return (
-    <section id="zichron" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative" dir="rtl" lang="he">
+    <section tabIndex={-1} id="zichron" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative" dir="rtl" lang="he">
       <div className="max-w-7xl mx-auto px-7 sm:px-10 lg:px-12">
         
         {/* Section Header: Experiential Zichron framing */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8]">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-6 sm:mb-8 pb-6 sm:pb-8 border-b border-[#DED5C8]">
           <div className="w-full max-w-none md:max-w-3xl text-right">
             <EditorialTag className="mb-3 sm:mb-4 block">
-              08 · זכרון יעקב
+              זכרון יעקב
             </EditorialTag>
             
             <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
@@ -50,7 +51,7 @@ export default function ZichronGuide() {
                   key={cat.id}
                   type="button"
                   aria-pressed={isActive}
-                  onClick={() => setActiveCategory(cat.id)}
+                  onClick={() => { setActiveCategory(cat.id); setShowAll(false); }}
                   className={`text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all cursor-pointer font-sans tracking-wide rounded-[6px] ${
                     isActive
                       ? 'bg-[#1E1D1A] text-white'
@@ -64,18 +65,19 @@ export default function ZichronGuide() {
           </div>
         </div>
 
+        <p className="arrival-note">חניה פרטית בתוך המשק. <a className="text-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BRAND_DATA.address)}`} target="_blank" rel="noopener noreferrer">חיפוש הכתובת במפה</a> לתיאום הכניסה ולבירור התאמות גישה: <a className="text-action" href={`tel:${BRAND_DATA.phone}`}>{BRAND_DATA.phoneFormatted}</a>. הוראות הגעה מדויקות יימסרו בתיאום עם המארחים.</p>
         {/* Editorial Unboxed Places Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-10">
-          {filteredPlaces.map((place) => (
+        <div className="local-cards">
+          {(showAll ? filteredPlaces : filteredPlaces.slice(0, 3)).map((place) => (
             <div
               key={place.id}
-              className="pb-8 border-b border-[#DED5C8] flex flex-col justify-between text-right"
+              className="local-card text-right"
               dir="rtl"
             >
               <div>
                 <div className="flex items-center justify-between text-[11px] font-mono text-[#7B6045] mb-2" dir="rtl">
                   <span>{place.categoryLabel}</span>
-                  <span dir="rtl">{place.distance}</span>
+                  
                 </div>
 
                 <h3 className="font-serif text-2xl text-[#1E1D1A] font-normal mb-3 text-right">
@@ -93,11 +95,17 @@ export default function ZichronGuide() {
                   <span dir="rtl">״{place.tip}״</span>
                 </div>
               )}
+              <div className="flex flex-wrap gap-3 mt-3">
+                <a className="text-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' זכרון יעקב')}`} target="_blank" rel="noopener noreferrer" aria-label={`חיפוש ${place.name} במפה`}>חיפוש במפה</a>
+              </div>
             </div>
           ))}
         </div>
+        {filteredPlaces.length > 3 && <button className="secondary-action mt-5" onClick={() => setShowAll(!showAll)} aria-expanded={showAll}>{showAll ? 'פחות המלצות' : 'עוד המלצות מהמארחים'}</button>}
 
       </div>
     </section>
   );
 }
+
+

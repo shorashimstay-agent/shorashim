@@ -1,5 +1,6 @@
 import { GENERATED_IMAGES } from './generatedImages';
 import { Amenity, BridePackage, FaqItem, GalleryItem, LocalPlace } from '../types';
+import { CANCELLATION_POLICY, STAY_PACKAGES } from './booking';
 
 export const BRAND_DATA = {
   name: 'שורשים',
@@ -7,19 +8,14 @@ export const BRAND_DATA = {
   tagline: 'מקום להתחבר אליו',
   address: 'משק פויזנר, המייסדים 71, זכרון יעקב',
   locationDetails: 'כמה בתים מהמדרחוב, מבתי הקפה, המסעדות, הפאבים, הגלידריות ובית הכנסת',
-  phone: '052-322-4220',
-  phoneFormatted: '052-322-4220',
-  whatsappNumber: '972523224220',
+  phone: '0515006613',
+  phoneFormatted: '051-500-6613',
+  whatsappNumber: '972515006613',
   instagram: 'https://instagram.com/shorashim.zichron',
   size: 'כ-80 מ״ר',
   capacity: 'אירוח בוטיק למבוגרים בלבד | לזוגות ועד 3 אורחים',
   checkIn: '15:00',
   checkOut: '11:00',
-  basePricePerNight: 950,
-  thirdGuestSurcharge: 200,
-  brideDayPrice: 1800,
-  brideNightDayPrice: 2800,
-  weddingNightPrice: 1200,
 };
 
 export const IMAGES = GENERATED_IMAGES;
@@ -35,7 +31,7 @@ export const AMENITIES: Amenity[] = [
   { id: '8', name: 'חניה פרטית צמודה', category: 'general', icon: 'Car', description: 'חניה שמורה לאורחים במתחם המשק השקט' },
   { id: '9', name: 'מסך טלוויזיה חכם', category: 'comfort', icon: 'Tv', description: 'מסך שטוח וחיבור לסטרימינג ברגעי מנוחה' },
   { id: '10', name: 'אירוח מבוגרים בלבד', category: 'general', icon: 'Sparkles', description: 'אווירת שלווה מוחלטת המותאמת לזוגות או עד 3 מבוגרים' },
-  { id: '11', name: 'נגישות גבוהה', category: 'general', icon: 'Accessibility', description: 'הצימר נגיש מאוד במפלס הקרקע (מרפסת הגג במדרגות)' },
+  { id: '11', name: 'גישה לבית ולגג', category: 'general', icon: 'Accessibility', description: 'הבית במפלס הקרקע; הגג במדרגות. לבירור התאמות, מדרגות וספי כניסה פנו למארחים לפני ההזמנה.' },
   { id: '12', name: 'אורח שלישי אפשרי', category: 'comfort', icon: 'Sofa', description: 'ספה נפתחת ונוחה במיוחד בסלון הצימר' },
 ];
 
@@ -44,14 +40,12 @@ export const BRIDE_PACKAGES: BridePackage[] = [
     id: 'bride_day',
     title: 'יום כלה - התארגנות בשורשים',
     subtitle: 'מרחב שליו, מעוצב ומואר המותאם במיוחד לשעות ההתארגנות שלפני החופה',
-    badge: 'הפופולרי ביותר',
-    description: 'כניסה ב-08:00 בבוקר | עזיבה עד 15:30 לקראת היציאה לאירוע. מתאים לעד 5 מלוות כולל אנשי מקצוע.',
+    description: STAY_PACKAGES.bride_day.hours + ' · ' + STAY_PACKAGES.bride_day.capacity,
     recommendedFor: 'כלות המעוניינות בבוקר חתונה נינוח, מואר ומלא סטייל לצילומים ולהתארגנות',
     highlights: [
       'חלל מרווח עם תאורה טבעית מושלמת לצילומי בוקר והתארגנות',
       'מראות גוף מלאות, שקעים נוחים ופינות ייעודיות לשיער ואיפור',
       'חצר ירוקה, קירות אבן ומרפסת גג לתמונות ראשונות בלתי נשכחות',
-      'בקבוק יין מקומי צונן מיקבי האזור, נשנושים קלים ומכונת קפה חופשית',
       'אווירה רגועה ואינטימית ללא הפרעות, בלב זכרון יעקב ההיסטורית',
       'חניה שמורה וצמודה לרכב הכלה ולרכבי המלווים',
     ],
@@ -61,7 +55,7 @@ export const BRIDE_PACKAGES: BridePackage[] = [
     title: 'חבילת כלה מלאה - לילה לפני + יום ההתארגנות',
     subtitle: 'להגיע ערב קודם, לישון טוב, ולהתעורר ברוגע מוחלט בבוקר החתונה',
     badge: 'החוויה השלמה',
-    description: 'כניסה ב-15:00 ביום שלפני | עזיבה ב-15:30 ביום האירוע. לינה ל-2-3 אורחות ועד 5 מלוות ביום החתונה.',
+    description: STAY_PACKAGES.bride_night_day.hours + ' · ' + STAY_PACKAGES.bride_night_day.capacity,
     recommendedFor: 'כלה שרוצה להסיר לחצים, לבלות לילה שקט עם מלווה ולהתחיל את הבוקר בלי נסיעות',
     highlights: [
       'כל היתרונות של חבילת יום הכלה',
@@ -79,7 +73,6 @@ export const BRIDE_PACKAGES: BridePackage[] = [
     recommendedFor: 'זוגות טריים שרוצים לסיים את יום החתונה במרחב פרטי, שקט ואיכותי',
     highlights: [
       'נרות דולקים, אווירה חמה ורומנטית שממתינה לכם בלילה',
-      'בקבוק יין מובחר ופינוק מתוק לציון תחילת החיים המשותפים',
       'מקלחת מרווחת ומפנקת עם חלוקי רחצה רכים וסבונים טבעיים',
       'צ\'ק אאוט מאוחר ב-13:00 שמאפשר לישון עד מאוחר ולקום בנחת',
       'בוקר רגוע בחצר ההיסטורית של זכרון יעקב',
@@ -88,11 +81,15 @@ export const BRIDE_PACKAGES: BridePackage[] = [
 ];
 
 export const GALLERY_ITEMS: GalleryItem[] = [
+  { id: 'bedroom', title: 'חדר השינה', category: 'house', categoryLabel: 'הבית', image: IMAGES.bedroom_linen, description: 'מיטה זוגית, מצעים לבנים ואור טבעי' },
+  { id: 'living', title: 'הסלון', category: 'house', categoryLabel: 'הבית', image: IMAGES.living_room, description: 'עיצוב שנבנה משכבות של זמן — ספה ירוקה, שולחן עץ, תמונות ואור חם' },
+  { id: 'balcony', title: 'המבט מהמרפסת', category: 'courtyard', categoryLabel: 'החצר והגג', image: IMAGES.balcony_view, description: 'מאה ועשרים שנה, ממש מול המרפסת — בית האבן הישן בצל הפיקוס' },
+  { id: 'kitchen', title: 'המטבח והאי', category: 'house', categoryLabel: 'הבית', image: IMAGES.kitchen_wall, description: 'אי הישיבה, כיסאות הבר וקיר האבן' },
+  { id: 'bathroom', title: 'חדר הרחצה', category: 'house', categoryLabel: 'הבית', image: IMAGES.rain_shower, description: 'מקלחון גשם עם דלתות זכוכית ואור שמש' },
+  { id: 'bride', title: 'כלה בשורשים', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.bride_dress, description: 'שמלת כלה בחדר השינה' },
   { id: '1', title: 'עץ הפיקוס הוותיק', category: 'courtyard', categoryLabel: 'חצר הבית', image: IMAGES.ficus_trunk, description: 'גזע הפיקוס העתיק וקיר האבן בחצר' },
-  { id: '2', title: 'מה שהיה פעם, חי כאן גם היום', category: 'house', categoryLabel: 'הבית', image: IMAGES.living_room, description: 'הסלון, המזנון העתיק ותמונה משפחתית על הקיר' },
-  { id: '3', title: 'יין צונן ונשנושים ליום הכלה', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.wine_cheese, description: 'בקבוק יין מקומי, כוסות ומגש גבינות שמחכים לכן' },
+  { id: '3', title: 'יין וגבינות מקומיים', category: 'details', categoryLabel: 'תמונת אווירה', image: IMAGES.wine_cheese, description: 'בקבוק יין מקומי, כוסות ומגש גבינות' },
   { id: '4', title: 'עיצוב שנבנה משכבות של זמן', category: 'house', categoryLabel: 'הבית', image: IMAGES.lounge, description: 'פינת ישיבה רכה, תמונות משפחה ואור חם' },
-  { id: '5', title: 'מהמרפסת אל צמרות העצים', category: 'courtyard', categoryLabel: 'חוץ ונוף', image: IMAGES.balcony_view, description: 'מבט מהמרפסת אל עץ הפיקוס והבית הישן שממול' },
   { id: '6', title: 'העבר על הקיר. החיים ממשיכים לפרוח.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.flowers_wall, description: 'פרחים לבנים מול קיר תמונות המשפחה' },
   { id: '7', title: 'חומרים מתקופות שונות. סיפור אחד.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.corridor_shutter, description: 'מסדרון עם קיר אבן, תמונות משפחה ותריס ירוק' },
 ];
@@ -113,7 +110,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: 'מה כוללת חבילת התארגנות כלה?',
-    answer: 'החבילה כוללת כניסה מוקדמת מ-08:00, שהייה של הכלה ועד 5 מלוות כולל אנשי מקצוע (איפור, שיער, צילום), חלל מרווח ומואר טבעית עם שקעים ומראות, שימוש חופשי במרפסת הגג ובחצר לצילומים, יין צונן, פינוקים וקפה איכותי. ניתן גם להזמין את החבילה המורחבת הכוללת לינה של הכלה ומלווה לילה קודם לרוגע מושלם.',
+    answer: `${STAY_PACKAGES.bride_day.hours}. ${STAY_PACKAGES.bride_day.capacity}. כולל חלל להתארגנות, חצר וגג לצילום. במסלול לילה לפני ניתן ללון עד 3 אורחים.`,
   },
   {
     question: 'מהם זמני הצ\'ק-אין והצ\'ק-אאוט באירוח רגיל?',
@@ -137,6 +134,9 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: 'מהי מדיניות הביטולים?',
-    answer: 'ביטול עד 7 ימים לפני יום ההגעה: ללא עלות. ביטול מאוחר יותר ועד 48 שעות לפני ההגעה: 50% ממחיר ההזמנה, ובפחות מ-48 שעות או אי-הגעה: המחיר המלא. זכות הביטול לפי חוק הגנת הצרכן ושאר הפרטים מופיעים בתנאי ההזמנה.',
+    answer: CANCELLATION_POLICY,
   },
 ];
+
+
+
