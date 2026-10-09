@@ -6,6 +6,7 @@ import { RootLine, EditorialTag } from './RootLine';
 export default function ZichronGuide() {
   const [showAll, setShowAll] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const officialSites: Record<string, string> = { '2': 'https://www.carmelwines.co.il/', '3': 'https://www.somek-winery.co.il/', '5': 'https://www.museumzy.com/' };
 
   const categories = [
     { id: 'all', label: 'כל המקומות' },
@@ -97,6 +98,8 @@ export default function ZichronGuide() {
               )}
               <div className="flex flex-wrap gap-3 mt-3">
                 <a className="text-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' זכרון יעקב')}`} target="_blank" rel="noopener noreferrer" aria-label={`חיפוש ${place.name} במפה`}>חיפוש במפה</a>
+                {officialSites[place.id] && <a className="text-action" href={officialSites[place.id]} target="_blank" rel="noopener noreferrer">לאתר המקום</a>}
+                {place.id === '5' && <a className="text-action" href="https://nili-museum.org.il/" target="_blank" rel="noopener noreferrer">לאתר בית ניל״י</a>}
               </div>
             </div>
           ))}

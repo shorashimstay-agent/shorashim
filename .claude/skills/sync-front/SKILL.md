@@ -59,6 +59,7 @@ production. For each file in the report:
   facts about how the booking system works (the 24-hour hold, how a booking is confirmed). If
   front-2's wording contradicts one of those, word the terms so both stay true, and tell the user.
   List every terms change in the report.
+- **Links**: front-2 may link to any site; take its links as they are (user decision, 2026-10-09).
 - **Contrast**: front-2's palette is checked by axe in the staging suite. Fix failures with the
   closest colour from front-2's own palette that passes, not a new one.
 - If a design needs a **production-owned** change (new npm package, `vite.config.ts`, a test

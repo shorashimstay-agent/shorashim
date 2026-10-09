@@ -107,7 +107,8 @@ worded so both remain true and the user is told.
   `הבחירה שלכם` and `מספר הבקשה:` in the sent panel.
 - `App.tsx` lost the skip link, `<main id="main">` or `<AccessibilityMenu />`; the footer lost
   a link to `/terms/`, `/privacy/` or `/accessibility/`; the ids the tests use are gone.
-- A design file uses `@google/genai`, `process.env`, `import.meta.env` or a domain not in
-  `ALLOWED_DOMAINS`; `index.html` gained a script tag.
+- A design file uses `@google/genai`, `process.env` or `import.meta.env`; `index.html` gained a
+  script tag. Links to outside sites are front-2's call and are taken as they are (user decision,
+  2026-10-09).
 - Lint, unit tests or the build fail; the secret or ₪ scans find something.
 - Then the staging suite and the production smoke test, as for any change.
