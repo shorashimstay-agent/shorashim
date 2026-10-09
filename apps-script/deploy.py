@@ -40,9 +40,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 SHARED = ROOT / "shared"
 CRED_DIR = pathlib.Path.home() / ".config/gcloud/shorashim"
+# Each environment runs as its own Google account, so test runs never use production's daily Gmail
+# quota: production as shorashimstay@gmail.com (token.json), staging as shorashimzichron@gmail.com
+# (token-staging.json, made by authorize_staging.py in the same directory).
 ENVS = {
-    "production": {"config": CRED_DIR / "booking-config.json", "title": "Shorashim Booking"},
-    "staging": {"config": CRED_DIR / "booking-config.staging.json", "title": "Shorashim Booking (staging)"},
+    "production": {"config": CRED_DIR / "booking-config.json", "token": CRED_DIR / "token.json", "title": "Shorashim Booking"},
+    "staging": {"config": CRED_DIR / "booking-config.staging.json", "token": CRED_DIR / "token-staging.json", "title": "Shorashim Booking (staging)"},
 }
 BACKEND_PATHS = ("apps-script", "shared")
 API = "https://script.googleapis.com/v1"
@@ -62,8 +65,8 @@ def e2e_passed(tree):
     return marker.exists() and tree in marker.read_text().split()
 
 
-def session():
-    creds = Credentials.from_authorized_user_file(str(CRED_DIR / "token.json"))
+def session(env):
+    creds = Credentials.from_authorized_user_file(str(ENVS[env]["token"]))
     creds.refresh(Request())
     return AuthorizedSession(creds)
 
@@ -108,8 +111,8 @@ def push_version(s, cfg, description):
 
 
 def status():
-    s = session()
     for env, spec in ENVS.items():
+        s = session(env)
         cfg = json.loads(spec["config"].read_text())
         dep = call(s, "GET", f"{API}/projects/{cfg['scriptId']}/deployments/{cfg['deploymentId']}")
         version = dep["deploymentConfig"].get("versionNumber")
@@ -175,7 +178,7 @@ def main():
 
     spec = ENVS[args.env]
     cfg = json.loads(spec["config"].read_text())
-    s = session()
+    s = session(args.env)
 
     if not cfg.get("scriptId"):
         cfg["scriptId"] = call(s, "POST", f"{API}/projects", json={"title": spec["title"]})["scriptId"]

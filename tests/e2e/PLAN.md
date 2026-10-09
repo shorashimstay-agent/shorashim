@@ -12,11 +12,12 @@ Tests never write to production. There is one backend codebase and two deploymen
 
 | | Production | Staging (what the suite writes to) |
 |---|---|---|
+| Google account | shorashimstay@gmail.com | shorashimzichron@gmail.com, so test runs never use production's daily Gmail quota (about 11 recipients a run) |
 | Apps Script project | "Shorashim Booking" | "Shorashim Booking (staging)" — same code, different `Config.js` |
 | Config file | `~/.config/gcloud/shorashim/booking-config.json` | `~/.config/gcloud/shorashim/booking-config.staging.json` |
-| Calendars | שורשים – הזמנות / בקשות / ערוצים | בדיקות – הזמנות / בקשות / ערוצים, **hidden** in the owner's calendar list, so Saray's phone never shows them |
-| Sheets | ניהול הזמנות, זמינות לאתר | the same two, named "בדיקות – …" |
-| Owner notifications | the owner's address | the owner's `+test` alias (same inbox, easy to tell apart; the suite deletes these emails when it finishes) |
+| Calendars | שורשים – הזמנות / בקשות / ערוצים | בדיקות – הזמנות / בקשות / ערוצים, in the staging account |
+| Sheets | ניהול הזמנות, זמינות לאתר, מחירים | the same three, named "בדיקות – …", in the staging account |
+| Owner notifications | the owner's address | the staging account's `+test` alias (the suite deletes these emails when it finishes); nothing reaches the real owner inbox except guest A's invites |
 | Test hooks | off | on (`testHooks: true`) |
 | Website under test | https://shorashimstay.com | the current working tree, built with the staging endpoints and served on `localhost` (an allowed reCAPTCHA domain) |
 | Browser | — | Chrome 147 (`~/.local/bin/google-chrome` or `E2E_CHROME`): Playwright's bundled Chromium 153 renders no frames under WSL here, so IntersectionObserver never fires and reCAPTCHA never loads |
@@ -37,9 +38,9 @@ Google's trigger dispatch. The suite checks separately, through signed `diag`, t
 
 | Role | Account | How the suite acts as it |
 |---|---|---|
-| Owner | the main Shorashim Google account | OAuth token in `~/.config/gcloud/shorashim/token.json`: reads the notification emails, edits the admin sheet, checks the calendars |
-| Guest A | the retired Shorashim Google account | its OAuth token: receives the calendar invite (Gmail + Calendar) |
-| Guest B | the same retired account's `+guestb` alias | the same token; its mail is told apart by the `To:` address |
+| Owner | the staging account (shorashimzichron@gmail.com), which the staging backend runs as | OAuth token in `~/.config/gcloud/shorashim/token-staging.json`: reads the notification emails, edits the admin sheet, checks the calendars |
+| Guest A | the main Shorashim account (shorashimstay@gmail.com) | its OAuth token (`token.json`): receives the calendar invite (Gmail + Calendar). Receiving uses no sending quota |
+| Guest B | the main account's `+guestb` alias | the same token; its mail is told apart by the `To:` address |
 | Website visitor | headless Chromium (Playwright) | fills in and submits the real booking form |
 
 The account addresses and token paths live in `~/.config/gcloud/shorashim/e2e-config.json`, never
