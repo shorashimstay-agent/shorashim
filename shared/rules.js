@@ -18,6 +18,10 @@ export var MAX_NIGHTS = 14;
 export var HORIZON_DAYS = 365;
 export var HOLD_HOURS = 24;
 export var MAX_ADULTS = 3;
+// Bride-day packages: people present during the day, including the bride, her companions and the
+// professionals. Optional on the server (requests from before it existed carry none).
+export var MAX_DAY_PARTICIPANTS = 5;
+export var DAY_PARTICIPANT_TYPES = ['bride_day', 'bride_night_day'];
 export var NOTES_MAX = 450;
 
 // Wedding-type stays are keyed by the wedding date and block the night before and the wedding night.
@@ -260,6 +264,12 @@ export function validateRequest(input, today, prices) {
   var adults = Number(input.adults);
   if (!(adults >= 1 && adults <= MAX_ADULTS && Math.floor(adults) === adults)) errors.adults = 'invalid';
 
+  var participants = 0;
+  if (DAY_PARTICIPANT_TYPES.indexOf(stayType) >= 0 && input.participants !== undefined && input.participants !== null && input.participants !== '') {
+    participants = Number(input.participants);
+    if (!(participants >= 1 && participants <= MAX_DAY_PARTICIPANTS && Math.floor(participants) === participants)) errors.participants = 'invalid';
+  }
+
   var name = String(input.name || '').trim();
   if (name.length < 2 || name.length > 80) errors.name = 'required';
 
@@ -286,6 +296,7 @@ export function validateRequest(input, today, prices) {
       end: range.end,
       nights: blockedCount,
       adults: adults,
+      participants: participants,
       name: name,
       phone: phone,
       email: email,

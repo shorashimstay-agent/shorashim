@@ -9,6 +9,8 @@ export interface GuestForm {
   checkIn: string;
   checkOut?: string;
   adults: 1 | 2 | 3;
+  /** Bride-day packages: people present during the day (1–5). */
+  participants?: number;
   name: string;
   phone: string;
   email?: string;
@@ -62,6 +64,7 @@ export async function submitBooking(page: Page, g: GuestForm): Promise<string> {
   await pickDay(page, g.checkIn);
   if (g.checkOut) await pickDay(page, g.checkOut);
   await booking.locator(`[data-adults="${g.adults}"]`).click();
+  if (g.participants) await booking.locator('select[name="participants"]').selectOption(String(g.participants));
   await booking.locator('input[name="guest-name"]').fill(g.name);
   await booking.locator('input[name="phone"]').fill(g.phone);
   if (g.email) await booking.locator('input[name="email"]').fill(g.email);

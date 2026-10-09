@@ -173,6 +173,19 @@ test('wedding requests derive their range from the wedding date', () => {
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
 });
 
+test('bride-day packages carry an optional count of day participants, 1 to 5', () => {
+  const bride = { ...valid, stayType: 'bride_day', checkIn: '2026-10-10', checkOut: '' };
+  assert.equal(validateRequest({ ...bride, participants: 4 }, '2026-09-15').value.participants, 4);
+  assert.equal(validateRequest({ ...bride, stayType: 'bride_night_day', participants: 5 }, '2026-09-15').value.participants, 5);
+  // Requests from before the field existed carry none.
+  assert.equal(validateRequest(bride, '2026-09-15').value.participants, 0);
+  for (const bad of [0, 6, 2.5, 'x']) {
+    assert.equal(validateRequest({ ...bride, participants: bad }, '2026-09-15').errors.participants, 'invalid', String(bad));
+  }
+  // Other stays ignore it.
+  assert.equal(validateRequest({ ...valid, participants: 9 }, '2026-09-15').value.participants, 0);
+});
+
 test('invalid requests report each field', () => {
   const res = validateRequest(
     { stayType: 'couple', checkIn: '2026-09-14', checkOut: '2026-09-20', adults: 4, name: 'א', phone: 'abc', email: 'nope', notes: 'x'.repeat(500) },

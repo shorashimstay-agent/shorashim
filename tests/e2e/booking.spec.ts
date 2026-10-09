@@ -362,14 +362,14 @@ test('G7: a hold older than 24h stops blocking, is marked expired, and can still
   expect(await bookingEvents(cfg, name)).toHaveLength(1);
 });
 
-test('G8: a bride-day request holds the night before and the wedding night', async ({ page }) => {
+test('G8: a bride-day request holds the night before and the wedding night, with its day participants', async ({ page }) => {
   const name = guestName('יום כלה');
   const wedding = addDays(slot(8), 1);
   await openBooking(page);
-  const ref = await submitBooking(page, { stayType: 'bride_day', checkIn: wedding, adults: 2, name, phone: randomPhone() });
+  const ref = await submitBooking(page, { stayType: 'bride_day', checkIn: wedding, adults: 2, participants: 4, name, phone: randomPhone() });
   const ev = await onlyRequestEvent(name);
   expect([ev.start.date, ev.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
-  expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({ ref, stayType: 'bride_day', checkIn: wedding });
+  expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({ ref, stayType: 'bride_day', checkIn: wedding, participants: 4 });
   expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
 });

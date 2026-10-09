@@ -121,7 +121,7 @@ in this public repo.
 - G6: idempotency: two concurrent POSTs with the same `requestId` create exactly one event.
 - G7: hold expiry: a fixture request with `createdAt` 25h ago no longer blocks, availability marks
   it ⌛ expired, and it can still be approved while its nights are free.
-- G8: wedding stay (`bride_day` on day D) holds D-1 → D+1, two nights.
+- G8: wedding stay (`bride_day` on day D) holds D-1 → D+1, two nights, and the request carries the day participants chosen in the form.
 - G9: requests are priced from the prices the web app is given, not from code. The suite builds the
   test site with its test prices (`tests/e2e/fixtures/prices.json`) and pins the staging web app to
   them (signed `testSetPrices`). G9 swaps in changed prices, checks `diag` reports their version,

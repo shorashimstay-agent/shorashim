@@ -684,6 +684,11 @@ function pruneDecisions_(refs) {
   };
 }
 
+/** The admin sheet's אורחים cell: overnight guests, plus day participants for the bride-day packages. */
+function guestsCell_(r) {
+  return r.participants ? text_(r.adults + ' · ' + r.participants + ' ביום') : r.adults;
+}
+
 function writeTab_(sheet, width, rows) {
   var old = sheet.getMaxRows() - 1;
   if (old > 0) sheet.getRange(2, 1, old, width).clearDataValidations().clearContent().setBackground(null);
@@ -722,6 +727,7 @@ function adminData_() {
       end: range.end,
       nights: range.nights,
       adults: req.adults || '',
+      participants: req.participants || 0,
       name: req.name || item.summary || '',
       phone: req.phone || '',
       email: req.email || '',
@@ -765,6 +771,7 @@ function adminData_() {
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       adults: req.adults || '',
+      participants: req.participants || 0,
       name: req.name || '',
       phone: req.phone || '',
       email: req.email || '',
@@ -807,7 +814,7 @@ function syncAdminSheet_() {
       text_(heDate_(r.start)),
       text_(heDate_(r.end)),
       r.nights,
-      r.adults,
+      guestsCell_(r),
       text_(r.name),
       text_(r.phone),
       text_(r.email),
@@ -864,7 +871,7 @@ function syncAdminSheet_() {
         b.nights,
         b.source === 'website' ? 'אתר' : 'ידני',
         b.stayLabel,
-        b.adults,
+        guestsCell_(b),
         text_(b.phone),
         text_(b.email),
         text_(b.notes),
@@ -1221,6 +1228,7 @@ function stayLines_(req) {
     lines.push('עזיבה: ' + heDate_(req.checkOut) + ' עד 11:00 (' + (nights === 1 ? 'לילה אחד' : nights + ' לילות') + ')');
   }
   lines.push('מספר אורחים: ' + req.adults);
+  if (req.participants) lines.push('משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): ' + req.participants);
   return lines;
 }
 

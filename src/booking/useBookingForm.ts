@@ -7,8 +7,10 @@ import { bookingApiEnabled, fetchAvailability, submitBookingRequest, type Availa
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
 import {
   addDays,
+  DAY_PARTICIPANT_TYPES,
   daysBetween,
   estimatePrice,
+  MAX_DAY_PARTICIPANTS,
   usePrices,
   formatHebrewDate,
   isWeddingStay,
@@ -35,6 +37,7 @@ const NO_BLOCKS = new Set<string>();
 const SERVER_FIELD_ERRORS: Record<string, [Field, string]> = {
   stayType: ['dates', 'חלק מהפרטים אינם תקינים'],
   adults: ['dates', 'מספר האורחים אינו תקין'],
+  participants: ['dates', 'מספר משתתפי היום אינו תקין'],
   checkIn: ['dates', 'התאריכים שנבחרו אינם תקינים'],
   checkOut: ['dates', 'התאריכים שנבחרו אינם תקינים'],
   name: ['name', 'נא למלא שם מלא'],
@@ -59,6 +62,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     notes: useId(),
     datesLabel: useId(),
     adultsLabel: useId(),
+    participants: useId(),
   };
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -67,6 +71,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [adultsCount, setAdultsCount] = useState<number>(2);
+  // Bride-day packages only: everyone present during the day, the bride included (up to 5).
+  const [participants, setParticipants] = useState<number>(2);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -79,6 +85,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   const [whatsAppOpened, setWhatsAppOpened] = useState(false);
 
   const wedding = isWeddingStay(stayType);
+  const hasDayParticipants = DAY_PARTICIPANT_TYPES.includes(stayType);
   const nights = !wedding && checkIn && checkOut ? daysBetween(checkIn, checkOut) : 0;
 
   // Package buttons elsewhere on the page change the selected stay type.
@@ -162,6 +169,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
         checkIn: missingDates ? placeholderIn : checkIn,
         checkOut: wedding ? '' : missingDates ? addDays(placeholderIn, 1) : checkOut,
         adults: adultsCount,
+        participants: hasDayParticipants ? participants : undefined,
         name: fullName.trim(),
         phone: phone.trim(),
         email: email.trim(),
@@ -188,6 +196,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       checkIn ? (wedding ? `• תאריך החתונה: ${formatHebrewDate(checkIn)}` : `• תאריך הגעה: ${formatHebrewDate(checkIn)}`) : '',
       checkOut && !wedding ? `• תאריך עזיבה: ${formatHebrewDate(checkOut)} (${nights} לילות)` : '',
       `• מספר אורחים (מבוגרים): ${adultsCount}`,
+      hasDayParticipants ? `• משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): ${participants}` : '',
       fullName ? `• שם: ${fullName}` : '',
       phone ? `• טלפון: ${phone}` : '',
       notes ? `• הערות/בקשות מיוחדות: ${notes}` : '',
@@ -241,6 +250,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       checkIn,
       checkOut: wedding ? '' : checkOut,
       adults: adultsCount,
+      participants: hasDayParticipants ? participants : undefined,
       name: fullName.trim(),
       phone: phone.trim(),
       email: email.trim(),
@@ -332,6 +342,10 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     windowEnd: availability?.to,
     availabilityState,
     adultsCount,
+    hasDayParticipants,
+    participants,
+    setParticipants,
+    maxDayParticipants: MAX_DAY_PARTICIPANTS,
     setAdultsCount,
     fullName,
     setFullName,

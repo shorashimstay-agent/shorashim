@@ -281,6 +281,7 @@
   function money(n) { return n ? '₪' + Number(n).toLocaleString('en-US') : '—'; }
   function nightsText(n) { return n === 1 ? 'לילה אחד' : n + ' לילות'; }
   function adultsText(n) { return n ? (Number(n) === 1 ? 'מבוגר אחד' : n + ' מבוגרים') : ''; }
+  function participantsText(n) { return n ? n + ' משתתפי יום' : ''; }
   function announce(text) { $('status').textContent = ''; setTimeout(function () { $('status').textContent = text; }, 50); }
 
   // ---- Talking to the booking web app
@@ -444,7 +445,7 @@
       '<div class="row"><h4 class="name" id="req-name-' + index + '">' + esc(r.name) + '</h4><span class="ref">' + esc(r.ref) + '</span></div>' +
       '<div class="kind">' + esc(r.stayLabel) + '</div>' +
       '<dl class="meta">' + datesMeta(r) +
-      '<div><dt>אורחים</dt><dd>' + adultsText(r.adults) + ' · ' + nightsText(r.nights) + '</dd></div>' +
+      '<div><dt>אורחים</dt><dd>' + [adultsText(r.adults), participantsText(r.participants), nightsText(r.nights)].filter(Boolean).join(' · ') + '</dd></div>' +
       '<div><dt>הערכת מחיר</dt><dd>' + money(r.estimate) + '</dd></div>' +
       '<div><dt>טלפון</dt><dd><a href="tel:' + esc(r.phone) + '" dir="ltr">' + esc(r.phone) + '</a></dd></div>' +
       '<div><dt>אימייל</dt><dd dir="ltr">' + (r.email ? esc(r.email) : '—') + '</dd></div></dl>' +
@@ -643,7 +644,7 @@
 
   function bookingItem(b) {
     var website = b.source === 'website';
-    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults)].filter(Boolean).join(' · ');
+    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants)].filter(Boolean).join(' · ');
     return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.start) +
       '<div><p class="who">' + esc(website ? b.name || b.title : b.title) + '</p><p class="what">' + esc(what) + '</p>' +
       (b.phone ? '<p class="what"><a href="tel:' + esc(b.phone) + '" dir="ltr">' + esc(b.phone) + '</a>' + (b.email ? ' · <span dir="ltr">' + esc(b.email) + '</span>' : '') + '</p>' : '') +
