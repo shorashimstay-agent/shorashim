@@ -24,8 +24,10 @@ desktop instead of front-2. She says "push to git"; everything else happens on i
   directly (the pre-push hook still asks for the staging suite).
 - **Pages deploys from Actions**, and the `github-pages` environment accepts only `main`. Nothing
   she pushes to another branch, `gh-pages` included, can reach the live site.
-- CODEOWNERS is read from `main`, so a pull request cannot loosen its own rules; `.github/` and
-  `AGENTS.md` are themselves owner files.
+- CODEOWNERS is read from `main`, so a pull request cannot loosen its own rules; `.github/` is
+  itself an owner file.
+- `AGENTS.md` is hers to edit (user decision, 2026-10-09). It only guides her Codex; nothing above
+  depends on it, so an edit there can make Codex less helpful but cannot unlock anything.
 - The repo is public: secret-scanning push protection is the first net, gitleaks in `design.yml`
   the second.
 
