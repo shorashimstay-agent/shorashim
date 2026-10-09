@@ -19,3 +19,9 @@ export function lockedFiles(files, root = ROOT) {
   const patterns = lockedPatterns(root);
   return files.filter((f) => patterns.some((p) => (p.endsWith('/') ? f.startsWith(p) : f === p)));
 }
+
+// node scripts/locked-files.mjs < file-list: prints the files in the list that are reserved.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const files = fs.readFileSync(0, 'utf8').split('\n').filter(Boolean);
+  for (const f of lockedFiles(files)) console.log(f);
+}
