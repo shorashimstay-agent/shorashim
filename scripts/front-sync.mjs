@@ -71,23 +71,6 @@ const DESIGN = [/^src\//, /^public\//, /^index\.html$/];
 const isProtected = (p) => PROTECTED.some((re) => re.test(p));
 const category = (p) => (isProtected(p) ? 'protected' : DESIGN.some((re) => re.test(p)) ? 'design' : 'ignored');
 
-/** Domains the site may link to or load from. A new one stops the sync until someone adds it here. */
-const ALLOWED_DOMAINS = [
-  'shorashimstay.com',
-  'wa.me',
-  'instagram.com',
-  'www.instagram.com',
-  'maps.google.com',
-  'www.google.com',
-  'policies.google.com',
-  'developers.google.com',
-  'docs.google.com',
-  'script.google.com',
-  'fonts.googleapis.com',
-  'fonts.gstatic.com',
-  'www.w3.org',
-];
-
 // ---- Helpers
 
 function run(cmd, args, opts = {}) {
@@ -389,9 +372,7 @@ function contractProblems(state) {
     if (isProtected(file)) continue;
     const text = read(file);
     if (/@google\/genai|GEMINI|process\.env|import\.meta\.env/.test(text)) problems.push(`${file} uses AI Studio / environment variables; the site has none.`);
-    for (const m of text.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) {
-      if (!ALLOWED_DOMAINS.includes(m[1].toLowerCase())) problems.push(`${file} uses a new domain ${m[1]} (add it to ALLOWED_DOMAINS in scripts/front-sync.mjs if it is intended).`);
-    }
+    // Links to any site are front-2's call (user decision, 2026-10-09); only new scripts are checked.
   }
 
   const mainScripts = new Set((git(['show', 'main:index.html']).match(/<script\b[^>]*>/g) ?? []));
