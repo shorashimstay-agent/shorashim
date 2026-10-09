@@ -358,13 +358,19 @@ function refreshAvailabilitySnapshot_() {
   return data;
 }
 
-/** Rewrites the availability snapshot and the admin sheet. Failures are logged, never thrown. */
+/**
+ * Rewrites the availability snapshot and the admin sheet. Failures are logged, never thrown.
+ *
+ * One rebuild at a time, but not under the script lock: a rebuild takes about 13 seconds, and guest
+ * requests and owner decisions wait at most 20 for that lock, so a rebuild started by a calendar
+ * change used to make them fail. A rebuild only reads the calendars and rewrites the sheets; a
+ * decision made during one queues another rebuild, and the timer's change check catches anything
+ * missed.
+ */
 function refreshMirrors_() {
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(30000);
-  } catch (err) {
-    console.error('mirror refresh skipped: lock busy');
+  var mutex = acquireRefreshMutex_(30000);
+  if (!mutex) {
+    console.error('mirror refresh skipped: another one is still running');
     return;
   }
   try {
@@ -388,8 +394,34 @@ function refreshMirrors_() {
       PropertiesService.getScriptProperties().setProperties({ [FULL_REFRESH_KEY]: String(started), [SNAPSHOT_FROM_KEY]: data.from });
     }
   } finally {
-    lock.releaseLock();
+    releaseRefreshMutex_(mutex);
   }
+}
+
+var REFRESH_MUTEX_KEY = 'mirrorRefreshRunning';
+// Longer than any rebuild, so a crashed one cannot block the next for long.
+var REFRESH_MUTEX_SECONDS = 120;
+
+/** A best-effort "one rebuild at a time" flag in the script cache. Returns its token, or '' on timeout. */
+function acquireRefreshMutex_(waitMs) {
+  var cache = CacheService.getScriptCache();
+  var token = Utilities.getUuid();
+  var deadline = Date.now() + waitMs;
+  while (true) {
+    if (!cache.get(REFRESH_MUTEX_KEY)) {
+      cache.put(REFRESH_MUTEX_KEY, token, REFRESH_MUTEX_SECONDS);
+      // Two runs can both see it free; the one whose token stuck goes ahead.
+      Utilities.sleep(200);
+      if (cache.get(REFRESH_MUTEX_KEY) === token) return token;
+    }
+    if (Date.now() > deadline) return '';
+    Utilities.sleep(1000);
+  }
+}
+
+function releaseRefreshMutex_(token) {
+  var cache = CacheService.getScriptCache();
+  if (cache.get(REFRESH_MUTEX_KEY) === token) cache.remove(REFRESH_MUTEX_KEY);
 }
 
 var FULL_REFRESH_KEY = 'fullRefreshStartedAt';
