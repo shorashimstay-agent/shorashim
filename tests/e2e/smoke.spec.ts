@@ -71,7 +71,8 @@ test('reCAPTCHA tokens from the live page verify for shorashimstay.com', async (
   const secret = (cfg as unknown as { recaptchaSecret: string }).recaptchaSecret;
   const res = await (await fetch('https://www.google.com/recaptcha/api/siteverify', { method: 'POST', body: new URLSearchParams({ secret, response: token }) })).json();
   expect(res).toMatchObject({ success: true, hostname: 'shorashimstay.com', action: 'booking_request' });
-  expect(res.score).toBeGreaterThanOrEqual(0.5);
+  // No check on res.score: it rates this automated browser, not the site, and drops to 0.1 after a few
+  // runs in a day. The backend still enforces the threshold for real visitors (recaptchaMinScore).
 });
 
 test('the legal pages are live in both languages', async ({ request }) => {
