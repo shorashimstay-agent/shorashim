@@ -1,4 +1,3 @@
-// Pipeline test: design-only change.
 import { navigateTo } from './navigate';
 import { BRAND_DATA } from '../data/shorashimData';
 export default function Footer({ onOpenBooking }: { onOpenBooking: () => void }) {
