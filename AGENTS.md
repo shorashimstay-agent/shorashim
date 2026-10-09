@@ -83,3 +83,27 @@ To preview: `npm install` once, then `npm run dev` and open http://localhost:300
 
 Never push to `main` yourself, never force-push, never create branches or pull requests by hand,
 and never edit `scripts/ship.mjs`, the checks or the workflows to get past a failure.
+
+
+# Project instructions
+
+These instructions apply to this project and its subdirectories.
+
+## Local integration configuration
+
+- Read the local configuration file identified by the `SHORASHIM_LOCAL_CONFIG` environment variable, if set and accessible. Resolve the variable through the current shell; Markdown does not expand it automatically.
+- Keep local paths, account details, integration IDs, and credentials outside the repository. Do not copy the local configuration into tracked files or task descriptions.
+- If the configuration is missing or inaccessible, continue work that does not depend on it and ask for the missing settings before using an integration.
+
+## ClickUp
+
+- Use the ClickUp workspace and space specified in the local integration configuration for this project's tasks.
+- Discover the lists within this space before choosing a task destination. If the user's request does not identify a list and multiple lists are plausible, ask which list to use.
+- Use the API helper and usage instructions specified in the local configuration. Never print API keys or save them in project files.
+- Create or update tasks when the user requests it. Do not create test tasks to verify authentication.
+
+## Local tools
+
+- Run command-line tools on the user's behalf; do not require the user to open a terminal for routine operations.
+- Use GitHub CLI with the installation and authentication settings specified in the local configuration.
+
