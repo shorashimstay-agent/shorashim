@@ -16,7 +16,8 @@ const read = (f) => (fs.existsSync(path.join(ROOT, f)) ? fs.readFileSync(path.jo
 function sourceFiles(dir) {
   const out = [];
   for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
-    const rel = path.join(dir, entry.name);
+    // Forward slashes on every OS, as git and CODEOWNERS write paths (path.join gives \ on Windows).
+    const rel = path.posix.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(rel));
     else if (/\.(tsx?|css|html)$/.test(entry.name)) out.push(rel);
   }
