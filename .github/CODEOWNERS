@@ -1,0 +1,38 @@
+# Files the designer's pushes cannot change on their own (AGENTS.md, docs/designer-pipeline.md).
+# A design push that touches any of them waits on a pull request until the owner approves it; every
+# other file ships as soon as the checks pass. Keep the patterns simple (a /folder/ or a /file):
+# scripts/locked-files.mjs reads this file to warn before a push.
+
+# Backend, its shared rules, and the owner's console
+/apps-script/ @shorashimstay-agent
+/shared/ @shorashimstay-agent
+/public/admin/ @shorashimstay-agent
+
+# The booking engine: behaviour, API, reCAPTCHA, prices, packages and the policy text
+/src/booking/ @shorashimstay-agent
+/src/lib/ @shorashimstay-agent
+/src/data/booking.ts @shorashimstay-agent
+/src/data/bookingConfig.ts @shorashimstay-agent
+
+# Legal and accessibility pages (they must follow the policy text above)
+/src/legal/ @shorashimstay-agent
+/terms/ @shorashimstay-agent
+/privacy/ @shorashimstay-agent
+/accessibility/ @shorashimstay-agent
+/en/ @shorashimstay-agent
+/src/components/AccessibilityMenu.tsx @shorashimstay-agent
+
+# The pipeline itself: workflows, these rules, the agent's instructions, tests and build setup
+/.github/ @shorashimstay-agent
+/.githooks/ @shorashimstay-agent
+/.claude/ @shorashimstay-agent
+/AGENTS.md @shorashimstay-agent
+/tests/ @shorashimstay-agent
+/scripts/ @shorashimstay-agent
+/package.json @shorashimstay-agent
+/package-lock.json @shorashimstay-agent
+/vite.config.ts @shorashimstay-agent
+/tsconfig.json @shorashimstay-agent
+/playwright.config.ts @shorashimstay-agent
+/playwright.ci.config.ts @shorashimstay-agent
+/public/CNAME @shorashimstay-agent
