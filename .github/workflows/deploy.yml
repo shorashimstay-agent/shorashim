@@ -1,20 +1,28 @@
 name: Deploy site
 
+# Every push to main deploys, and so does the design pipeline after it merges (design.yml). Only main
+# can deploy: the github-pages environment accepts no other branch.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,16 +45,12 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-      # GitHub Pages serves the gh-pages branch; each deploy replaces it with the fresh build.
-      - name: Publish dist to gh-pages
-        working-directory: dist
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          touch .nojekyll
-          git init -q -b gh-pages
-          git add -A
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898299+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "Deploy site build from main ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Check that the live site serves this build
+        run: node scripts/live-check.mjs

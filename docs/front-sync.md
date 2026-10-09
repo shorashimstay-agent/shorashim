@@ -1,5 +1,9 @@
 # Syncing the design from front-2
 
+> **Paused since 2026-10-09.** The designer now pushes to this repo directly
+> (docs/designer-pipeline.md); front-2 stays as a fallback until it is retired. Do not run
+> `/sync-front`: front-2 is no longer the latest design, and a sync would overwrite her work.
+
 The site's design is made in Google AI Studio, which pushes to the **private** repo
 `sarayagent-alt/shorashim-front-2` ("front-2"). This repo is **public** and holds everything else:
 the booking engine, the backend, accessibility, the legal pages and the tests. A sync takes

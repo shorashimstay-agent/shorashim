@@ -1,9 +1,13 @@
 ---
 name: sync-front
-description: Blend the latest design from the private AI Studio repo (front-2, sarayagent-alt/shorashim-front-2) into the Shorashim site and ship it, keeping the booking engine, backend, accessibility and legal pages intact. Use when the user asks to sync, pull in, or blend the front / front-2 / the AI Studio design.
+description: PAUSED since 2026-10-09 (the designer pushes directly; docs/designer-pipeline.md) — do not run unless the user explicitly reactivates front-2. Blend the latest design from the private AI Studio repo (front-2, sarayagent-alt/shorashim-front-2) into the Shorashim site and ship it, keeping the booking engine, backend, accessibility and legal pages intact. Use when the user asks to sync, pull in, or blend the front / front-2 / the AI Studio design.
 ---
 
 # Sync the front-2 design
+
+**Paused since 2026-10-09.** The designer now pushes to this repo directly (docs/designer-pipeline.md),
+so front-2 is stale and a sync would overwrite her work. If asked to sync, say so and stop, unless
+the user explicitly says front-2 is active again.
 
 Read `docs/front-sync.md` first: it is the design this runbook follows. The user decided (2026-09-28)
 that syncs start only when asked and **ship automatically when every check passes**, so do not stop
