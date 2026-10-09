@@ -295,8 +295,10 @@ function blockingEvents_(start, end, opts) {
   lists.requests.forEach(function (item) {
     var props = eventProps_(item);
     if (item.iCalUID === opts.excludeId || props.status !== 'pending') return;
-    if (isHoldActive(props.createdAt, now)) out.push(itemRuleEvent_(item));
-    else if (opts.expireStale) markExpired_(item);
+    if (isHoldActive(props.createdAt, now)) {
+      out.push(itemRuleEvent_(item));
+      if (opts.holdEnds) opts.holdEnds.push(Date.parse(props.createdAt) + HOLD_HOURS * 3600 * 1000);
+    } else if (opts.expireStale) markExpired_(item);
   });
   return out;
 }
@@ -322,13 +324,16 @@ function getAvailability_() {
   if (hit) return JSON.parse(hit);
   var from = today_();
   var to = addDays(from, HORIZON_DAYS + 1);
+  var holdEnds = [];
   var result = {
     ok: true,
     from: from,
     to: to,
-    blocked: blockedNights(blockingEvents_(from, to, { expireStale: true }), from, to),
+    blocked: blockedNights(blockingEvents_(from, to, { expireStale: true, holdEnds: holdEnds }), from, to),
     generatedAt: new Date().toISOString(),
   };
+  // The timer rebuilds when the first of these holds runs out (mirrorsNeedRefresh_).
+  PropertiesService.getScriptProperties().setProperty(NEXT_EXPIRY_KEY, holdEnds.length ? String(Math.min.apply(null, holdEnds)) : '');
   cache.put(AVAILABILITY_CACHE_KEY, JSON.stringify(result), 120);
   return result;
 }
@@ -363,19 +368,72 @@ function refreshMirrors_() {
     return;
   }
   try {
+    // Taken before reading the calendars, so an edit made during the refresh is seen as new next time.
+    var started = Date.now();
+    var ok = true;
+    var data = null;
     try {
-      refreshAvailabilitySnapshot_();
+      data = refreshAvailabilitySnapshot_();
     } catch (err) {
+      ok = false;
       console.error('snapshot refresh failed', err);
     }
     try {
       syncAdminSheet_();
     } catch (err) {
+      ok = false;
       console.error('admin sheet sync failed', err);
+    }
+    if (ok && data) {
+      PropertiesService.getScriptProperties().setProperties({ [FULL_REFRESH_KEY]: String(started), [SNAPSHOT_FROM_KEY]: data.from });
     }
   } finally {
     lock.releaseLock();
   }
+}
+
+var FULL_REFRESH_KEY = 'fullRefreshStartedAt';
+var SNAPSHOT_FROM_KEY = 'snapshotFrom';
+var NEXT_EXPIRY_KEY = 'nextHoldExpiry';
+// A full rebuild at least this often, whatever the checks say.
+var FULL_REFRESH_MAX_AGE_MS = 6 * 3600 * 1000;
+// Calendar clocks and the "updated" stamp can disagree by a little; look back a minute further.
+var CHANGE_SLACK_MS = 60 * 1000;
+
+/**
+ * Whether the spreadsheets may be out of date: never fully refreshed, the date rolled over (the
+ * window moves), a hold has run out, the last full refresh is old, or any calendar event was added,
+ * changed or deleted since it started. The calendar check asks each calendar for one event updated
+ * since then, in parallel: about a second, against about 13 for a full rebuild.
+ */
+function mirrorsNeedRefresh_() {
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var last = Number(props[FULL_REFRESH_KEY] || 0);
+  var now = Date.now();
+  if (!last || now - last > FULL_REFRESH_MAX_AGE_MS) return 'stale';
+  if (props[SNAPSHOT_FROM_KEY] !== today_()) return 'new day';
+  if (props[NEXT_EXPIRY_KEY] && now >= Number(props[NEXT_EXPIRY_KEY])) return 'hold expired';
+  var query = { updatedMin: new Date(last - CHANGE_SLACK_MS).toISOString(), showDeleted: 'true', maxResults: '1', fields: 'items(id)' };
+  var keys = ['bookings', 'requests', 'channels'];
+  var responses = UrlFetchApp.fetchAll(
+    keys.map(function (key) {
+      return calendarRequest_(key, 'get', '', query);
+    })
+  );
+  for (var i = 0; i < keys.length; i++) {
+    if ((calendarResponse_(responses[i]).items || []).length) return keys[i] + ' changed';
+  }
+  return '';
+}
+
+/** Nothing changed: the snapshot is still correct, so only its time is renewed (the site treats an old one as stale). */
+function stampSnapshot_() {
+  if (!CONFIG.availabilitySheetId) return;
+  SpreadsheetApp.openById(CONFIG.availabilitySheetId)
+    .getSheets()[0]
+    .getRange(2, 3)
+    .setNumberFormat('@')
+    .setValue(new Date().toISOString());
 }
 
 var MIRROR_TRIGGER = 'onMirrorsDue';
@@ -383,7 +441,7 @@ var MIRROR_QUEUED_KEY = 'mirrorRefreshQueuedAt';
 
 /**
  * Refreshing both spreadsheets takes about 6 seconds, too long to make a visitor wait. This queues it
- * as a one-off trigger that runs within about a minute; the 5-minute timer catches up if that fails.
+ * as a one-off trigger that runs within about a minute; the timer catches up if that fails.
  */
 function scheduleMirrorRefresh_() {
   try {
@@ -411,9 +469,22 @@ function onCalendarChange() {
   refreshMirrors_();
 }
 
-/** Installable trigger: every 5 minutes, so expired holds, calendar edits and the rolling date window stay current. */
+/**
+ * Installable trigger, every 10 minutes (5 without calendar triggers): keeps the web app warm, and
+ * rebuilds both spreadsheets only when something changed. Most runs find nothing and take a few
+ * seconds instead of 13, which matters on a free account: all its triggers share 90 minutes a day.
+ */
 function onSnapshotTimer() {
   keepWarm_();
+  var reason;
+  try {
+    reason = mirrorsNeedRefresh_();
+  } catch (err) {
+    reason = 'check failed';
+    console.warn('change check failed; rebuilding', err);
+  }
+  if (!reason) return stampSnapshot_();
+  console.log('rebuilding: ' + reason);
   currentPrices_('');
   refreshMirrors_();
 }
