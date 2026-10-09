@@ -17,7 +17,8 @@ export function lockedPatterns(root = ROOT) {
 
 export function lockedFiles(files, root = ROOT) {
   const patterns = lockedPatterns(root);
-  return files.filter((f) => patterns.some((p) => (p.endsWith('/') ? f.startsWith(p) : f === p)));
+  const posix = (f) => f.replace(/\\/g, '/');
+  return files.filter((f) => patterns.some((p) => (p.endsWith('/') ? posix(f).startsWith(p) : posix(f) === p)));
 }
 
 // node scripts/locked-files.mjs < file-list: prints the files in the list that are reserved.
