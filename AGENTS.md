@@ -40,8 +40,10 @@ files.
   colour from the site's own palette that passes.
 - Keep the ids `gallery`, `mobile-menu-toggle-btn` and `mobile-nav-drawer`, and the footer links to
   `/terms/`, `/privacy/` and `/accessibility/`.
-- Photos: put master JPEGs in `src/assets/images/` and render them with `Picture`; the build makes
-  the web sizes (`npm run images`).
+- Photos: put master photos in `src/assets/images/` as **JPEG** (`.jpg`; convert PNGs) named
+  `shorashim_<name>_<digits>.jpg`, and render them with `Picture`; the build makes the web sizes
+  (`npm run images`). A new photo with the same `<name>` as an old one replaces it: delete the old
+  file.
 - No new `<script>` tags, no API keys, passwords or tokens anywhere in the files, no `.env` files,
   no AI Studio code (`@google/genai`, `process.env`, `import.meta.env`).
 
