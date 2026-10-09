@@ -1,3 +1,4 @@
+// Pipeline test: locked file.
 /** Minimal CSV parser: quoted fields may contain commas and doubled quotes. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
