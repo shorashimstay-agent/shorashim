@@ -134,6 +134,24 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             </div>
           </fieldset>
 
+          {form.hasDayParticipants && (
+            <div>
+              <label htmlFor={ids.participants}>משתתפי יום — כולל הכלה, מלוות ואנשי מקצוע (עד {form.maxDayParticipants})</label>
+              <select
+                id={ids.participants}
+                name="participants"
+                value={form.participants}
+                onChange={(e) => form.setParticipants(Number(e.target.value))}
+              >
+                {Array.from({ length: form.maxDayParticipants }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="booking-summary" role="group" aria-label="סיכום הבקשה">
             <h3 className="font-serif text-2xl mb-3">הבקשה שלכם במבט אחד</h3>
             <p className="font-medium">{pkg.title}</p>
@@ -146,6 +164,12 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 <dt>אורחי לינה</dt>
                 <dd>{adultsCount}</dd>
               </div>
+              {form.hasDayParticipants && (
+                <div>
+                  <dt>משתתפי יום</dt>
+                  <dd>{form.participants}</dd>
+                </div>
+              )}
               {!wedding && nights > 0 && (
                 <div>
                   <dt>לילות</dt>

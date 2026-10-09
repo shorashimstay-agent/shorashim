@@ -100,6 +100,8 @@ export interface BookingRequest {
   checkIn: string;
   checkOut: string;
   adults: number;
+  /** Bride-day packages: people present during the day, the bride included. */
+  participants?: number;
   name: string;
   phone: string;
   email: string;

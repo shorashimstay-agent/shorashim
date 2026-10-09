@@ -2,6 +2,8 @@
 // validation — live in shared/rules.js, which the Apps Script backend runs too, so the form and the
 // server can never disagree. Only presentation helpers are defined here.
 import {
+  DAY_PARTICIPANT_TYPES,
+  MAX_DAY_PARTICIPANTS,
   MAX_NIGHTS,
   NOTES_MAX,
   STAY_TYPES,
@@ -16,7 +18,7 @@ import { getPrices } from './prices';
 
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night';
 
-export { MAX_NIGHTS, NOTES_MAX, STAY_TYPES, addDays, daysBetween, nightsOf, stayRange, validateRequest };
+export { DAY_PARTICIPANT_TYPES, MAX_DAY_PARTICIPANTS, MAX_NIGHTS, NOTES_MAX, STAY_TYPES, addDays, daysBetween, nightsOf, stayRange, validateRequest };
 
 export { getPrices, getPricesVersion, usePrices } from './prices';
 
