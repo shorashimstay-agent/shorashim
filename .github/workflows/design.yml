@@ -64,17 +64,23 @@ jobs:
       SHA: ${{ github.sha }}
       SUBJECT: ${{ github.event.head_commit.message }}
     steps:
+      # The rules come from main, so a push cannot loosen them for itself.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - name: Merge into main, or leave it for the owner
         run: |
+          git fetch -q origin "$SHA"
+          locked=$(git diff --name-only "origin/main...$SHA" | node scripts/locked-files.mjs)
           pr=$(gh pr list --head design --base main --state open --json number --jq '.[0].number // empty')
           if [ -z "$pr" ]; then
             gh pr create --head design --base main --title "Design: ${SUBJECT%%$'\n'*}" \
               --body "Pushed by the designer's Codex agent (docs/designer-pipeline.md). Design-only changes merge on their own; this PR stays open only if it touches files in .github/CODEOWNERS."
             pr=$(gh pr list --head design --base main --state open --json number --jq '.[0].number')
           fi
-          decision=$(gh pr view "$pr" --json reviewDecision --jq .reviewDecision)
-          if [ "$decision" = REVIEW_REQUIRED ] || [ "$decision" = CHANGES_REQUESTED ]; then
-            echo "Waiting for the owner: this change touches files reserved in .github/CODEOWNERS." >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$locked" ]; then
+            { echo "Waiting for the owner: #$pr changes files reserved in .github/CODEOWNERS:"; echo "$locked" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           gh pr merge "$pr" --rebase --match-head-commit "$SHA"
