@@ -50,10 +50,15 @@ production. For each file in the report:
 - **Content** (texts, section order, new sections, removed sections) is front-2's call: take it. If
   front-2 removed a section the site had, remove it, unless it carries a production function (then
   keep the function in front-2's style and say so in the summary).
-- **Legal and policy text** (cancellation, prices, terms): if front-2's wording contradicts the
-  booking terms in `src/legal/content.ts`, which bind every booking, align it with the terms and
-  list it in the report so the user can have it fixed in AI Studio. The three-way merge keeps that
-  correction in later syncs until front-2 changes the same lines again.
+- **Legal and policy text** (cancellation, payment, hours, capacity, terms): **front-2 decides the
+  policy** (user decision, 2026-10-09). Take front-2's wording as it is, and when it contradicts the
+  booking terms in `src/legal/content.ts`, update the terms to match it, in Hebrew and English.
+  `src/legal/` is production-owned, so the terms change is its own commit on `main`, made before
+  `ship` (like any production change; the sync branch is then rebased onto it). Keep in the terms
+  what front-2 cannot override: statutory rights (the consumer-protection cancellation right), and
+  facts about how the booking system works (the 24-hour hold, how a booking is confirmed). If
+  front-2's wording contradicts one of those, word the terms so both stay true, and tell the user.
+  List every terms change in the report.
 - **Contrast**: front-2's palette is checked by axe in the staging suite. Fix failures with the
   closest colour from front-2's own palette that passes, not a new one.
 - If a design needs a **production-owned** change (new npm package, `vite.config.ts`, a test

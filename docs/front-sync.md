@@ -88,6 +88,15 @@ sheet is separate from the admin and availability sheets and holds nothing else.
 - The staging suite uses its own test prices (`tests/e2e/fixtures/prices.json`), built into the
   test site and pinned on the staging web app; scenario G10 edits the staging copy of the sheet.
 
+## Policy and the terms
+
+front-2 decides the policy the site states: cancellation, payment, hours and capacity. When its
+wording contradicts the booking terms (`src/legal/content.ts`, `/terms/` and `/en/terms/`), the
+terms are updated to match it, never the other way round. The terms are production-owned, so that
+update is a separate commit on `main` before the sync ships. Statutory rights and facts about how
+the booking system works stay in the terms; where front-2's wording contradicts them, the terms are
+worded so both remain true and the user is told.
+
 ## Checks that stop a sync (`check`)
 
 - A production-owned file changed, or conflict markers remain.
