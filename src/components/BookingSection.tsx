@@ -1,395 +1,313 @@
 import { MessageCircle, Check, Phone, Send, Loader2 } from 'lucide-react';
 import { BRAND_DATA } from '../data/shorashimData';
+import { STAY_PACKAGES, PRICE_NOTE } from '../data/booking';
 import { useBookingForm } from '../booking/useBookingForm';
 import { Announcer, DatePicker, FieldError, Honeypot, SendConsent, SentHeading, described } from '../booking/parts';
-import { formatHebrewDate, NOTES_MAX, type StayType } from '../lib/stay';
-import { EditorialTag } from './RootLine';
+import { NOTES_MAX, type StayType } from '../lib/stay';
+import PolicyDetails from './PolicyDetails';
+import PriceStatus from './PriceStatus';
 
 // Layout only. The form's behaviour is in ../booking/ (docs/front-sync.md).
 
 interface BookingSectionProps {
-  initialStayType?: StayType;
+  stayType: StayType;
+  onStayTypeChange: (type: StayType) => void;
 }
 
-const STAY_OPTIONS: { id: StayType; title: string }[] = [
-  { id: 'couple', title: 'חופשה זוגית' },
-  { id: 'bride_day', title: 'יום כלה - התארגנות' },
-  { id: 'bride_night_day', title: 'לילה לפני + יום כלה' },
-  { id: 'wedding_night', title: 'ליל כלולות' },
-];
+const errorClass = 'field-error';
 
-const labelClass = 'block text-xs font-mono uppercase tracking-widest text-[#7B6045] mb-2 text-right';
+export default function BookingSection({ stayType, onStayTypeChange }: BookingSectionProps) {
+  const form = useBookingForm(stayType);
+  const { ids, errors, submission, wedding, nights, adultsCount } = form;
+  const pkg = STAY_PACKAGES[form.stayType];
 
-const inputClass = (hasError?: string) =>
-  `w-full p-3 border bg-transparent text-[#1E1D1A] text-sm focus:outline-hidden focus:border-[#1E1D1A] focus-visible:ring-2 focus-visible:ring-[#7B6045]/40 transition-colors text-right rounded-[6px] ${
-    hasError ? 'border-[#B3261E]' : 'border-[#CFC4B4]'
-  }`;
-
-const toggleClass = (active: boolean) =>
-  `border text-sm font-sans transition-all cursor-pointer rounded-[6px] ${
-    active ? 'border-[#1E1D1A] bg-[#1E1D1A] text-white' : 'border-[#CFC4B4] text-[#292824] hover:border-[#7B6045] bg-transparent'
-  }`;
-
-export default function BookingSection({ initialStayType = 'couple' }: BookingSectionProps) {
-  const form = useBookingForm(initialStayType);
-  const { ids, errors, submission, wedding, checkIn, nights, adultsCount } = form;
-
-  const estimateLabel = wedding
-    ? form.stayTypeName
-    : `${nights ? (nights === 1 ? 'לילה אחד' : `${nights} לילות`) : 'לילה אחד'}, ${adultsCount === 1 ? 'מבוגר אחד' : `${adultsCount} מבוגרים`}`;
+  const chooseStayType = (type: StayType) => {
+    form.setStayType(type);
+    onStayTypeChange(type);
+  };
 
   return (
-    <section id="booking" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative" dir="rtl" lang="he">
-      <div className="max-w-5xl mx-auto px-7 sm:px-10 lg:px-12">
+    <section id="booking" tabIndex={-1} className="py-12 sm:py-24 bg-[#F4F0E8]" dir="rtl" lang="he">
+      <div className="max-w-5xl mx-auto px-6 sm:px-10">
+        <p className="section-eyebrow">הצעד הבא — בירור אישי עם המארחים</p>
+        <h2 className="font-serif text-3xl sm:text-5xl mb-4">בקשת אירוח בשורשים</h2>
+        <p className="mb-8 max-w-2xl">
+          בחרו מסלול ותאריכים ושלחו לנו בקשה. נבדוק את הזמינות ונחזור אליכם; זו עדיין אינה הזמנה מאושרת.
+        </p>
 
-        {/* Section Header */}
-        <div className="w-full max-w-none md:max-w-2xl mb-8 sm:mb-16 pb-6 sm:pb-8 border-b border-[#DED5C8] text-right">
-          <EditorialTag className="mb-3 sm:mb-4 block">
-            10 · בדיקת זמינות והזמנה
-          </EditorialTag>
-
-          <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
-            לבקש תאריכים
-          </h2>
-
-          <p className="text-sm sm:text-lg text-[#292824]/80 font-light leading-relaxed text-right">
-            בחרו את מועדי השהייה המבוקשים. אנחנו בודקים זמינות באופן אישי וחוזרים אליכם ישירות עם אישור והתאמה מדויקת.
-          </p>
-        </div>
-
-        {/* 10 — BOOKING: Architectural, unboxed form layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
-
-          {/* Booking Form */}
-          <div className="lg:col-span-7 space-y-6 sm:space-y-8 text-right w-full max-w-none" dir="rtl">
-
-            {/* Stay Type Selection */}
-            <div>
-              <span id={ids.stayType} className={labelClass}>
-                סוג האירוח
-              </span>
-              <div role="group" aria-labelledby={ids.stayType} className="grid grid-cols-1 sm:grid-cols-2 gap-2" dir="rtl">
-                {STAY_OPTIONS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    data-stay-type={t.id}
-                    aria-pressed={form.stayType === t.id}
-                    onClick={() => form.setStayType(t.id)}
-                    className={`text-right p-3 sm:p-3.5 text-xs tracking-wide ${toggleClass(form.stayType === t.id)}`}
-                  >
-                    {t.title}
-                  </button>
-                ))}
-              </div>
+        <div className="booking-form space-y-6">
+          <fieldset>
+            <legend id={ids.stayType}>סוג האירוח</legend>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {Object.values(STAY_PACKAGES).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-stay-type={p.id}
+                  aria-pressed={form.stayType === p.id}
+                  onClick={() => chooseStayType(p.id)}
+                  className={`choice text-right ${form.stayType === p.id ? 'selected' : ''}`}
+                >
+                  {p.title}
+                </button>
+              ))}
             </div>
+          </fieldset>
 
-            {/* Dates: the availability calendar */}
-            <div>
-              <div className="flex items-center justify-between">
-                <span id={ids.datesLabel} className={labelClass}>
-                  {wedding ? 'תאריך החתונה' : 'צ׳ק-אין 15:00 · צ׳ק-אאוט 11:00'}
-                </span>
-                {checkIn && (
-                  <button type="button" onClick={form.clearDates} className="text-xs text-[#7B6045] underline cursor-pointer mb-2">
-                    ניקוי תאריכים
-                  </button>
-                )}
-              </div>
-
-              <DatePicker
-                form={form}
-                className={(hasError) =>
-                  `border bg-[#FBF9F5] p-2 sm:p-4 flex justify-center ${hasError ? 'border-[#B3261E]' : 'border-[#DED5C8]'}`
-                }
-              />
-
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#5E574D]">
-                {form.apiEnabled && form.availabilityState === 'loading' && (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" />
-                    בודקים זמינות...
-                  </span>
-                )}
-                {form.apiEnabled && form.availabilityState === 'error' && (
-                  <span>לא הצלחנו לבדוק זמינות כרגע. אפשר לבחור תאריכים, ונאשר מולכם.</span>
-                )}
-                {form.availabilityState === 'ready' && (
-                  <>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-[#1E1D1A]" />
-                      הבחירה שלכם
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="line-through text-[#6B6459]">12</span>
-                      תפוס
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <p className="mt-2 text-sm text-[#1E1D1A] empty:hidden" aria-live="polite">
-                {form.datesText}
-              </p>
-              {wedding && (
-                <p className="mt-1 text-xs text-[#5E574D] font-light">
-                  כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
-                </p>
+          <div>
+            <div className="flex items-center justify-between gap-4">
+              <span id={ids.datesLabel} className="block font-medium mb-2">
+                {wedding ? 'תאריך החתונה' : 'תאריכי כניסה ויציאה'}
+              </span>
+              {form.checkIn && (
+                <button type="button" onClick={form.clearDates} className="text-action text-sm">
+                  ניקוי תאריכים
+                </button>
               )}
-              <FieldError id={`${ids.datesLabel}-error`} message={errors.dates} />
             </div>
 
-            {/* Guests Count */}
-            <div>
-              <span id={ids.adultsLabel} className={labelClass}>
-                מספר אורחים מבוגרים
-              </span>
-              <div className="flex flex-wrap gap-3 items-center" dir="rtl">
-                <div role="group" aria-labelledby={ids.adultsLabel} className="flex gap-3">
-                  {[1, 2, 3].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      data-adults={num}
-                      aria-pressed={adultsCount === num}
-                      aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
-                      onClick={() => form.setAdultsCount(num)}
-                      className={`w-11 h-10 sm:w-12 sm:h-11 flex items-center justify-center ${toggleClass(adultsCount === num)}`}
-                    >
-                      <bdi>{num}</bdi>
-                    </button>
-                  ))}
-                </div>
-                <span className="text-xs text-[#5E574D] font-light">
-                  אירוח למבוגרים בלבד · לזוגות ועד <bdi>3</bdi> אורחים (אורח שלישי על ספה נפתחת)
+            <DatePicker
+              form={form}
+              className={(hasError) =>
+                `border bg-[#FBF9F5] p-2 sm:p-4 flex justify-center rounded-[6px] ${hasError ? 'border-[#9b2525] border-2' : 'border-[#DED5C8]'}`
+              }
+            />
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#5E574D]">
+              {form.apiEnabled && form.availabilityState === 'loading' && (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" />
+                  בודקים זמינות...
                 </span>
-              </div>
+              )}
+              {form.apiEnabled && form.availabilityState === 'error' && (
+                <span>לא הצלחנו לבדוק זמינות כרגע. אפשר לבחור תאריכים, ונאשר מולכם.</span>
+              )}
+              {form.availabilityState === 'ready' && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-[#1E1D1A]" />
+                    הבחירה שלכם
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="line-through text-[#6B6459]">12</span>
+                    תפוס
+                  </span>
+                </>
+              )}
             </div>
 
-            {/* Contact Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t border-[#DED5C8]" dir="rtl">
+            <p className="mt-2 text-[#1E1D1A] empty:hidden" aria-live="polite">
+              {form.datesText}
+            </p>
+            <p className="mt-1 text-[#665548]">
+              {pkg.hours}
+              {form.stayType === 'wedding_night' && ' · נא לציין שעת הגעה משוערת בהערות; הגעה אחרי חצות תתואם אישית.'}
+            </p>
+            {wedding && (
+              <p className="mt-1 text-sm text-[#5E574D]">
+                כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
+              </p>
+            )}
+            <FieldError id={`${ids.datesLabel}-error`} message={errors.dates} className={errorClass} />
+          </div>
+
+          <fieldset>
+            <legend id={ids.adultsLabel}>אורחי לינה — מבוגרים בלבד</legend>
+            <div className="flex flex-wrap gap-3 items-center">
+              {[1, 2, 3].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  data-adults={num}
+                  aria-pressed={adultsCount === num}
+                  aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
+                  onClick={() => form.setAdultsCount(num)}
+                  className={`choice min-w-12 justify-center ${adultsCount === num ? 'selected' : ''}`}
+                >
+                  <bdi>{num}</bdi>
+                </button>
+              ))}
+              <span className="text-sm text-[#5E574D]">
+                לזוגות ועד <bdi>3</bdi> אורחים (אורח שלישי על ספה נפתחת)
+              </span>
+            </div>
+          </fieldset>
+
+          <div className="booking-summary" role="group" aria-label="סיכום הבקשה">
+            <h3 className="font-serif text-2xl mb-3">הבקשה שלכם במבט אחד</h3>
+            <p className="font-medium">{pkg.title}</p>
+            <dl className="request-facts">
               <div>
-                <label htmlFor={ids.fullName} className={labelClass}>
-                  שם מלא *
-                </label>
-                <input
-                  id={ids.fullName}
-                  name="guest-name"
-                  type="text"
-                  autoComplete="name"
-                  placeholder="שם ומשפחה"
-                  value={form.fullName}
-                  onChange={(e) => form.setFullName(e.target.value)}
-                  aria-required="true"
-                  {...described(`${ids.fullName}-error`, errors.name)}
-                  className={inputClass(errors.name)}
-                />
-                <FieldError id={`${ids.fullName}-error`} message={errors.name} />
+                <dt>תאריכים</dt>
+                <dd>{form.datesText || 'טרם נבחרו'}</dd>
               </div>
-
               <div>
-                <label htmlFor={ids.phone} className={labelClass}>
-                  טלפון *
-                </label>
-                <input
-                  id={ids.phone}
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="05X-XXXXXXX"
-                  dir="ltr"
-                  value={form.phone}
-                  onChange={(e) => form.setPhone(e.target.value)}
-                  aria-required="true"
-                  {...described(`${ids.phone}-error`, errors.phone)}
-                  className={`${inputClass(errors.phone)} text-right`}
-                />
-                <FieldError id={`${ids.phone}-error`} message={errors.phone} />
+                <dt>אורחי לינה</dt>
+                <dd>{adultsCount}</dd>
               </div>
-            </div>
-
-            <div>
-              <label htmlFor={ids.email} className={labelClass}>
-                אימייל (לא חובה) · לזימון ליומן לאחר האישור
-              </label>
-              <input
-                id={ids.email}
-                name="email"
-                type="email"
-                dir="ltr"
-                autoComplete="email"
-                placeholder="name@example.com"
-                value={form.email}
-                onChange={(e) => form.setEmail(e.target.value)}
-                {...described(`${ids.email}-error`, errors.email)}
-                className={`${inputClass(errors.email)} text-right`}
-              />
-              <FieldError id={`${ids.email}-error`} message={errors.email} />
-            </div>
-
-            <div>
-              <label htmlFor={ids.notes} className={labelClass}>
-                הערות או בקשות
-              </label>
-              <textarea
-                id={ids.notes}
-                name="notes"
-                rows={3}
-                maxLength={NOTES_MAX}
-                placeholder="שעת הגעה משוערת, אירוע מיוחד, צרכים מיוחדים..."
-                value={form.notes}
-                onChange={(e) => form.setNotes(e.target.value)}
-                {...described(`${ids.notes}-error`, errors.notes)}
-                className={`${inputClass(errors.notes)} resize-none`}
-              />
-              <FieldError id={`${ids.notes}-error`} message={errors.notes} />
-            </div>
-
-            <Honeypot form={form} />
-            <Announcer form={form} />
-
-            {/* Actions */}
-            {submission.state === 'sent' ? (
-              <div role="status" className="p-6 border border-[#1E1D1A] bg-[#FBF9F5] text-[#1E1D1A] rounded-[6px]">
-                <SentHeading form={form} className="flex items-center gap-2 font-serif text-2xl font-normal mb-2 outline-none">
-                  <Check className="w-5 h-5 text-[#7B6045]" />
-                  <span>הבקשה נשלחה!</span>
-                </SentHeading>
-                <p className="text-sm font-light">
-                  מספר הבקשה: <span dir="ltr" className="font-medium">{submission.ref}</span>. התאריכים שמורים עבורכם ל-
-                  {submission.holdHours} שעות, ונחזור אליכם לאישור בהקדם.
-                </p>
-                <div className="mt-5 flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    onClick={() => form.openWhatsApp(submission.ref)}
-                    className="flex-1 py-3 px-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] text-sm tracking-wide flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>להמשך שיחה ב-WhatsApp</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={form.startNewRequest}
-                    className="flex-1 py-3 px-4 border border-[#1E1D1A]/40 text-[#1E1D1A] hover:bg-white text-sm tracking-wide cursor-pointer transition-colors"
-                  >
-                    שליחת בקשה נוספת
-                  </button>
+              {!wedding && nights > 0 && (
+                <div>
+                  <dt>לילות</dt>
+                  <dd>{nights}</dd>
                 </div>
+              )}
+              <div className="quote-total">
+                <dt>הערכת עלות</dt>
+                <dd>{form.estimate === null ? 'מחיר בתיאום אישי' : <span dir="ltr">₪{form.estimate.toLocaleString('he-IL')}</span>}</dd>
               </div>
-            ) : form.apiEnabled ? (
-              <div>
-                <button
-                  type="button"
-                  id="submit-booking-request"
-                  onClick={form.submit}
-                  disabled={form.sending}
-                  className="w-full py-3.5 sm:py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] disabled:opacity-70 transition-colors duration-300 text-xs sm:text-sm font-medium tracking-wide flex items-center justify-center gap-2.5 sm:gap-3 cursor-pointer disabled:cursor-wait rounded-[6px]"
-                >
-                  {form.sending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" /> : <Send className="w-4 h-4" />}
-                  <span>{form.sending ? form.sendingLabel : 'שליחת בקשת הזמנה'}</span>
-                </button>
+            </dl>
+            <p className="text-sm mt-3">{PRICE_NOTE}</p>
+            <PriceStatus />
+          </div>
 
-                {submission.state === 'failed' && (
-                  <div role="alert" className="mt-3 p-3 border border-[#B3261E]/50 bg-[#FCE8E6] text-[#8C1D18] text-xs text-center">
-                    {submission.message}
-                  </div>
-                )}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor={ids.fullName}>שם מלא *</label>
+              <input
+                id={ids.fullName}
+                name="guest-name"
+                type="text"
+                autoComplete="name"
+                value={form.fullName}
+                onChange={(e) => form.setFullName(e.target.value)}
+                aria-required="true"
+                {...described(`${ids.fullName}-error`, errors.name)}
+              />
+              <FieldError id={`${ids.fullName}-error`} message={errors.name} className={errorClass} />
+            </div>
+            <div>
+              <label htmlFor={ids.phone}>טלפון *</label>
+              <input
+                id={ids.phone}
+                name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                dir="ltr"
+                className="text-right"
+                value={form.phone}
+                onChange={(e) => form.setPhone(e.target.value)}
+                aria-required="true"
+                {...described(`${ids.phone}-error`, errors.phone)}
+              />
+              <FieldError id={`${ids.phone}-error`} message={errors.phone} className={errorClass} />
+            </div>
+          </div>
 
-                <button
-                  type="button"
-                  id="submit-booking-whatsapp"
-                  onClick={() => form.openWhatsApp()}
-                  className="mt-3 w-full py-3 border border-[#1E1D1A]/40 text-[#1E1D1A] hover:border-[#1E1D1A] text-xs sm:text-sm tracking-wide transition-colors flex items-center justify-center gap-2 cursor-pointer rounded-[6px]"
-                >
+          <div>
+            <label htmlFor={ids.email}>אימייל (לא חובה) · לזימון ליומן לאחר האישור</label>
+            <input
+              id={ids.email}
+              name="email"
+              type="email"
+              dir="ltr"
+              className="text-right"
+              autoComplete="email"
+              value={form.email}
+              onChange={(e) => form.setEmail(e.target.value)}
+              {...described(`${ids.email}-error`, errors.email)}
+            />
+            <FieldError id={`${ids.email}-error`} message={errors.email} className={errorClass} />
+          </div>
+
+          <div>
+            <label htmlFor={ids.notes}>הערות או בקשות (לא חובה)</label>
+            <textarea
+              id={ids.notes}
+              name="notes"
+              rows={3}
+              maxLength={NOTES_MAX}
+              placeholder="שעת הגעה משוערת או צרכים מיוחדים"
+              value={form.notes}
+              onChange={(e) => form.setNotes(e.target.value)}
+              {...described(`${ids.notes}-error`, errors.notes)}
+            />
+            <FieldError id={`${ids.notes}-error`} message={errors.notes} className={errorClass} />
+          </div>
+
+          <Honeypot form={form} />
+          <Announcer form={form} />
+
+          <PolicyDetails />
+
+          {submission.state === 'sent' ? (
+            <div role="status" className="booking-summary">
+              <SentHeading form={form} className="flex items-center gap-2 font-serif text-2xl font-normal mb-2 outline-none">
+                <Check className="w-5 h-5 text-[#7B6045]" />
+                <span>הבקשה נשלחה!</span>
+              </SentHeading>
+              <p>
+                מספר הבקשה: <span dir="ltr" className="font-medium">{submission.ref}</span>. התאריכים שמורים עבורכם ל-
+                {submission.holdHours} שעות, ונחזור אליכם לאישור בהקדם.
+              </p>
+              <div className="flex flex-wrap gap-4 mt-3">
+                <button type="button" className="secondary-action gap-2" onClick={() => form.openWhatsApp(submission.ref)}>
                   <MessageCircle className="w-4 h-4" />
-                  <span>מעדיפים WhatsApp? שלחו לנו את הפרטים ישירות</span>
+                  <span>להמשך שיחה ב-WhatsApp</span>
                 </button>
-
-                <SendConsent
-                  className="mt-4 text-xs text-[#5E574D] text-center font-light"
-                  recaptchaClassName="mt-2 text-[11px] text-[#5E574D] text-center font-light"
-                />
+                <button type="button" className="text-action" onClick={form.startNewRequest}>
+                  שליחת בקשה נוספת
+                </button>
+                <a className="text-action gap-2" href={`tel:${BRAND_DATA.phone}`}>
+                  <Phone className="w-4 h-4" />
+                  <span>שיחה טלפונית</span>
+                </a>
               </div>
-            ) : (
+            </div>
+          ) : form.apiEnabled ? (
+            <div>
+              <button
+                type="button"
+                id="submit-booking-request"
+                onClick={form.submit}
+                disabled={form.sending}
+                className="primary-action w-full gap-2.5 disabled:opacity-70 disabled:cursor-wait"
+              >
+                {form.sending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" /> : <Send className="w-4 h-4" />}
+                <span>{form.sending ? form.sendingLabel : 'שליחת בקשה למארחים'}</span>
+              </button>
+
+              {submission.state === 'failed' && (
+                <div role="alert" className="mt-3 p-3 border border-[#9b2525]/50 bg-[#FCE8E6] text-[#8C1D18] text-sm text-center rounded-[6px]">
+                  {submission.message}
+                </div>
+              )}
+
               <button
                 type="button"
                 id="submit-booking-whatsapp"
                 onClick={() => form.openWhatsApp()}
-                className="w-full py-3.5 sm:py-4 bg-[#1E1D1A] text-white hover:bg-[#7B6045] transition-colors duration-300 text-xs sm:text-sm font-medium tracking-wide flex items-center justify-center gap-2.5 sm:gap-3 cursor-pointer rounded-[6px]"
+                className="secondary-action mt-3 w-full gap-2"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>שליחת בקשת זמינות ב-WhatsApp</span>
+                <span>מעדיפים WhatsApp? שלחו לנו את הפרטים ישירות</span>
               </button>
-            )}
 
-            {form.whatsAppOpened && submission.state !== 'sent' && (
-              <div className="p-3 border border-[#DED5C8] text-[#1E1D1A] text-xs text-center flex items-center justify-center gap-2">
-                <Check className="w-4 h-4 text-[#7B6045]" />
-                <span>פנייתכם נפתחה ב-WhatsApp! שרי ויואב יחזרו אליכם בהקדם האפשרי.</span>
-              </div>
-            )}
-          </div>
-
-          {/* Pricing & Policy Summary Column */}
-          <div className="lg:col-span-5 space-y-6 sm:space-y-8 text-right w-full max-w-none" dir="rtl">
-            <div className="p-6 sm:p-8 bg-[#DED5C8]/40 border border-[#DED5C8] text-right rounded-[6px]">
-              <EditorialTag className="mb-3 sm:mb-4 block">
-                הערכת עלות משוערת
-              </EditorialTag>
-
-              <div className="font-serif text-3xl sm:text-4xl text-[#1E1D1A] mb-2 font-normal text-right" dir="rtl">
-                {form.estimate === null ? <span>מחיר בתיאום אישי</span> : <span dir="ltr">₪{form.estimate.toLocaleString()}</span>}
-              </div>
-
-              <div className="text-xs text-[#6B5037] font-mono mb-2">
-                {estimateLabel}
-              </div>
-              {wedding && checkIn && (
-                <div className="text-xs text-[#6B5037] font-mono mb-2">תאריך החתונה: {formatHebrewDate(checkIn)}</div>
-              )}
-              <p className="text-xs text-[#5E574D] font-light mb-4 sm:mb-6">
-                הערכה בלבד. המחיר הסופי יימסר באישור ההזמנה.
-              </p>
-
-              <div className="space-y-2.5 text-xs text-[#4A463F] font-light pt-5 sm:pt-6 border-t border-[#DED5C8] text-right">
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
-                  <span>אירוח אינטימי למבוגרים בלבד</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
-                  <span>שימוש בלעדי בכל הבית, הגג והחצר</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
-                  <span>מטבח שלם מאובזר ומכונת קפה איכותית</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-[#7B6045] shrink-0" />
-                  <span>חניה פרטית צמודה בתוך המשק</span>
-                </div>
-              </div>
+              <SendConsent
+                className="mt-4 text-sm text-[#5E574D] text-center"
+                recaptchaClassName="mt-2 text-xs text-[#5E574D] text-center"
+              />
             </div>
+          ) : (
+            <button
+              type="button"
+              id="submit-booking-whatsapp"
+              onClick={() => form.openWhatsApp()}
+              className="primary-action w-full gap-2"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>המשך ל־WhatsApp עם הבקשה</span>
+            </button>
+          )}
 
-            <div className="p-5 sm:p-6 border border-[#DED5C8] text-xs text-[#4A463F] font-light space-y-2 text-right rounded-[6px]" dir="rtl">
-              <h3 className="font-serif text-sm font-normal text-[#1E1D1A] mb-1">
-                נהלי צ׳ק-אין וביטול
-              </h3>
-              <p>כניסה: <bdi>15:00</bdi> | יציאה: <bdi>11:00</bdi> (גמישות בתיאום מראש).</p>
-              <p>ביטול ללא עלות עד <bdi>7</bdi> ימים מראש.</p>
-              <a
-                href={`tel:${BRAND_DATA.phone}`}
-                className="pt-2 inline-flex items-center gap-2 text-[#6B5037] hover:text-[#1E1D1A]"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span dir="ltr">{BRAND_DATA.phoneFormatted}</span>
-              </a>
-            </div>
-          </div>
-
+          {form.whatsAppOpened && submission.state !== 'sent' && (
+            <p role="status" className="booking-summary flex items-center gap-2">
+              <Check className="w-4 h-4 text-[#7B6045] shrink-0" />
+              <span>ניסינו לפתוח WhatsApp עם פרטי הבקשה. ההודעה עדיין דורשת שליחה שם.</span>
+            </p>
+          )}
         </div>
-
       </div>
     </section>
   );

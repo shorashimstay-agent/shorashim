@@ -1,4 +1,61 @@
 @import "tailwindcss";
+@theme {
+  --font-sans: 'Assistant', sans-serif;
+  --font-serif: 'Frank Ruhl Libre', serif;
+}
+:root { --header-height: 64px; --surface: #F4F0E8; --ink: #1E1D1A; --accent: #665548; --line: #DED5C8; --touch: 44px; --radius: 6px; }
+@media (min-width: 640px) { :root { --header-height: 74px; } }
+@media (min-width: 768px) { :root { --header-height: 84px; } }
+@media (min-width: 1024px) { :root { --header-height: 94px; } }
+section[id], main[id], #concept { scroll-margin-block-start: calc(var(--header-height) + 16px); }
+/* Use the section margin for fragment targets; avoid applying the offset twice. */
+html { scroll-padding-block-start: 0; }
+:focus-visible { outline: 3px solid #926b38 !important; outline-offset: 4px; }
+section[tabindex='-1']:focus, main[tabindex='-1']:focus { outline: none; }
+button, summary, .text-action, .primary-action, .secondary-action { min-height: var(--touch); }
+nav a, #mobile-nav-drawer a { display: inline-flex; align-items: center; min-height: var(--touch); }
+main [class*='text-[#A18A70]'] { color: var(--accent); }
+main [class~='text-[11px]'] { font-size: 14px; letter-spacing: normal; }
+#home .hero-descriptor { font-size: 16px; color: white; letter-spacing: normal; font-weight: 500; line-height: 1.6; text-shadow: 0 1px 4px #000; }
+#home .hero-secondary { color: white; font-size: 16px; text-shadow: 0 1px 4px #000; }
+summary { cursor: pointer; padding-block: 10px; font-weight: 500; }
+.skip-link { position: fixed; top: 8px; right: 8px; z-index: 100; padding: 12px; background: white; color: var(--ink); transform: translateY(-160%); }
+.skip-link:focus { transform: none; }
+.primary-action, .secondary-action { display: inline-flex; align-items: center; justify-content: center; padding: 12px 18px; border-radius: var(--radius); font-size: 16px; line-height: 1.5; }
+.primary-action { background: var(--ink); color: white; }
+.primary-action:hover { background: var(--accent); }
+.secondary-action { border: 1px solid var(--accent); color: var(--accent); }
+.text-action { display: inline-flex; align-items: center; text-decoration: underline; padding: 8px; }
+.booking-form { max-width: 760px; }
+.booking-form label, .booking-form legend { display: block; font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+.booking-form input:not([type='radio']), .booking-form textarea, .booking-form select { width: 100%; min-width: 0; min-height: 48px; padding: 12px; font-size: 16px; font-weight: 400; border: 1px solid var(--accent); border-radius: var(--radius); background: transparent; }
+.booking-form input.sr-only { width: 1px; min-height: 0; padding: 0; border: 0; }
+.booking-form .choice { display: flex; align-items: center; gap: 10px; padding: 12px; margin: 0; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.choice.selected { color: white; background: var(--ink); border-color: var(--ink); }
+.choice input { accent-color: #926b38; width: 18px; height: 18px; flex-shrink: 0; }
+.booking-summary { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #eae3d8; }
+.booking-summary p { margin-bottom: 8px; }
+.field-error { color: #9b2525; font-weight: 500; margin-top: 8px; }
+input[aria-invalid='true'], select[aria-invalid='true'] { border: 2px solid #9b2525 !important; }
+.hero-section { min-height: 85svh; }
+.gallery-dialog { width: min(1100px, 100%); max-height: 100dvh; padding: 20px; border: 0; background: #1e1d1a; color: white; overflow-y: auto; }
+.gallery-dialog::backdrop { background: #1e1d1aee; }
+.gallery-dialog img { width: 100%; max-height: 65dvh; object-fit: contain; }
+@media (max-width: 639px) {
+  footer { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  body:has(#booking:focus-within) #floating-whatsapp-btn { visibility: hidden; }
+  main p { font-size: 16px; line-height: 1.65; font-weight: 400; }
+  main [class~='text-xs'], main [class~='text-sm'], main [class~='text-[11px]'] { font-size: 14px; font-weight: 400; letter-spacing: normal; }
+  #bride p, #bride details { font-size: 16px; color: var(--ink); }
+  main [class*='text-[#A18A70]'] { color: var(--accent); }
+  #home .hero-descriptor { font-size: 16px; color: white; letter-spacing: normal; font-weight: 500; line-height: 1.6; }
+  #home .hero-secondary { color: white; font-size: 16px; }
+  .gallery-dialog { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
 
 @layer base {
   html {
@@ -205,3 +262,74 @@ html.a11y-contrast body #accessibility-menu-btn {
 html.a11y-contrast .shorashim-calendar .stay-booked .rdp-day_button {
   color: #555 !important;
 }
+
+/* UX hierarchy: concise facts, clear paths and comparable packages. */
+.section-eyebrow { color: #665548; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.overview-section { background: #ebe5da; border-bottom: 1px solid #ded5c8; }
+.overview-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.overview-facts li { border-inline-start: 1px solid #c8beaf; padding-inline-start: 18px; }
+.overview-facts strong, .overview-facts span { display: block; }
+.overview-facts strong { font-size: 18px; margin-bottom: 6px; font-weight: 600; }
+.overview-facts span { font-size: 15px; line-height: 1.6; color: #51483e; }
+.stay-paths { padding: 48px 0; background: #f4f0e8; }
+.stay-path { border: 1px solid #ded5c8; background: #faf7f1; overflow: hidden; border-radius: 6px; }
+.stay-path p { line-height: 1.65; }
+.stay-meta { color: #665548; font-size: 14px; margin-top: 12px; }
+.bride-package { background: #faf7f1; padding: 24px; border: 1px solid #d6ccbc; border-radius: 6px; display: flex; flex-direction: column; justify-content: space-between; }
+.package-facts > div { padding-block: 10px; border-bottom: 1px solid #e5dfd3; }
+.package-facts dt { font-size: 14px; color: #665548; margin-bottom: 3px; }
+.package-facts dd { font-size: 16px; line-height: 1.5; }
+.package-price { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; margin-top: 18px; }
+.package-price span { font-size: 14px; color: #665548; }
+.package-price strong { font-size: 20px; font-weight: 600; }
+.policy-details { border-block: 1px solid #d6ccbc; padding: 4px 0; }
+.policy-details summary { color: #40362f; }
+.policy-details p { font-size: 15px; }
+.request-facts > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding-block: 8px; }
+.request-facts dt { color: #665548; }
+.request-facts dd { overflow-wrap: anywhere; }
+.request-facts .quote-total { border-top: 1px solid #c8beaf; margin-top: 8px; font-weight: 600; }
+.price-status { font-size: 14px; color: #665548; margin-block: 10px; }
+#house h3 { font-size: clamp(24px, 3vw, 32px); }
+@media (min-width: 640px) { .stay-paths { padding: 64px 0; } }
+@media (max-width: 767px) { .overview-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } .overview-facts li { padding-inline-start: 10px; } }
+@media (max-width: 639px) { .bride-package { padding: 20px; } .request-facts > div { grid-template-columns: 80px minmax(0, 1fr); } }
+
+/* Consistent editorial rhythm and readable supporting information. */
+#house, #bride, #concept, #story, #zichron, #gallery, #faq, #booking { padding-block: 48px; }
+main p { line-height: 1.7; }
+main [class*='text-[#292824]/'], main [class*='text-[#1E1D1A]/'] { color: #49443d; }
+main .font-light { font-weight: 400; }
+main figcaption { color: #51483e; font-size: 15px; line-height: 1.6; }
+.photo-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; align-items: center; }
+.bridal-photos { max-width: 780px; margin-inline: auto; }
+.detail-photos { grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr); }
+.story-photo { max-width: 520px; }
+.route-label { display: inline-block; padding: 6px 10px; background: #e9e1d5; color: #40362f; font-size: 16px; font-weight: 600; margin-bottom: 14px; border-radius: 4px; }
+.package-facts dt { font-weight: 600; }
+.bride-package summary { font-size: 16px; }
+#house h2, #story h2 { font-size: clamp(30px,4vw,48px); }
+@media(min-width:768px) { #house, #bride, #concept, #story, #zichron, #gallery, #faq, #booking { padding-block: 64px; } }
+@media(max-width:639px) { .photo-pair { grid-template-columns: minmax(0,1fr); gap: 24px; } .bridal-photos { max-width: 340px; } .detail-photos figure:first-child { width: 78%; margin-inline: auto; } .bride-package { padding: 20px; } #house,#bride,#concept,#story,#zichron,#gallery,#faq,#booking { padding-block: 36px; } }
+/* Closing sequence: recommendations, image composition and concise contact. */
+.local-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.local-card { background:#faf7f1; border:1px solid #ded5c8; border-radius:6px; padding:24px; display:flex; flex-direction:column; justify-content:space-between; }
+.arrival-note { border-inline-start:3px solid #7b6045; padding:12px 16px; margin-bottom:24px; font-size:15px; background:#ebe5da; }
+.gallery-preview { display:grid; grid-template-columns:1.6fr 1fr; gap:20px; }
+.gallery-preview .gallery-tile:first-child { grid-row:span 2; }
+.gallery-preview .gallery-tile { display:flex; flex-direction:column; min-height:0; }
+.gallery-preview .gallery-photo { height:200px; }
+.gallery-preview .gallery-tile:first-child .gallery-photo { height:100%; min-height:360px; flex:1; }
+.gallery-expanded { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.gallery-expanded .gallery-photo { aspect-ratio:4/3; }
+.gallery-tile { border-radius:4px; }
+.site-footer { background:#e8dfd2; }
+.closing-invitation { background:#ece6dc; padding:56px 24px; text-align:center; border-block:1px solid #d6ccbc; }
+.footer-inner { max-width:1280px; margin:auto; padding:28px 40px 20px; }
+.footer-contact { display:flex; align-items:center; gap:24px; }
+.footer-contact p { font-size:16px; }
+.footer-phone { display:inline-flex; align-items:center; min-height:44px; font-size:20px; }
+.footer-links { display:flex; flex-wrap:wrap; gap:4px 24px; margin-top:16px; }
+.footer-links a { font-size:15px; min-height:44px; display:inline-flex; align-items:center; }
+.footer-copyright { font-size:13px; color:#665548; margin-top:16px; padding-top:16px; border-top:1px solid #d6ccbc; }
+@media(max-width:767px) { .local-cards { grid-template-columns:1fr; gap:16px; } .local-card { padding:20px; } .gallery-preview { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .gallery-preview .gallery-tile:first-child { grid-column:1/-1; grid-row:auto; } .gallery-preview .gallery-tile:first-child .gallery-photo { height:auto; min-height:0; aspect-ratio:3/2; } .gallery-preview .gallery-photo { height:auto; aspect-ratio:4/3; } .gallery-tile span { font-size:20px; } .gallery-expanded { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .footer-inner { padding:24px 24px 90px; } .footer-contact { gap:16px; } .footer-contact p { font-size:15px; } .closing-invitation { padding:40px 24px; } }
