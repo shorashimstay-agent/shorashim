@@ -25,7 +25,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
         <Picture
           image={IMAGES.hero}
           alt="בית האירוח שורשים בזכרון יעקב מבחוץ: חזית לבנה, דלתות זכוכית, מרפסת גג וחצר מוצלת בעצים"
-          className="w-full h-full object-cover object-[55%_center] sm:object-center brightness-[0.82] contrast-[1.03] saturate-[0.98]"
+          className="w-full h-full object-cover object-[55%_center] sm:object-center"
           sizes="100vw"
           priority
         />
@@ -44,7 +44,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
           Subtle localized gradient wash behind the text area:
           Leaves stone texture, plants, tree bark, and Mediterranean warmth completely photographic.
         */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#151412]/80 via-[#151412]/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#151412]/50 via-[#151412]/10 to-transparent" />
         <div className="absolute inset-y-0 right-0 w-full md:w-3/5 bg-gradient-to-l from-[#151412]/45 to-transparent pointer-events-none" />
       </div>
 
@@ -98,7 +98,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
           */}
           <div className="pr-2 sm:pr-8 mt-4 sm:mt-7">
             <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] hero-descriptor tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
-              סוויטה בזכרון יעקב<br />לחופשה זוגית ולהתארגנות כלה · למבוגרים בלבד
+              סוויטה בלב המושבה בזכרון יעקב<br />לחופשה זוגית ולהתארגנות כלה
             </div>
           </div>
 

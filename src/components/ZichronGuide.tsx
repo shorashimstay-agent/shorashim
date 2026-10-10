@@ -6,7 +6,7 @@ import { RootLine, EditorialTag } from './RootLine';
 export default function ZichronGuide() {
   const [showAll, setShowAll] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const officialSites: Record<string, string> = { '2': 'https://www.carmelwines.co.il/', '3': 'https://www.somek-winery.co.il/', '5': 'https://www.museumzy.com/' };
+  const officialSites: Record<string, string> = { '2': 'https://www.carmelwines.co.il/', '3': 'https://www.somek-winery.co.il/', '5': 'https://www.museumzy.com/', uma: 'https://umasushi.co.il/', nili: 'https://www.nili-rest.co.il/', tishbi: 'https://www.tishbi.com/' };
 
   const categories = [
     { id: 'all', label: 'כל המקומות' },
@@ -33,13 +33,11 @@ export default function ZichronGuide() {
             </EditorialTag>
             
             <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
-              לצאת מהבית.
-              <br />
-              <span className="text-[#7B6045] font-light">ולהיות כבר בזכרון.</span>
+              יוצאים לגלות את המושבה
             </h2>
 
             <p className="text-sm sm:text-lg text-[#292824]/75 font-light leading-relaxed text-right">
-              משק פויזנר, המייסדים <bdi>71</bdi>, זכרון יעקב, במרחק כמה בתים מהמדרחוב ההיסטורי. יוצאים מהשקט של החצר ותוך דקת הליכה נמצאים בין בתי הקפה, המסעדות, יקבי הבוטיק ורוח הים. וכשרוצים לעצור, חוזרים לשורשים.
+              קפה של בוקר, ארוחה זוגית או דרינק בערב — כמה מקומות שכדאי להכיר בזמן החופשה בשורשים.
             </p>
           </div>
 
