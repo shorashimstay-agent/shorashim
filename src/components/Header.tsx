@@ -169,7 +169,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
 
         {/* 
           Opposite Side (Left in RTL):
-          Action button "בקשת תאריכים" + Hamburger Menu
+          Action button "בירור זמינות" + Hamburger Menu
           Balances: BRAND LOGO CONTAINER (fixed width)  ←  NAVIGATION  →  BOOKING (fixed width)
         */}
         <div className="flex items-center gap-2 sm:gap-4 shrink-0 justify-end">
@@ -183,8 +183,8 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
                 : 'md:border-[#F4EFE5]/40 md:text-[#F4EFE5] md:hover:border-[#F4EFE5]/65 md:hover:bg-white/5'
             }`}
           >
-            <span className="block md:inline">בקשת</span>{' '}
-            <span className="block md:inline">תאריכים</span>
+            <span className="block md:inline">בירור</span>{' '}
+            <span className="block md:inline">זמינות</span>
           </button>
 
           {/* Minimal Mobile Menu Toggle */}
@@ -227,7 +227,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
                 }}
                 className="w-full text-center py-2.5 bg-[#40362F] text-sm tracking-wide text-[#F3EFE7] hover:bg-[#665548] transition-colors rounded-[6px]"
               >
-                בקשת תאריכים
+                בירור זמינות
               </button>
             </div>
           </div>

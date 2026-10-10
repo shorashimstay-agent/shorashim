@@ -121,7 +121,7 @@ export default function Hero({ onOpenBooking }: HeroProps) {
               onClick={onOpenBooking}
               className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
             >
-              בקשת תאריכים
+              בירור זמינות
             </button>
 
             <a href="#house"
