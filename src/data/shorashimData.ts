@@ -95,6 +95,11 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 ];
 
 export const LOCAL_PLACES: LocalPlace[] = [
+  { id: 'uma', name: 'אומה — סושי ובר', category: 'food', categoryLabel: 'אוכל ובילוי', distance: '', recommendationBy: 'שרי', tip: '', description: 'סושי, טעמים מהמזרח ואווירת ערב במבנה היסטורי במושבה. לבילוי זוגי בבר או בחצר.' },
+  { id: 'hobbit', name: 'ההוביט — פאב במושבה', category: 'wine', categoryLabel: 'דרינק בערב', distance: '', recommendationBy: 'שרי', tip: '', description: 'לצאת לדרינק במדרחוב ולתת לערב להימשך עוד קצת.' },
+  { id: 'manuella', name: 'מנואלה — איטלקית במדרחוב', category: 'food', categoryLabel: 'קולינריה', distance: '', recommendationBy: 'שרי', tip: '', description: 'פסטות שמכינים במקום ופיצות מהטאבון, בלב המדרחוב ההיסטורי. לערב באווירה איטלקית.' },
+  { id: 'nili', name: 'נילי — בית יין ומסעדה', category: 'food', categoryLabel: 'קולינריה', distance: '', recommendationBy: 'שרי', tip: '', description: 'מסעדה חלבית במדרחוב, לעצירה נעימה במהלך השיטוט או לארוחה זוגית.' },
+  { id: 'tishbi', name: 'תשבי — אוכל ויין במדרחוב', category: 'food', categoryLabel: 'אוכל ויין', distance: '', recommendationBy: 'שרי', tip: '', description: 'מטבח מקומי ועונתי במבנה אבן ותיק, לעצירה שמשלבת אוכל ויין באווירת המושבה.' },
   { id: '1', name: 'מדרחוב המייסדים ההיסטורי', category: 'trails', categoryLabel: 'סיור ושיטוט', distance: '1 דקת הליכה (כ-80 מטר)', recommendationBy: 'שרי', tip: 'מומלץ לטייל בשעות אחה״צ כשהאוויר מתקרר והחנויות פתוחות', description: 'הרחוב המרכזי והציורי של המושבה, רצוף מבני אבן היסטוריים, בוטיקים, גלריות אמנים, בתי קפה ומסעדות מעולות.' },
   { id: '2', name: 'יקב כרמל ההיסטורי', category: 'wine', categoryLabel: 'יין וכרמים', distance: '3 דקות הליכה', recommendationBy: 'יואב', tip: 'מומלץ לתאם סיור במרתפים התת-קרקעיים המקוריים', description: 'היקב שהוקם על ידי הברון רוטשילד ב-1890, כולל מרכז מבקרים, טעימות יין וסיורים מרתקים במרתפים העתיקים.' },
   { id: '3', name: 'יקב סומק (Sommek Winery)', category: 'wine', categoryLabel: 'יין וכרמים', distance: '5 דקות הליכה', recommendationBy: 'שרי', tip: 'אל תפספסו את הבלנד הלבן שלהם בישיבה בחצר', description: 'יקב בוטיק משפחתי מעולה בלב המושבה, המציע יינות עטורי שבחים ואירוח חם בחצר אותנטית.' },
