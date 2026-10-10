@@ -50,14 +50,14 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
     {
       title: 'המטבח והאי המרכזי',
       subtitle: 'קפה, יין ובישול אמיתי',
-      desc: 'מטבח שלם מאובזר בכלים איכותיים, כיריים, תנור, מקרר מלא, מכונת קפה עם פולים טריים ואי ישיבה רחב לשיחות אל תוך הלילה.',
+      desc: 'מטבח מאובזר עם כלי בישול איכותיים, כיריים, תנור, מקרר ומכונת קפה עם פולים טריים, לצד אי ישיבה רחב לשיחות אל תוך הלילה.',
       image: IMAGES.kitchen_wall,
       alt: 'המטבח בשורשים: אי ישיבה, כיסאות בר וקיר תמונות משפחתיות',
       tag: '02 · קולינריה ושהייה',
     },
     {
       title: 'חדר הרחצה',
-      subtitle: 'המקום שבו החופשה באמת מתחילה.',
+      subtitle: 'המקום שבו החופשה באמת מתחילה',
       desc: 'חלל רחצה מוקפד עם מקלחון מרווח, ראש גשם מרגיע, חלוקי כותנה רכים ומוצרי טיפוח מובחרים בניחוח ים-תיכוני.',
       image: IMAGES.shower_portrait,
       alt: 'מקלחון גשם עם דלתות זכוכית ואור שמש',
@@ -66,7 +66,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
     {
       title: 'מרפסת הגג והחצר',
       subtitle: 'בריזה מזכרון וציוץ ציפורים',
-      desc: 'חצר ירוקה פרטית תחת עצי פיקוס עתיקים משנת 1882, ועליית גג אינטימית עם ערסל רביצה מול השקיעה.',
+      desc: 'חצר ירוקה ופרטית בצל עצי פיקוס עתיקים משנת 1882, ומרפסת גג אינטימית עם ערסל רביצה מול השקיעה.',
       image: IMAGES.balcony_view,
       alt: 'מבט מהמרפסת אל בית האבן הישן בצל ענפי הפיקוס',
       tag: '04 · טבע ומרחב פתוח',
@@ -87,7 +87,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
               הסוויטה בשורשים
             </h2>
             <p className="mt-3 sm:mt-4 text-base sm:text-lg text-[#292824]/75 font-light leading-relaxed text-right">
-              כ-<bdi>80</bdi> מ״ר של מרחב פרטי, מעוצב ומרווח, במפלס הקרקע עם מרפסת גג מבודדת. מקום שבו כל פינה נבחרה בקפידה.
+              כ־<bdi>80</bdi> מ״ר של מרחב פרטי, מעוצב ומרווח, במפלס הקרקע עם מרפסת גג מבודדת. מקום שבו כל פינה נבחרה בקפידה.
             </p>
           </div>
         </div>
@@ -113,7 +113,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
                     />
                   </div>
                   <div className="mt-2 flex justify-between items-center text-[11px] text-[#7B6045] font-mono" dir="rtl">
-                    <EditorialTag className="text-[#7B6045] text-[11px]">{idx === 0 ? 'שקט, פשתן לבן ונוחות עכשווית' : idx === 1 ? 'ישן, חדש וסביב אותו שולחן' : idx === 2 ? 'אור טבעי, מים ואבן' : 'מאה ועשרים שנה, ממש מול המרפסת.'}</EditorialTag>
+                    <EditorialTag className="text-[#7B6045] text-[11px]">{idx === 0 ? 'שקט, פשתן לבן ונוחות עכשווית' : idx === 1 ? 'ישן, חדש וסביב אותו שולחן' : idx === 2 ? 'אור טבעי, מים ואבן' : 'מאה ועשרים שנה, ממש מול המרפסת'}</EditorialTag>
                   </div>
                 </div>
 
