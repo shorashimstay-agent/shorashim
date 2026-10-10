@@ -137,7 +137,7 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
               alt="שורשים – מקום להתחבר אליו"
               width={256}
               height={256}
-              className="w-auto h-[52px] sm:h-[64px] md:h-[76px] lg:h-[86px] object-contain contrast-[1.3]"
+              className="w-auto h-[58px] sm:h-[66px] md:h-[76px] lg:h-[86px] object-contain contrast-[1.3]"
               referrerPolicy="no-referrer"
             />
           </a>
