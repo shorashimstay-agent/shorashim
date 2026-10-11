@@ -58,7 +58,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
     {
       title: 'חדר הרחצה',
       subtitle: 'המקום שבו החופשה באמת מתחילה',
-      desc: 'חלל רחצה מוקפד עם מקלחון מרווח, ראש גשם מרגיע, חלוקי כותנה רכים ומוצרי טיפוח מובחרים בניחוח ים-תיכוני.',
+      desc: 'חדר רחצה מוקפד עם מקלחון מרווח, ראש גשם מרגיע, חלוקי כותנה רכים ומוצרי טיפוח מובחרים בניחוח ים-תיכוני.',
       image: IMAGES.shower_portrait,
       alt: 'מקלחון גשם עם דלתות זכוכית ואור שמש',
       tag: '03 · מים ורוגע',
@@ -81,7 +81,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-7 sm:mb-9 pb-6 sm:pb-8 border-b border-[#DED5C8]">
           <div className="w-full max-w-none md:max-w-2xl text-right">
             <EditorialTag className="mb-3 sm:mb-4 block">
-              חללי הסוויטה
+              חדרי הסוויטה
             </EditorialTag>
             <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight text-right">
               הסוויטה בשורשים

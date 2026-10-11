@@ -21,7 +21,7 @@ export default function BrideSection({ onSelectPackage }: { onSelectPackage?: (i
       </div>
       <div className="photo-pair bridal-photos mb-8">
         <figure><Picture image={IMAGES.bride_dress} alt="שמלת כלה תלויה בחדר השינה בשורשים" sizes="(max-width: 639px) 100vw, 50vw" className="w-full h-auto object-contain" /><figcaption className="mt-3"><h3 className="font-serif text-2xl">החדר, האור וההתרגשות</h3><p className="text-sm mt-1">חדר השינה כחלק ממרחב ההתארגנות</p></figcaption></figure>
-        <figure><Picture image={IMAGES.bridal_kitchen} alt="חלל המטבח בשורשים: אי רחב, כיסאות בר וקיר תמונות משפחתיות" sizes="(max-width: 639px) 100vw, 50vw" className="w-full h-auto object-contain" /><figcaption className="mt-3"><h3 className="font-serif text-2xl">קפה קטן, רגעים גדולים</h3><p className="text-sm mt-1">המטבח והאי המרכזי — חלק ממרחב ההתארגנות בסוויטה</p></figcaption></figure>
+        <figure><Picture image={IMAGES.bridal_kitchen} alt="המטבח בשורשים: אי רחב, כיסאות בר וקיר תמונות משפחתיות" sizes="(max-width: 639px) 100vw, 50vw" className="w-full h-auto object-contain" /><figcaption className="mt-3"><h3 className="font-serif text-2xl">קפה קטן, רגעים גדולים</h3><p className="text-sm mt-1">המטבח והאי המרכזי — חלק ממרחב ההתארגנות בסוויטה</p></figcaption></figure>
       </div>
       <h3 className="font-serif text-2xl sm:text-3xl mb-5">שלושה מסלולים, לפי היום שלך</h3>
       <PriceStatus />
