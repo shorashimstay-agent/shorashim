@@ -82,6 +82,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   const log = await cleanup(cfg, runTag);
   console.log(`[O] console cleanup for ${runTag}: ${log.length} item(s)`);
+  const left = log.filter((l) => l.startsWith('LEFT OVER'));
+  if (left.length) console.warn(`[O] not cleaned (the next run's preflight removes them):\n  ${left.join('\n  ')}`);
 });
 
 test('O1: the overview shows requests, bookings and channel bookings, as the admin sheet does', async ({ page }) => {

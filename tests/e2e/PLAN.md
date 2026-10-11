@@ -160,8 +160,11 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
   so the guest copies go away too.
-- Delete the matching emails from the owner and guest inboxes, and the invites from guest A's
-  calendar.
+- Trash the matching emails in the owner and guest mailboxes (inbox, sent and spam; Gmail empties the
+  trash after 30 days), and delete the invites from guest A's calendar.
+- Deleting a booking with a guest makes Google send the guest a cancellation a few seconds later:
+  wait for one per deleted booking and guest (up to 3 minutes) and trash it too. Then search every
+  mailbox again and log anything tagged that is still there as LEFT OVER.
 - Prune the run's references from the recent-decisions list, then refresh the sheets.
 
 ## 5. Production smoke (read-only, after every production deploy)

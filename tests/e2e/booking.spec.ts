@@ -78,6 +78,8 @@ test.afterAll(async () => {
   await api.setPrices(null);
   const log = await cleanup(cfg, runTag);
   console.log(`[C] cleanup for ${runTag}: ${log.length} item(s)`);
+  const left = log.filter((l) => l.startsWith('LEFT OVER'));
+  if (left.length) console.warn(`[C] not cleaned (the next run's preflight removes them):\n  ${left.join('\n  ')}`);
 });
 
 test('P: preflight — accounts, staging backend and triggers', async () => {
