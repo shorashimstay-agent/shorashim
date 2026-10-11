@@ -22,7 +22,7 @@ export default function GallerySection() {
   return <section id="gallery" tabIndex={-1} className="py-12 sm:py-24 bg-[#DED5C8]/30">
     <div className="max-w-7xl mx-auto px-6 sm:px-10">
       <h2 className="font-serif text-4xl sm:text-5xl mb-4">לראות. להרגיש. להגיע.</h2>
-      <p className="mb-6">חדר השינה, חללי הבית והחצר — הצצה לשורשים.</p>
+      <p className="mb-6">חדרי הסוויטה והחצר — הצצה לשורשים.</p>
       <div role="group" className="flex flex-wrap gap-2 mb-6" aria-label="סינון תמונות">{[['all','הכול'],['house','הבית'],['courtyard','החצר והגג'],['bride','כלה בשורשים'],['details','הפרטים והמורשת']].map(([id,label]) => <button key={id} aria-pressed={category === id} className={category === id ? 'primary-action' : 'secondary-action'} onClick={() => { setCategory(id); setExpanded(false); }}>{label}</button>)}</div>
       <div className={expanded ? "gallery-expanded" : "gallery-preview"}>{visible.map(photo => <button type="button" className="gallery-tile text-right overflow-hidden" key={photo.id} aria-label={`הגדלת התמונה: ${photo.title}`} onClick={event => { opener.current = event.currentTarget; setIndex(filtered.indexOf(photo)); }}><Picture image={photo.image} alt={photo.description} sizes="(max-width: 767px) 100vw, 40vw" className="gallery-photo w-full object-cover" /><span className="block font-serif text-2xl mt-3">{photo.title}</span></button>)}</div>
       {filtered.length > 3 && <button type="button" className="secondary-action mt-6" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'הצגת מבחר תמונות' : `לכל התמונות (${filtered.length})`}</button>}

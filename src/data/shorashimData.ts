@@ -27,7 +27,7 @@ export const AMENITIES: Amenity[] = [
   { id: '4', name: 'חצר ירוקה ופוטוגנית', category: 'outdoor', icon: 'Trees', description: 'חצר מוקפת עצי פיקוס עתיקים, עם פינות ישיבה באווירה פסטורלית' },
   { id: '5', name: 'חדר רחצה מוקפד', category: 'comfort', icon: 'Bath', description: 'מקלחון מרווח עם ראש גשם, מגבות עבות, חלוקי רחצה ומוצרי טיפוח' },
   { id: '6', name: 'מכונת קפה איכותית', category: 'kitchen', icon: 'Coffee', description: 'פולי קפה מובחרים, חלב טרי ופינוקים חמים' },
-  { id: '7', name: 'אינטרנט אלחוטי מהיר', category: 'general', icon: 'Wifi', description: 'חיבור Wi-Fi יציב וחופשי בכל חלל הצימר והחצר' },
+  { id: '7', name: 'אינטרנט אלחוטי מהיר', category: 'general', icon: 'Wifi', description: 'חיבור Wi-Fi יציב וחופשי בכל הסוויטה והחצר' },
   { id: '8', name: 'חניה פרטית צמודה', category: 'general', icon: 'Car', description: 'חניה שמורה לאורחים במתחם המשק השקט' },
   { id: '9', name: 'מסך טלוויזיה חכם', category: 'comfort', icon: 'Tv', description: 'מסך שטוח וחיבור לסטרימינג ברגעי מנוחה' },
   { id: '10', name: 'אירוח מבוגרים בלבד', category: 'general', icon: 'Sparkles', description: 'אווירה שלווה לזוגות או לעד שלושה מבוגרים' },
@@ -43,7 +43,7 @@ export const BRIDE_PACKAGES: BridePackage[] = [
     description: STAY_PACKAGES.bride_day.hours + ' · ' + STAY_PACKAGES.bride_day.capacity,
     recommendedFor: 'כלות המעוניינות בבוקר חתונה נינוח, מואר ומלא סטייל לצילומים ולהתארגנות',
     highlights: [
-      'חלל מרווח עם אור טבעי לצילומי בוקר ולהתארגנות',
+      'מרחב מרווח עם אור טבעי לצילומי בוקר ולהתארגנות',
       'מראות באורך מלא, שקעים נוחים ופינות ייעודיות לעיצוב שיער ולאיפור',
       'חצר ירוקה, קירות אבן ומרפסת גג לצילומים ביום החתונה',
       'אווירה רגועה ואינטימית ללא הפרעות, בלב זכרון יעקב ההיסטורית',
@@ -115,7 +115,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: 'מה כוללת חבילת התארגנות כלה?',
-    answer: `${STAY_PACKAGES.bride_day.hours}. ${STAY_PACKAGES.bride_day.capacity}. כולל חלל להתארגנות, חצר וגג לצילום. במסלול לילה לפני יכולים ללון עד שלושה אורחים.`,
+    answer: `${STAY_PACKAGES.bride_day.hours}. ${STAY_PACKAGES.bride_day.capacity}. כולל מרחב להתארגנות, חצר וגג לצילום. במסלול לילה לפני יכולים ללון עד שלושה אורחים.`,
   },
   {
     question: 'מהם זמני הכניסה והיציאה באירוח רגיל?',
