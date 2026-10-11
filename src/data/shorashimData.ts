@@ -95,17 +95,56 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 ];
 
 export const LOCAL_PLACES: LocalPlace[] = [
-  { id: 'uma', name: 'אומה — סושי ובר', category: 'food', categoryLabel: 'אוכל ובילוי', distance: '', recommendationBy: 'שרי', tip: '', description: 'סושי, טעמים מהמזרח ואווירת ערב במבנה היסטורי במושבה. לבילוי זוגי בבר או בחצר.' },
-  { id: 'hobbit', name: 'ההוביט — פאב במושבה', category: 'wine', categoryLabel: 'דרינק בערב', distance: '', recommendationBy: 'שרי', tip: '', description: 'לצאת לדרינק במדרחוב ולתת לערב להימשך עוד קצת.' },
-  { id: 'manuella', name: 'מנואלה — איטלקית במדרחוב', category: 'food', categoryLabel: 'קולינריה', distance: '', recommendationBy: 'שרי', tip: '', description: 'פסטות שמכינים במקום ופיצות מהטאבון, בלב המדרחוב ההיסטורי. לערב באווירה איטלקית.' },
-  { id: 'nili', name: 'נילי — בית יין ומסעדה', category: 'food', categoryLabel: 'קולינריה', distance: '', recommendationBy: 'שרי', tip: '', description: 'מסעדה חלבית במדרחוב, לעצירה נעימה במהלך השיטוט או לארוחה זוגית.' },
-  { id: 'tishbi', name: 'תשבי — אוכל ויין במדרחוב', category: 'food', categoryLabel: 'אוכל ויין', distance: '', recommendationBy: 'שרי', tip: '', description: 'מטבח מקומי ועונתי במבנה אבן ותיק, לעצירה שמשלבת אוכל ויין באווירת המושבה.' },
-  { id: '1', name: 'מדרחוב המייסדים ההיסטורי', category: 'trails', categoryLabel: 'סיור ושיטוט', distance: '1 דקת הליכה (כ־80 מטר)', recommendationBy: 'שרי', tip: 'מומלץ לטייל בשעות אחה״צ כשהאוויר מתקרר והחנויות פתוחות', description: 'הרחוב המרכזי והציורי של המושבה, רצוף מבני אבן היסטוריים, בוטיקים, גלריות אמנים, בתי קפה ומסעדות מעולות.' },
-  { id: '2', name: 'יקב כרמל ההיסטורי', category: 'wine', categoryLabel: 'יין וכרמים', distance: '3 דקות הליכה', recommendationBy: 'יואב', tip: 'מומלץ לתאם סיור במרתפים התת-קרקעיים המקוריים', description: 'היקב שהוקם על ידי הברון רוטשילד ב-1890, כולל מרכז מבקרים, טעימות יין וסיורים מרתקים במרתפים העתיקים.' },
-  { id: '3', name: 'יקב סומק (Sommek Winery)', category: 'wine', categoryLabel: 'יין וכרמים', distance: '5 דקות הליכה', recommendationBy: 'שרי', tip: 'אל תפספסו את הבלנד הלבן שלהם בישיבה בחצר', description: 'יקב בוטיק משפחתי מעולה בלב המושבה, המציע יינות עטורי שבחים ואירוח חם בחצר אותנטית.' },
-  { id: '4', name: 'קפה תרשיש ופיקוקו', category: 'coffee', categoryLabel: 'קפה ובוקר', distance: '2 דקות הליכה', recommendationBy: 'שרי', tip: 'מאפים טריים שנאפים במקום וקפה משובח במיוחד', description: 'נקודת פתיחה מושלמת לבוקר שקט במושבה עם אווירה מקומית אותנטית.' },
-  { id: '5', name: 'מוזיאון העלייה הראשונה ובית ניל״י', category: 'trails', categoryLabel: 'היסטוריה ותרבות', distance: '4 דקות הליכה', recommendationBy: 'יואב', tip: 'חוויה מעוררת השראה הממחישה את סיפור המייסדים של המקום', description: 'סיפור ההתיישבות המרתק של מייסדי זכרון יעקב וביתה של מחתרת ניל״י המפורסמת.' },
-  { id: '6', name: 'מסעדת אדמה', category: 'food', categoryLabel: 'קולינריה', distance: '6 דקות הליכה', recommendationBy: 'יואב', tip: 'להזמין מקום מראש לישיבה בגינה הרומנטית בערב', description: 'מסעדת ביסטרו כפרית המשלבת חומרי גלם מקומיים מהאזור באווירה חמימה ואינטימית.' },
+  {
+    "id": "manuella",
+    "name": "מנואלה",
+    "category": "food",
+    "categoryLabel": "אוכל ובילוי",
+    "description": "מסעדה איטלקית במבנה היסטורי במדרחוב — פסטות, פיצות ואווירה נעימה.",
+    "recommendationBy": "שרי",
+    "tip": "",
+    "distance": ""
+  },
+  {
+    "id": "uma",
+    "name": "אומה — בר וסושי",
+    "category": "food",
+    "categoryLabel": "אוכל ובילוי",
+    "description": "סושי, אוכל אסייתי וקוקטיילים במבנה לשימור ברחוב הנדיב. לערב זוגי בבר או בחצר.",
+    "recommendationBy": "שרי",
+    "tip": "",
+    "distance": ""
+  },
+  {
+    "id": "hobbit",
+    "name": "ההוביט",
+    "category": "wine",
+    "categoryLabel": "בילוי בערב",
+    "description": "הפאב הוותיק במדרחוב — בירות, ויסקי ואוכל באווירה מקומית.",
+    "recommendationBy": "שרי",
+    "tip": "",
+    "distance": ""
+  },
+  {
+    "id": "luma",
+    "name": "לומא",
+    "category": "coffee",
+    "categoryLabel": "קפה ובוקר",
+    "description": "קפה, חליטות וכריכי מחמצת במדרחוב. עצירה נעימה לקפה ולמשהו טעים.",
+    "recommendationBy": "שרי",
+    "tip": "",
+    "distance": ""
+  },
+  {
+    "id": "simcha",
+    "name": "שמחה בר יין",
+    "category": "wine",
+    "categoryLabel": "יין ובילוי",
+    "description": "בר יין ברחוב הנדיב, עם מבחר יינות ואוכל לצד הכוס. לערב נינוח במרכז המושבה.",
+    "recommendationBy": "שרי",
+    "tip": "",
+    "distance": ""
+  }
 ];
 
 export const FAQ_ITEMS: FaqItem[] = [
