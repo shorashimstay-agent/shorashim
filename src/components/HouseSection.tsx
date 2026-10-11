@@ -113,7 +113,7 @@ export default function HouseSection({ onOpenBooking }: HouseSectionProps) {
                     />
                   </div>
                   <div className="mt-2 flex justify-between items-center text-[11px] text-[#7B6045] font-mono" dir="rtl">
-                    <EditorialTag className="text-[#7B6045] text-[11px]">{idx === 0 ? 'שקט, פשתן לבן ונוחות עכשווית' : idx === 1 ? 'ישן, חדש וסביב אותו שולחן' : idx === 2 ? 'אור טבעי, מים ואבן' : 'מאה ועשרים שנה, ממש מול המרפסת'}</EditorialTag>
+                    <EditorialTag className="text-[#7B6045] text-[11px]">{idx === 0 ? 'שקט, פשתן לבן ונוחות עכשווית' : idx === 1 ? 'קפה קטן, רגעים גדולים' : idx === 2 ? 'אור טבעי, מים ואבן' : 'מאה ועשרים שנה, ממש מול המרפסת'}</EditorialTag>
                   </div>
                 </div>
 
