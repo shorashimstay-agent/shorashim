@@ -99,8 +99,10 @@ export class GoogleAccount {
 
   // ---- Gmail
 
-  async messages(q: string): Promise<GmailMessage[]> {
-    const list = await this.api<{ messages?: { id: string }[] }>('GET', `${GMAIL}/messages`, { query: { q, maxResults: 50, includeSpamTrash: false } });
+  /** Messages matching `q`, up to 50; with `spam`, the spam folder is searched too (never the trash). */
+  async messages(q: string, { spam = false } = {}): Promise<GmailMessage[]> {
+    const query = spam ? { q: `${q} -in:trash`, maxResults: 50, includeSpamTrash: true } : { q, maxResults: 50, includeSpamTrash: false };
+    const list = await this.api<{ messages?: { id: string }[] }>('GET', `${GMAIL}/messages`, { query });
     return Promise.all((list.messages ?? []).map((m) => this.message(m.id)));
   }
 

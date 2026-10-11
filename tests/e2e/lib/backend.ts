@@ -158,51 +158,95 @@ export async function ownerNotification(cfg: BackendConfig, ref: string, timeout
 
 // ---- Cleanup
 
+const CANCELLATION = /cancel|בוטל/i;
+
 /**
  * Removes everything test runs created: staging events tagged E2E- (bookings deleted with
- * sendUpdates=all so guest copies go too), matching mails in the owner's and guests' inboxes, the
- * invites in guest calendars, and the references in the recent-decisions list.
+ * sendUpdates=all so guest copies go too), matching mails in the owner's and guests' mailboxes
+ * (inbox, sent and spam; they go to the trash, which Gmail empties after 30 days), the invites in
+ * guest calendars, and the references in the recent-decisions list.
+ *
+ * Deleting a booking with a guest makes Google send that guest a cancellation, which arrives after
+ * the deletion. The cleanup waits for those (up to `waitMs`) and trashes them too, then checks that
+ * nothing tagged is left; anything still there is logged as LEFT OVER, and the next run's preflight
+ * cleanup removes it.
  */
-export async function cleanup(cfg: BackendConfig, tag = RUN_PREFIX): Promise<string[]> {
+export async function cleanup(cfg: BackendConfig, tag = RUN_PREFIX, waitMs = 180_000): Promise<string[]> {
   const log: string[] = [];
   const from = new Date(Date.now() - 400 * 86400000).toISOString();
   const refs = new Set<string>();
+  const guests = [
+    ['guestA', guestA, e2e.guestA],
+    ['guestB', guestB, e2e.guestB],
+  ] as const;
+  // Cancellations still to arrive, per guest address (both guests can share one mailbox).
+  const expected: Record<string, number> = {};
   for (const key of ['requests', 'bookings', 'channels'] as const) {
     for (const ev of await owner.events(cfg.calendars[key], { q: tag, timeMin: from })) {
       const req = ev.extendedProperties?.shared?.request;
       if (req) refs.add(JSON.parse(req).ref);
-      await owner.deleteEvent(cfg.calendars[key], ev.id, key === 'bookings' && ev.attendees?.length ? 'all' : 'none');
+      const notify = key === 'bookings' && !!ev.attendees?.length;
+      await owner.deleteEvent(cfg.calendars[key], ev.id, notify ? 'all' : 'none');
       log.push(`deleted ${key} event "${ev.summary}"`);
+      if (!notify) continue;
+      for (const a of ev.attendees ?? []) {
+        const email = (a.email ?? '').toLowerCase();
+        if (guests.some(([, account, conf]) => account && conf.email.toLowerCase() === email)) expected[email] = (expected[email] ?? 0) + 1;
+      }
     }
   }
   if (refs.size) {
     const pruned = await webApp(cfg).pruneDecisions([...refs]);
     log.push(`pruned ${pruned.removed} decision(s)`);
   }
+  for (const [label, guest, conf] of guests) {
+    if (!guest || !conf.calendar) continue;
+    for (const ev of await guest.events('primary', { q: tag, timeMin: from })) {
+      await guest.deleteEvent('primary', ev.id);
+      log.push(`deleted ${label} calendar copy "${ev.summary}"`);
+    }
+  }
+
   const to = cfg.notifyEmail ?? cfg.ownerEmail;
-  for (const m of await owner.messages(`to:${to} newer_than:30d`)) {
-    if (m.text.includes(tag) || m.subject.includes(tag)) {
-      await owner.trash(m.id);
-      log.push(`trashed owner mail "${m.subject}"`);
-    }
-  }
-  // Replies and bounces about test invites also land in the owner's own inbox.
-  for (const m of await owner.messages(`"${tag}" newer_than:30d`)) {
-    await owner.trash(m.id);
-    log.push(`trashed owner mail "${m.subject}"`);
-  }
-  for (const [label, guest, conf] of [['guestA', guestA, e2e.guestA], ['guestB', guestB, e2e.guestB]] as const) {
-    if (!guest) continue;
-    for (const m of await guest.messages(`"${tag}" newer_than:30d`)) {
-      await guest.trash(m.id);
-      log.push(`trashed ${label} mail "${m.subject}"`);
-    }
-    if (conf.calendar) {
-      for (const ev of await guest.events('primary', { q: tag, timeMin: from })) {
-        await guest.deleteEvent('primary', ev.id);
-        log.push(`deleted ${label} calendar copy "${ev.summary}"`);
+  const seen = new Set<string>();
+  const got: Record<string, number> = {};
+  /** Trashes every tagged mail in every mailbox, counting the guests' cancellations by recipient. */
+  const sweep = async () => {
+    const mailboxes: [string, GoogleAccount, string][] = [
+      ['owner', owner, `to:${to} newer_than:30d`],
+      // Replies and bounces about test invites, and the sent copies, are in the owner's mailbox too.
+      ['owner', owner, `"${tag}" newer_than:30d`],
+      ...guests.filter(([, g]) => g).map(([label, g]) => [label, g!, `"${tag}" newer_than:30d`] as [string, GoogleAccount, string]),
+    ];
+    for (const [label, account, q] of mailboxes) {
+      for (const m of await account.messages(q, { spam: true })) {
+        if (!(m.text.includes(tag) || m.subject.includes(tag))) continue;
+        const key = `${label}:${m.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (CANCELLATION.test(m.subject)) {
+          for (const email of Object.keys(expected)) if (m.to.toLowerCase().includes(email)) got[email] = (got[email] ?? 0) + 1;
+        }
+        await account.trash(m.id);
+        log.push(`trashed ${label} mail "${m.subject}"`);
       }
     }
+  };
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    await sweep();
+    const waiting = Object.keys(expected).filter((k) => (got[k] ?? 0) < expected[k]);
+    if (!waiting.length || Date.now() > deadline) {
+      for (const k of waiting) log.push(`LEFT OVER: ${k} got ${got[k] ?? 0} of ${expected[k]} cancellation mail(s) within ${waitMs / 1000}s`);
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  // A late duplicate (a second shared mailbox, a reply) is caught by one more look.
+  await sweep();
+  for (const [label, account] of [['owner', owner], ...guests.filter(([, g]) => g).map(([l, g]) => [l, g!])] as [string, GoogleAccount][]) {
+    const left = (await account.messages(`"${tag}" newer_than:30d`, { spam: true })).filter((m) => m.text.includes(tag) || m.subject.includes(tag));
+    for (const m of left) log.push(`LEFT OVER: ${label} mail "${m.subject}"`);
   }
   return log;
 }
