@@ -6,14 +6,13 @@ import { RootLine, EditorialTag } from './RootLine';
 export default function ZichronGuide() {
   const [showAll, setShowAll] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const officialSites: Record<string, string> = { '2': 'https://www.carmelwines.co.il/', '3': 'https://www.somek-winery.co.il/', '5': 'https://www.museumzy.com/', uma: 'https://umasushi.co.il/', nili: 'https://www.nili-rest.co.il/', tishbi: 'https://www.tishbi.com/' };
+  const officialSites: Record<string, string> = { manuella: 'https://www.visit-zichronyaakov.co.il/מסעדת-מנואלה/', uma: 'https://umasushi.co.il/', hobbit: 'https://www.visit-zichronyaakov.co.il/ההוביט-בר/', luma: 'https://www.visit-zichronyaakov.co.il/קפה-לומא/', simcha: 'https://www.visit-zichronyaakov.co.il/שמחה-בר-יין/' };
 
   const categories = [
     { id: 'all', label: 'כל המקומות' },
     { id: 'coffee', label: 'קפה' },
     { id: 'food', label: 'לאכול' },
     { id: 'wine', label: 'יין' },
-    { id: 'trails', label: 'לטייל' },
   ];
 
   const filteredPlaces =
