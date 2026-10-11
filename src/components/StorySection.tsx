@@ -18,7 +18,7 @@ export default function StorySection() {
         <EditorialTag className="mb-5 block">
             הסיפור של שורשים
         </EditorialTag>
-        <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr] gap-6 md:gap-12 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr] gap-6 md:gap-12 items-start">
         <div className="w-full min-w-0 text-right">
           
           <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-4 sm:mb-6 text-right">
