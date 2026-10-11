@@ -26,3 +26,6 @@ __pycache__/
 
 # Private clone of the AI Studio design repo (scripts/front-sync.mjs). Never commit it.
 /.front-2/
+
+# Private planning docs (business, pricing, OTA plans). The repo is public, so never commit them.
+/docs/private/
