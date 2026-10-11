@@ -79,25 +79,27 @@ in this public repo.
 - R1: the form submits and the success screen shows a reference `SH-XXXXX`.
 - R2: בקשות has one ⏳ event with those dates, `status=pending`, and `request` JSON matching the form.
 - R3: the owner receives "בקשת הזמנה SH-XXXXX…" at the `+test` address, with every detail line and
-  a signed decision link.
+  a link to the request in the console (`https://shorashimstay.com/admin/?request=<id>&ref=<ref>`;
+  the console side is O9).
 - R4: those nights are now blocked in the web app, in the snapshot and in the site's date picker.
 - R5: the admin sheet בקשות has a row "ממתינה – התאריכים שמורים" with a פעולה dropdown and a ביצוע
   checkbox.
 - R6: the guest has received no email yet.
 
-**E — Owner approves from the email** (continues R)
-- E1 `[UI]`: open the link from the email; the page shows the request and an approve button.
+**E — Owner approves on the signed decision page** (continues R). Owner emails now link to the
+console (O9); emails sent before that open this page, so it stays covered.
+- E1 `[UI]`: open the signed decision page for the request; it shows the request and an approve button.
 - E2: click אישור ההזמנה; the page says it was approved and that the guest was invited.
 - E3: the ⏳ event is gone from בקשות; הזמנות has "שורשים · <name>" with guest A as attendee and the
   `source=website` tag.
 - E4: guest A receives the calendar invite email, and the event appears in guest A's calendar.
 - E5: the admin sheet shows the row as "אושרה ✓" and הזמנות lists the booking.
 - E6: the nights stay blocked.
-- E7: opening the link again shows "הבקשה כבר טופלה". Repeating approve returns the same result;
+- E7: opening the page again shows "הבקשה כבר טופלה". Repeating approve returns the same result;
   decline after approve returns `not_found`.
 
 **D — Owner declines from the email** (guest B, new dates) `[UI]`
-- D1: request submitted → owner email → the page's דחיית הבקשה, then accept the confirm dialog.
+- D1: request submitted → owner email → the signed decision page's דחיית הבקשה, then accept the confirm dialog.
 - D2: the ⏳ event is deleted, no booking is created, the nights are free again (web app +
   snapshot), and guest B receives nothing.
 - D3: the admin sheet shows "נדחתה ✗".
@@ -151,6 +153,9 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
 - O8: the login: without a session only the login shows; a wrong password is refused; five wrong
   passwords lock the login even for the right one (reset by the staging-only `testResetConsoleLock`);
   an altered token is refused; "log out everywhere" logs out the page and every earlier token.
+- O9: the owner email's link (`/admin/?request=<id>&ref=<ref>`) at phone width: after the login the
+  request is marked, focused and in view, and the query is dropped from the address; the same link
+  after the request is decided says it was already declined.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,

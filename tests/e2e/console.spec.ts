@@ -40,12 +40,12 @@ async function fixtureRequest(who: string, start: string, nights: number, extra:
   return { id: ev.iCalUID as string, name, ref, start, end, req };
 }
 
-/** Opens /admin against the staging web app and logs in, unless `login` is false. */
-async function openConsole(page: Page, login = true) {
+/** Opens /admin (or `path`) against the staging web app and logs in, unless `login` is false. */
+async function openConsole(page: Page, login = true, path = '/admin/') {
   await page.addInitScript((url) => {
     (window as any).CONSOLE_API = url;
   }, cfg.webAppUrl);
-  await page.goto('/admin/');
+  await page.goto(path);
   if (!login) return;
   await page.getByLabel('סיסמה').fill(cfg.consolePassword!);
   await page.getByRole('button', { name: 'כניסה' }).click();
@@ -236,4 +236,24 @@ test('O8: the password login: wrong passwords, the lockout, forged tokens, and l
   expect(await api.consoleWithToken('overview', login.token)).toMatchObject({ ok: false, error: 'unauthorized' });
   const again = await api.consoleLogin(cfg.consolePassword!);
   expect((await api.consoleWithToken('overview', again.token)).ok).toBe(true);
+});
+
+test('O9: the owner email link opens the console on its request, or says it was handled', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const r = await fixtureRequest('קונסולה קישור', slot(8), 1);
+  // Another pending request, so the linked one has to be picked out.
+  await fixtureRequest('קונסולה קישור אחר', slot(9), 1);
+  const link = (x: { id: string; ref: string }) => `/admin/?request=${encodeURIComponent(x.id)}&ref=${x.ref}`;
+
+  await openConsole(page, true, link(r));
+  await expect(card(page, r.id)).toHaveClass(/linked/);
+  await expect(card(page, r.id).locator('.name')).toBeFocused();
+  await expect(card(page, r.id)).toBeInViewport();
+  expect(new URL(page.url()).search).toBe('');
+  await expect(await decideInConsole(page, r.id, 'decline')).toContainText('נדחתה');
+
+  // The same link once the request is decided: the session is kept, so no login this time.
+  await page.goto(link(r));
+  await expect(page.locator('#linked-note')).toContainText(`הבקשה של ${r.name} (${r.ref}) כבר נדחתה`, { timeout: 180_000 });
+  await expect(page.locator('.card.linked')).toHaveCount(0);
 });

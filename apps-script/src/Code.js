@@ -19,11 +19,16 @@ var PRICES_LAST_GOOD_KEY = 'pricesLastGood';
 var PRICES_OVERRIDE_KEY = 'pricesOverride';
 var ADDRESS = 'משק פויזנר, המייסדים 71, זכרון יעקב';
 var CONTACT_PHONE = '052-322-4220';
+// The owner console. The owner email's button opens it on the request, not the web app's decision
+// page: on Android the Drive app claims script.google.com links and fails to open them. Staging
+// emails link here too; the suite opens the console against staging itself.
+var CONSOLE_URL = 'https://shorashimstay.com/admin/';
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (p.action === 'availability') return json_(getAvailability_());
+    // The signed decision page. Owner emails sent before they linked to the console still open it.
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
     if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
     return json_({ ok: true, service: 'shorashim-booking' });
@@ -1273,8 +1278,9 @@ function validSig_(id, sig) {
   return !!id && !!sig && sign_(id) === String(sig);
 }
 
-function decideUrl_(eventId) {
-  return CONFIG.webAppUrl + '?action=decide&id=' + encodeURIComponent(eventId) + '&sig=' + sign_(eventId);
+/** The owner console, opened on one request. It needs the console login, so the link carries no signature. */
+function consoleRequestUrl_(eventId, ref) {
+  return CONSOLE_URL + '?request=' + encodeURIComponent(eventId) + '&ref=' + encodeURIComponent(ref);
 }
 
 function notifyOwner_(eventId, req) {
@@ -1289,14 +1295,14 @@ function notifyOwner_(eventId, req) {
     '<h2 style="color:#8B6B48;margin:0 0 8px">בקשת הזמנה חדשה מהאתר</h2>' +
     '<p style="margin:0 0 12px">התאריכים שמורים ל-' + HOLD_HOURS + ' שעות. אם הבקשה לא תאושר עד אז, הם ייפתחו שוב.</p>' +
     rows +
-    '<p style="margin:20px 0"><a href="' + esc_(decideUrl_(eventId)) + '" style="' + button + 'background:#8B6B48;color:#fff">לאישור או דחייה</a></p>' +
+    '<p style="margin:20px 0"><a href="' + esc_(consoleRequestUrl_(eventId, req.ref)) + '" style="' + button + 'background:#8B6B48;color:#fff">לאישור או דחייה</a></p>' +
     '<p><a href="' + esc_(waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים')) + '" style="color:#1E6B37">WhatsApp ל' + esc_(req.name) + '</a>' +
     ' · <a href="tel:' + esc_(req.phone.replace(/[^\d+]/g, '')) + '" style="color:#8B6B48">התקשרות</a></p>' +
     '</div>';
   MailApp.sendEmail({
     to: CONFIG.notifyEmail || CONFIG.ownerEmail,
     subject: 'בקשת הזמנה ' + req.ref + ': ' + stayDatesShort_(req) + ' · ' + req.name,
-    body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + decideUrl_(eventId),
+    body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + consoleRequestUrl_(eventId, req.ref),
     htmlBody: html,
     name: 'שורשים – הזמנות',
   });

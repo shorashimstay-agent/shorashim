@@ -126,6 +126,7 @@ test('R + E: guest books on the site, owner is emailed and approves from the ema
   const stay = nights(checkIn, checkOut);
   let ref = '';
   let link = '';
+  let id = '';
 
   await test.step('R1: submit the booking form', async () => {
     await openBooking(page);
@@ -140,13 +141,18 @@ test('R + E: guest books on the site, owner is emailed and approves from the ema
     expect(props.status).toBe('pending');
     expect(JSON.parse(props.request)).toMatchObject({ ref, name, stayType: 'couple', checkIn, checkOut, adults: 2, email: e2e.guestA.email });
   });
-  await test.step('R3: owner email with the details and a signed decision link', async () => {
+  await test.step('R3: owner email with the details and a link to the request in the console', async () => {
     const n = await ownerNotification(cfg, ref);
     expect(n.mail.to).toContain(cfg.notifyEmail ?? cfg.ownerEmail);
     expect(n.mail.subject).toBe(`בקשת הזמנה ${ref}: ${heDate(checkIn)}–${heDate(checkOut)} · ${name}`);
     for (const line of [`שם: ${name}`, `הגעה: ${heDate(checkIn)}`, `עזיבה: ${heDate(checkOut)}`, `אימייל: ${e2e.guestA.email}`, `מספר בקשה: ${ref}`]) expect(n.mail.text).toContain(line);
     expect(n.link).toBeTruthy();
-    link = n.link!;
+    id = n.id!;
+    expect(id).toBe((await onlyRequestEvent(name)).iCalUID);
+    expect(n.link).toBe(`https://shorashimstay.com/admin/?request=${encodeURIComponent(id)}&ref=${ref}`);
+    // The console itself is covered in console.spec.ts (O9); the steps below decide on the signed
+    // decision page, which owner emails sent before the console link still open.
+    link = api.decideUrl(id);
   });
   await test.step('R4: the nights are held in the web app, the snapshot and the picker', async () => {
     expect(await blocked(stay)).toBe(true);
@@ -165,7 +171,7 @@ test('R + E: guest books on the site, owner is emailed and approves from the ema
     expect(await guestA!.messages(`"${runTag}" newer_than:1d`)).toHaveLength(0);
   });
 
-  await test.step('E1/E2: owner opens the email link and approves', async () => {
+  await test.step('E1/E2: owner opens the signed decision page and approves', async () => {
     const frame = await openDecision(page, link, `בקשת הזמנה ${ref}`);
     await expect(frame.getByText(`שם: ${name}`)).toBeVisible();
     await frame.locator('#approve').click();
@@ -206,7 +212,6 @@ test('R + E: guest books on the site, owner is emailed and approves from the ema
   });
   await test.step('E7: the link now says handled; repeat approve is idempotent, decline is refused', async () => {
     await openDecision(page, link, 'הבקשה כבר טופלה');
-    const id = new URL(link).searchParams.get('id')!;
     expect(await api.decide('approve', id)).toMatchObject({ ok: true, result: 'approved' });
     expect(await api.decide('decline', id)).toMatchObject({ ok: false, error: 'not_found' });
   });
@@ -217,11 +222,11 @@ test('D: owner declines from the email; the nights open again and the guest gets
   const [checkIn, checkOut] = [slot(2), addDays(slot(2), 1)];
   await openBooking(page);
   const ref = await submitBooking(page, { stayType: 'couple', checkIn, checkOut, adults: 1, name, phone: randomPhone(), email: e2e.guestB.email });
-  const { link } = await ownerNotification(cfg, ref);
+  const { id } = await ownerNotification(cfg, ref);
   expect(await blocked([checkIn])).toBe(true);
 
   await test.step('D1: decline on the decision page and confirm the dialog', async () => {
-    const frame = await openDecision(page, link!, `בקשת הזמנה ${ref}`);
+    const frame = await openDecision(page, api.decideUrl(id!), `בקשת הזמנה ${ref}`);
     page.once('dialog', (d) => d.accept());
     await frame.locator('#decline').click();
     await expect(frame.getByText('הבקשה נדחתה והתאריכים נפתחו שוב.')).toBeVisible({ timeout: 90_000 });

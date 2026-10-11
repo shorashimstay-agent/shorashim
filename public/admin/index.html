@@ -66,6 +66,8 @@
   /* Request cards */
   .card { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 20px 18px 18px; margin-bottom: 14px; box-shadow: 0 2px 15px rgba(30,29,26,.03); }
   .card.conflict { border-color: #E3B3AC; }
+  .card.linked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .banner.info { background: var(--paper); border-color: var(--line); color: var(--ink); }
   .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .name { font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.2; margin: 0; }
   .ref { font-size: 12px; color: var(--muted); letter-spacing: .08em; direction: ltr; unicode-bidi: isolate; }
@@ -205,6 +207,7 @@
         <p class="sub" id="requests-sub">טוען…</p>
         <div class="stats" id="stats"></div>
       </div>
+      <div id="linked-note"></div>
       <div id="results"></div>
       <h3 class="tag">ממתינות לאישור</h3>
       <div id="pending"></div>
@@ -264,6 +267,14 @@
 <script>
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
   var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [] };
+  // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
+  // first, marked, once the data has loaded (after the login, if one is needed).
+  var linked = (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      return q.get('request') ? { id: q.get('request'), ref: q.get('ref') || '' } : null;
+    } catch (e) { return null; }
+  })();
   var DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
   var MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
   var WEDDING = { bride_day: true, bride_night_day: true };
@@ -386,7 +397,8 @@
         $('error').innerHTML = '';
         if (!state.month) state.month = data.today.slice(0, 7);
         render();
-        if (!quiet) announce('הנתונים עודכנו');
+        if (linked) showLinked();
+        else if (!quiet) announce('הנתונים עודכנו');
       })
       .catch(function (err) {
         if (err && err.message === 'unauthorized') return;
@@ -441,7 +453,7 @@
     var busy = state.busy[r.id];
     var conflict = r.conflicts && r.conflicts.length;
     var confirming = state.confirming && state.confirming.id === r.id ? state.confirming.decision : null;
-    var html = '<article class="card' + (conflict ? ' conflict' : '') + '" data-request-id="' + esc(r.id) + '" aria-labelledby="req-name-' + index + '">' +
+    var html = '<article class="card' + (conflict ? ' conflict' : '') + (state.linkedId === r.id ? ' linked' : '') + '" data-request-id="' + esc(r.id) + '" aria-labelledby="req-name-' + index + '">' +
       '<div class="row"><h4 class="name" id="req-name-' + index + '">' + esc(r.name) + '</h4><span class="ref">' + esc(r.ref) + '</span></div>' +
       '<div class="kind">' + esc(r.stayLabel) + '</div>' +
       '<dl class="meta">' + datesMeta(r) +
@@ -527,6 +539,31 @@
     badge.hidden = !pending.length;
     badge.textContent = pending.length;
     $('badge-sr').textContent = pending.length ? ', ' + pending.length + ' ממתינות' : '';
+  }
+
+  /** Brings the request from the email link into view, or says what became of it. */
+  function showLinked() {
+    var d = state.data, target = linked;
+    linked = null;
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    if (state.tab !== 'requests') document.querySelector('nav.tabs button[data-tab="requests"]').click();
+    var pending = d.requests.filter(function (r) { return r.id === target.id; })[0];
+    if (pending) {
+      state.linkedId = pending.id;
+      renderRequests();
+      var card = document.querySelector('[data-request-id="' + CSS.escape(pending.id) + '"]');
+      var name = card.querySelector('.name');
+      name.setAttribute('tabindex', '-1');
+      card.scrollIntoView({ block: 'start' });
+      name.focus({ preventScroll: true });
+      announce('הבקשה של ' + pending.name + ' מחכה להחלטה');
+      return;
+    }
+    var made = target.ref && d.decisions.filter(function (x) { return x.ref === target.ref; })[0];
+    var text = made
+      ? 'הבקשה של ' + made.name + ' (' + made.ref + ') כבר ' + (made.result === 'approved' ? 'אושרה' : 'נדחתה') + '. היא מופיעה למטה, בהחלטות האחרונות.'
+      : 'הבקשה מהמייל' + (target.ref ? ' (' + target.ref + ')' : '') + ' כבר לא ממתינה להחלטה: היא טופלה או בוטלה.';
+    $('linked-note').innerHTML = '<div class="banner info" role="status">' + esc(text) + '</div>';
   }
 
   function decide(id, decision) {
