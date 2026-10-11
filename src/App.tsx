@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
-import ConceptSection from './components/ConceptSection';
 import HouseSection from './components/HouseSection';
 import StorySection from './components/StorySection';
 import BrideSection from './components/BrideSection';
@@ -55,7 +54,6 @@ export default function App() {
         <HouseSection onOpenBooking={scrollToBooking} />
         <BrideSection onSelectPackage={handleSelectPackage} />
         <BookingSection stayType={selectedStayType} onStayTypeChange={setSelectedStayType} />
-        <ConceptSection />
         <StorySection />
         <ZichronGuide />
         <GallerySection />
