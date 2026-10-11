@@ -144,12 +144,16 @@ export async function bookingRows(cfg: BackendConfig): Promise<{ title: string; 
   return values.map((v) => ({ title: String(v[0] ?? ''), start: String(v[1] ?? ''), end: String(v[2] ?? ''), ref: String(v[10] ?? '') }));
 }
 
-/** The owner's notification email for a request reference, and the decision link inside it. */
+/**
+ * The owner's notification email for a request reference, the console link inside it, and the
+ * request's event id from that link.
+ */
 export async function ownerNotification(cfg: BackendConfig, ref: string, timeoutMs = 120_000) {
   const to = cfg.notifyEmail ?? cfg.ownerEmail;
   const mail = await waitFor(`owner email for ${ref}`, async () => (await owner.messages(`to:${to} subject:${ref} newer_than:1d`))[0], timeoutMs);
-  const link = mail.text.match(/https:\/\/script\.google\.com\/macros\/s\/[^\s]+action=decide[^\s]+/)?.[0];
-  return { mail, link };
+  const link = mail.text.match(/https:\/\/shorashimstay\.com\/admin\/\?request=[^\s]+/)?.[0];
+  const id = link ? new URL(link).searchParams.get('request') ?? undefined : undefined;
+  return { mail, link, id };
 }
 
 // ---- Cleanup

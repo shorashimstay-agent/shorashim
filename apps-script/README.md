@@ -35,7 +35,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 ## Day to day (Saray)
 
 - **Close dates or add a phone booking:** create an event in **שורשים – הזמנות**. The website shows those nights as taken within about two minutes.
-- **New website request:** an email arrives at shorashimstay@gmail.com, and a ⏳ event appears in **שורשים – בקשות**. Tap **לאישור או דחייה** in the email:
+- **New website request:** an email arrives at shorashimstay@gmail.com, and a ⏳ event appears in **שורשים – בקשות**. Tap **לאישור או דחייה** in the email. It opens the owner console (shorashimstay.com/admin, password login) on that request; the link goes to the site rather than to script.google.com because on Android the Drive app claims script.google.com links and fails to open them. Emails sent before this change link to the older signed decision page, which still works.
   - **Approve** moves the stay into הזמנות. If the guest gave an email address, they get a Google Calendar invitation.
   - **Decline** removes the request and frees the dates.
   - Both screens offer a ready-made WhatsApp message to the guest.
@@ -58,10 +58,10 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
   checks the password against `CONFIG.consolePasswordHash` (a salted HMAC, from `booking-config.json`,
   never in the repo) and returns a session token signed with the HMAC secret. Every other console
   call needs that token, or an HMAC signature over the operation and its arguments (tools and the
-  test suite). Decisions go through `decideAndRecord_`, like the email link and the sheet, and the
+  test suite). Decisions go through `decideAndRecord_`, like the signed decision page and the sheet, and the
   sheets refresh as usual. `adminData_()` builds both the sheet's rows and the console's lists.
 - **Guessing:** after 5 wrong passwords the login pauses for 15 minutes, for everyone (Apps Script
-  cannot tell callers apart). The sheet and the email links keep working meanwhile.
+  cannot tell callers apart). The sheet and older emails' signed decision links keep working meanwhile.
 - **Sessions do not expire.** "ניתוק מכל המכשירים" (in the status panel) logs out every device, and
   so does setting a new password.
 - **Set or change the password** (forgotten, leaked, or routine):
