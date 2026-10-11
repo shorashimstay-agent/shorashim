@@ -1,6 +1,8 @@
 import { BRAND_DATA, IMAGES } from '../data/shorashimData';
 import ShorashimWordmark from './ShorashimWordmark';
 import Picture from './Picture';
+import { Images } from 'lucide-react';
+import { navigateTo } from './navigate';
 
 interface HeroProps {
   onOpenBooking: () => void;
@@ -112,27 +114,25 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             CTA: Warm ivory background (#F4EFE5), dark charcoal typography (#27241F),
             minimal padding, subtle soft corners (rounded-[6px]), no pill shape, no icon.
             
-            Secondary Link: "הסיפור של שורשים ↓" placed at an editorial distance.
+            Secondary action: a quiet outlined gallery link beside availability.
           */}
-          <div className="flex flex-wrap items-center gap-6 sm:gap-12 pr-1 sm:pr-4">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 pr-1 sm:pr-4">
             <button
               type="button"
               id="hero-check-availability-btn"
               onClick={onOpenBooking}
-              className="px-6 py-2.5 sm:px-7 sm:py-3 bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[14px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
+              className="min-h-11 px-5 py-2.5 sm:px-7 sm:py-3 border border-[#F4EFE5] bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[16px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
             >
               בירור זמינות
             </button>
 
-            <a href="#house"
-              id="hero-discover-btn"
-
-              className="hero-secondary group inline-flex items-center gap-2 text-[13px] sm:text-[14px] text-[#DED5C8]/70 hover:text-[#F4EFE5] transition-colors duration-300 cursor-pointer font-light tracking-wide select-none"
+            <a href="#gallery"
+              id="hero-gallery-btn"
+              onClick={(event) => { event.preventDefault(); navigateTo('gallery'); }}
+              className="hero-secondary inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 sm:px-7 sm:py-3 border border-[#F4EFE5]/80 text-[#F4EFE5] hover:bg-[#151412]/30 transition-colors duration-300 text-[16px] sm:text-[15px] cursor-pointer font-normal tracking-wide rounded-[6px]"
             >
-              <span>לראות את הבית</span>
-              <span aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-y-[2px] opacity-70">
-                ↓
-              </span>
+              <Images className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>גלריה</span>
             </a>
           </div>
 
