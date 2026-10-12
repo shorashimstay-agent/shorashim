@@ -360,9 +360,9 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
   // The internal note stays private: not in the description, nor in the shared properties guests' copies get.
   expect(ev.description ?? '').not.toContain('הערה פנימית');
   expect(JSON.stringify(ev.extendedProperties?.shared ?? {})).not.toContain('הערה פנימית');
-  expect(ev.extendedProperties?.private?.note).toBe('הערה פנימית');
+  // The console still has it: the backend reads the private property as the calendar's owner.
   const o = await api.console('overview');
-  expect(o.bookings.find((b: any) => b.id === phone.id)).toMatchObject({ kind: 'phone', name, estimate: 1900, reopenable: false });
+  expect(o.bookings.find((b: any) => b.id === phone.id)).toMatchObject({ kind: 'phone', name, estimate: 1900, reopenable: false, notes: 'הערה פנימית' });
   expect(await api.console('unblock', { id: phone.id })).toMatchObject({ ok: false, error: 'is_booking' });
 
   const holder = guestName('קונסולה שמירה');
