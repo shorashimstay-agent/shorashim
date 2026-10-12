@@ -8,10 +8,12 @@ import {
   bookingRows,
   cleanup,
   israelToday,
+  nights,
   owner,
   randomPhone,
   requestEvents,
   requestRows,
+  snapshot,
   waitFor,
   webApp,
 } from './lib/backend';
@@ -22,6 +24,8 @@ const api = webApp(cfg);
 // Scenario nights 150–240 days ahead, apart from booking.spec.ts's window (250–360).
 const base = addDays(israelToday(), 150 + Math.floor(Math.random() * 80));
 const slot = (i: number) => addDays(base, i * 5);
+// The closing scenarios (O10–O12) use the weeks just before, so they stay clear of booking.spec.ts too.
+const early = (i: number) => addDays(base, -40 + i * 10);
 const guestName = (who: string) => `${runTag} ${who}`;
 let refSeq = 0;
 
@@ -108,7 +112,8 @@ test('O1: the overview shows requests, bookings and channel bookings, as the adm
   await expect(card(page, r.id)).toContainText(r.name);
   await expect(card(page, r.id)).toContainText('התאריכים שמורים');
   await page.getByRole('button', { name: 'הזמנות' }).click();
-  await expect(page.locator('#bookings-upcoming')).toContainText(blockTitle);
+  // A manual event made in Google Calendar is listed with the closed dates, with a reopen button.
+  await expect(page.locator('#blocks')).toContainText(blockTitle);
   await page.getByRole('button', { name: 'ערוצים' }).click();
   await expect(page.locator('#channels')).toContainText(channelTitle);
   await page.getByRole('button', { name: 'יומן' }).click();
@@ -258,4 +263,122 @@ test('O9: the owner email link opens the console on its request, or says it was 
   await page.goto(link(r));
   await expect(page.locator('#linked-note')).toContainText(`הבקשה של ${r.name} (${r.ref}) כבר נדחתה`, { timeout: 180_000 });
   await expect(page.locator('.card.linked')).toHaveCount(0);
+});
+
+test('O10: closing dates in the console blocks them on the site at once, and reopening frees them', async ({ page }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const start = early(0);
+  const end = addDays(start, 3);
+  const note = `${runTag} סגירה מהקונסולה`;
+  await openConsole(page);
+  await page.locator('nav.tabs').getByRole('button', { name: 'יומן' }).click();
+  await page.getByRole('button', { name: /סגירת תאריכים/ }).click();
+  await (await calendarDay(page, start)).click();
+  await (await calendarDay(page, end)).click();
+  await page.getByRole('button', { name: 'המשך' }).click();
+
+  // The form passes axe in each of its three forms.
+  for (const kind of ['הזמנה טלפונית', 'שמירה זמנית', 'סגירה']) {
+    await page.locator('#block-panel [data-choice="kind"]', { hasText: kind }).click();
+    const result = await new AxeBuilder({ page }).include('#screen-calendar').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']).analyze();
+    expect(result.violations.map((v) => `${kind}: ${v.id} ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`)).toEqual([]);
+  }
+
+  await page.getByRole('button', { name: 'תחזוקה' }).click();
+  await page.locator('#bf-note').fill(note);
+  await page.getByRole('button', { name: 'סגירת 3 לילות' }).click();
+  await page.getByRole('button', { name: 'כן, לשמור' }).click();
+  const result = page.locator('#block-result');
+  await expect(result).toContainText('התאריכים נסגרו', { timeout: 120_000 });
+  await expect(result).toContainText('מעודכן');
+
+  const events = await bookingEvents(cfg, note);
+  expect(events).toHaveLength(1);
+  expect(events[0].extendedProperties?.shared).toMatchObject({ source: 'console', kind: 'block', reason: 'תחזוקה' });
+  expect([events[0].start?.date, events[0].end?.date]).toEqual([start, end]);
+  // The availability snapshot the website reads was rewritten before the console answered.
+  await waitFor('closed nights in the snapshot', async () => {
+    const blocked = (await snapshot(cfg)).blocked;
+    return nights(start, end).every((n) => blocked.includes(n));
+  }, 60_000, 5_000);
+  expect((await api.availability()).blocked).toEqual(expect.arrayContaining(nights(start, end)));
+
+  // Reopen from the calendar's day panel.
+  await page.getByRole('button', { name: 'סיום' }).click();
+  await (await calendarDay(page, start)).click();
+  await expect(page.locator('#day-panel')).toContainText('סגור · תחזוקה', { timeout: 60_000 });
+  await page.locator('#day-panel').getByRole('button', { name: 'פתיחת התאריכים' }).click();
+  await page.locator('#day-panel').getByRole('button', { name: 'כן, לפתוח' }).click();
+  await waitFor('closing deleted', async () => (await bookingEvents(cfg, note)).length === 0, 120_000, 5_000);
+  await waitFor('nights free in the snapshot', async () => !(await snapshot(cfg)).blocked.includes(start), 120_000, 5_000);
+});
+
+test('O11: closings that overlap taken nights are refused, a retry closes once, and the signature covers the dates', async () => {
+  const start = early(1);
+  const r = await fixtureRequest('קונסולה סגירה חופפת', addDays(start, 2), 1);
+  const overlap = `${runTag} סגירה חופפת`;
+  expect(await api.console('block', { args: { kind: 'block', start, end: addDays(start, 4), reason: 'אחר', note: overlap } })).toMatchObject({ ok: false, error: 'unavailable', nights: [r.start] });
+  expect(await bookingEvents(cfg, overlap)).toHaveLength(0);
+  expect(await api.console('block', { args: { kind: 'block', start: addDays(israelToday(), -1), end: start, reason: 'אחר' } })).toMatchObject({ ok: false, error: 'invalid' });
+
+  // The page retries when Google loses an answer; the same requestId closes the dates once.
+  const once = { requestId: `${runTag}-once`.replace(/[^\w-]/g, ''), kind: 'block', start: addDays(start, 3), end: addDays(start, 4), reason: 'אחר', note: `${runTag} פעם אחת` };
+  const first = await api.console('block', { args: once });
+  expect(first).toMatchObject({ ok: true, result: 'blocked', nights: 1 });
+  expect((await api.console('block', { args: once })).id).toBe(first.id);
+  expect(await bookingEvents(cfg, once.note)).toHaveLength(1);
+
+  // A signature made for one set of dates does not authorize others.
+  const t = String(Date.now());
+  const { sign } = await import('./lib/backend');
+  const other = { ...once, requestId: 'tampered-0001', end: addDays(start, 9) };
+  const sig = sign(cfg, ['console', t, 'block', '', ''].join(':') + ':' + JSON.stringify(once));
+  expect(await api.post({ action: 'console', op: 'block', t, id: '', decision: '', args: other, sig })).toMatchObject({ ok: false, error: 'unauthorized' });
+
+  // A website booking cannot be "reopened" from the console; cancelling a stay is done in the calendar.
+  const booked = await owner.insertEvent(cfg.calendars.bookings, { summary: `${runTag} אורח מהאתר`, start: { date: addDays(start, 6) }, end: { date: addDays(start, 7) }, extendedProperties: { shared: { source: 'website' } } });
+  expect(await api.console('unblock', { id: booked.iCalUID })).toMatchObject({ ok: false, error: 'is_booking' });
+  expect(await api.console('unblock', { id: first.id })).toMatchObject({ ok: true, result: 'reopened' });
+});
+
+test('O12: a phone booking invites the guest; a temporary hold blocks, extends, turns into a booking, and runs out', async () => {
+  const start = early(2);
+  const name = guestName('קונסולה טלפון');
+  const phone = await api.console('block', { args: { kind: 'phone', start, end: addDays(start, 2), stayType: 'couple', name, phone: randomPhone(), email: e2e.guestA.email, adults: 2, price: 1900, note: 'הערה פנימית' } });
+  expect(phone).toMatchObject({ ok: true, result: 'booked', invited: true });
+  expect(phone.whatsapp).toMatch(/^https:\/\/wa\.me\//);
+  const ev = (await bookingEvents(cfg, name))[0];
+  expect(ev.attendees?.map((a) => a.email)).toEqual([e2e.guestA.email]);
+  expect(ev.description ?? '').not.toContain('הערה פנימית');
+  const o = await api.console('overview');
+  expect(o.bookings.find((b: any) => b.id === phone.id)).toMatchObject({ kind: 'phone', name, estimate: 1900, reopenable: false });
+  expect(await api.console('unblock', { id: phone.id })).toMatchObject({ ok: false, error: 'is_booking' });
+
+  const holder = guestName('קונסולה שמירה');
+  const held = nights(addDays(start, 3), addDays(start, 5));
+  const hold = await api.console('block', { args: { kind: 'hold', start: held[0], end: addDays(start, 5), hours: 24, name: holder } });
+  expect(hold).toMatchObject({ ok: true, result: 'held' });
+  expect((await api.availability()).blocked).toEqual(expect.arrayContaining(held));
+  const extended = await api.console('extendHold', { id: hold.id, args: { hours: 24 } });
+  expect(Date.parse(extended.expiresAt) - Date.parse(hold.expiresAt)).toBeGreaterThan(23 * 3600_000);
+  const converted = await api.console('block', { args: { kind: 'phone', start: held[0], end: addDays(start, 5), stayType: 'couple', name: holder, phone: randomPhone(), email: '', adults: 2, price: 0, replaceId: hold.id } });
+  expect(converted).toMatchObject({ ok: true, result: 'booked', invited: false });
+  const after = await bookingEvents(cfg, holder);
+  expect(after).toHaveLength(1);
+  expect(after[0].extendedProperties?.shared?.kind).toBe('phone');
+
+  // A hold that ran out stops blocking, and the next availability rebuild deletes it.
+  const stale = guestName('קונסולה שמירה שפגה');
+  const staleNight = addDays(start, 7);
+  await owner.insertEvent(cfg.calendars.bookings, {
+    summary: `⏳ שמירה זמנית · ${stale}`,
+    start: { date: staleNight },
+    end: { date: addDays(staleNight, 1) },
+    extendedProperties: { shared: { source: 'console', kind: 'hold', holder: stale, createdAt: new Date(Date.now() - 86400_000).toISOString(), expiresAt: new Date(Date.now() - 60_000).toISOString() } },
+  });
+  await api.diag();
+  expect((await api.availability()).blocked).not.toContain(staleNight);
+  await waitFor('expired hold deleted', async () => (await bookingEvents(cfg, stale)).length === 0, 90_000, 5_000);
+  expect((await api.console('overview')).bookings.some((b: any) => b.holder === stale)).toBe(false);
 });

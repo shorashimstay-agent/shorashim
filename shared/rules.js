@@ -305,3 +305,87 @@ export function validateRequest(input, today, prices) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Dates closed from the owner console. Each is an all-day event in the bookings calendar, so it
+// blocks the website, the console and anything else that reads that calendar (channel feeds).
+// - block: closed until reopened, with a reason
+// - phone: a booking made by phone or WhatsApp, with the guest's details
+// - hold: held for someone deciding; it stops blocking after its hours and is then deleted
+
+export var BLOCK_KINDS = ['block', 'phone', 'hold'];
+export var BLOCK_REASONS = ['שימוש משפחתי', 'תחזוקה', 'שיפוץ', 'חופשה', 'אחר'];
+export var HOLD_CHOICES = [24, 48, 72];
+// Longest a hold may run, counting extensions.
+export var HOLD_MAX_HOURS = 7 * 24;
+export var PHONE_PRICE_MAX = 100000;
+
+/**
+ * Validates a console closing. `today` is the Israel-local date. Nights are [start, end), as for
+ * requests; a closing may run to the end of the booking window. Returns the normalized closing.
+ * @param {Record<string, unknown>} input
+ * @param {string} today
+ * @returns {{ ok: true, value: Record<string, any> } | { ok: false, errors: Record<string, string> }}
+ */
+export function validateBlock(input, today) {
+  input = input || {};
+  var errors = {};
+  var kind = String(input.kind || '');
+  if (BLOCK_KINDS.indexOf(kind) === -1) errors.kind = 'invalid';
+
+  var start = String(input.start || '');
+  var end = String(input.end || '');
+  var todayN = toDayNumber(today);
+  var startN = toDayNumber(start);
+  var endN = toDayNumber(end);
+  if (isNaN(startN)) errors.start = 'invalid';
+  else if (startN < todayN) errors.start = 'past';
+  else if (startN > todayN + HORIZON_DAYS) errors.start = 'too_far';
+  if (isNaN(endN) || (!isNaN(startN) && endN <= startN)) errors.end = 'invalid';
+  else if (endN > todayN + HORIZON_DAYS + 1) errors.end = 'too_far';
+
+  var note = String(input.note || '').trim();
+  if (note.length > NOTES_MAX) errors.note = 'too_long';
+
+  var value = { kind: kind, start: start, end: end, nights: endN - startN, note: note };
+
+  if (kind === 'block') {
+    var reason = String(input.reason || '');
+    if (BLOCK_REASONS.indexOf(reason) === -1) errors.reason = 'invalid';
+    value.reason = reason;
+  }
+
+  if (kind === 'hold') {
+    var hours = Number(input.hours);
+    if (!(hours >= 1 && hours <= HOLD_MAX_HOURS && Math.floor(hours) === hours)) errors.hours = 'invalid';
+    var holder = String(input.name || '').trim();
+    if (holder.length > 80) errors.name = 'too_long';
+    value.hours = hours;
+    value.name = holder;
+  }
+
+  if (kind === 'phone') {
+    var stayType = String(input.stayType || 'couple');
+    if (!STAY_TYPES[stayType]) errors.stayType = 'invalid';
+    var name = String(input.name || '').trim();
+    if (name.length < 2 || name.length > 80) errors.name = 'required';
+    var phone = String(input.phone || '').trim();
+    var digits = phone.replace(/\D/g, '');
+    if (!/^[+\d\s\-()]+$/.test(phone) || digits.length < 9 || digits.length > 15) errors.phone = 'invalid';
+    var email = String(input.email || '').trim();
+    if (email && (email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) errors.email = 'invalid';
+    var adults = Number(input.adults);
+    if (!(adults >= 1 && adults <= MAX_ADULTS && Math.floor(adults) === adults)) errors.adults = 'invalid';
+    var price = input.price === '' || input.price == null ? 0 : Number(input.price);
+    if (!(price >= 0 && price <= PHONE_PRICE_MAX && Math.floor(price) === price)) errors.price = 'invalid';
+    value.stayType = stayType;
+    value.name = name;
+    value.phone = phone;
+    value.email = email;
+    value.adults = adults;
+    value.price = price;
+  }
+
+  if (Object.keys(errors).length) return { ok: false, errors: errors };
+  return { ok: true, value: value };
+}

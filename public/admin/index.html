@@ -137,6 +137,34 @@
   .day.ota { background: var(--ota); color: var(--ota-ink); border-color: #B9CBDD; }
   .day.today { box-shadow: inset 0 0 0 2px var(--accent); }
   .day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px #1F3A5F; }
+  .day.tent { background: var(--paper); border: 1.5px dashed #8C7A62; }
+  .day.sel { background: #1F3A5F; color: #fff; border-color: #1F3A5F; }
+  .day.co { box-shadow: inset 0 0 0 2px #1F3A5F; }
+  .day.clash { background: var(--bad-bg); border-color: #C9867E; color: var(--bad); }
+  .day { position: relative; }
+  .day .mark { position: absolute; bottom: 2px; inset-inline: 0; text-align: center; font-size: 9px; letter-spacing: 0; line-height: 1; }
+  .modebar { background: #1F3A5F; color: #fff; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 14px; }
+  .modebar p { margin: 0; font-size: 15px; }
+  .modebar small { display: block; font-size: 13px; opacity: .9; margin-top: 2px; }
+  .modebar .btn { color: #fff; border-color: rgba(255,255,255,.6); min-height: 40px; }
+  .blockform label, .blockform .label { display: block; font-size: 11px; letter-spacing: .16em; color: var(--accent); margin: 14px 0 6px; }
+  .blockform input[type=text], .blockform input[type=tel], .blockform input[type=email], .blockform input[type=number], .blockform textarea { width: 100%; min-height: 44px; padding: 9px 10px; font: inherit; font-size: 16px; border: 1px solid #CFC4B4; border-radius: 2px; background: #fff; color: var(--ink); }
+  .blockform textarea { min-height: 70px; resize: vertical; }
+  .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+  .choices button { min-height: 40px; font-size: 14px; letter-spacing: 0; border-color: var(--line); background: var(--bg); padding: 0 12px; }
+  .choices button[aria-pressed="true"] { background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+  .choices.kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--ink); }
+  .choices.kinds button { border: 0; border-inline-start: 1px solid var(--ink); border-radius: 0; flex-direction: column; gap: 0; min-height: 52px; line-height: 1.2; background: transparent; }
+  .choices.kinds button:first-child { border-inline-start: 0; }
+  .choices.kinds button[aria-pressed="true"] { background: var(--ink); color: var(--ivory); }
+  #block-start-row[hidden] { display: none; }
+  .choices.kinds small { font-size: 11px; opacity: .8; }
+  .where { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; line-height: 1.6; }
+  .fielderr { color: var(--bad); font-size: 13px; margin: 4px 0 0; }
+  .warnbox { padding: 12px 14px; border: 1px solid #E3B3AC; border-inline-start: 3px solid var(--bad); background: var(--bad-bg); color: var(--bad); font-size: 14px; line-height: 1.55; margin: 0 0 12px; }
+  .stack { display: grid; gap: 8px; }
+  ul.prop { list-style: none; margin: 10px 0 12px; padding: 0; border-top: 1px solid var(--line); }
+  ul.prop li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--body); }
   .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; color: var(--muted); margin: 14px 0 4px; padding: 0; list-style: none; }
   .legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-inline-end: 6px; border: 1px solid var(--line); }
   .panel { background: rgba(222,213,200,.4); border: 1px solid var(--line); padding: 18px; margin: 0 0 18px; }
@@ -217,6 +245,7 @@
 
     <section class="screen" id="screen-calendar" aria-labelledby="h-calendar" hidden>
       <span class="etag">02 · יומן</span>
+      <div id="select-bar"></div>
       <div class="month">
         <button type="button" id="prev-month" aria-label="החודש הקודם">›</button>
         <h2 id="h-calendar">יומן</h2>
@@ -227,8 +256,11 @@
         <li><i style="background:#1E1D1A"></i>הזמנה מהאתר</li>
         <li><i style="background:repeating-linear-gradient(135deg,#E9E2D6,#E9E2D6 3px,#F6F2EA 3px,#F6F2EA 6px)"></i>בקשה ממתינה</li>
         <li><i style="background:#DCE6F0"></i>ערוצים</li>
-        <li><i style="background:#CFC4B4"></i>ידני / חסימה</li>
+        <li><i style="background:#CFC4B4"></i>סגור / ידני</li>
+        <li><i style="background:#FBF9F5;border:1.5px dashed #8C7A62"></i>שמירה זמנית</li>
       </ul>
+      <div id="block-start-row" class="row" style="margin:14px 0 0"><button type="button" class="btn primary" id="block-start" style="flex:1">＋ סגירת תאריכים</button></div>
+      <div id="block-panel" aria-live="polite"></div>
       <div id="day-panel" class="panel" aria-live="polite" hidden></div>
     </section>
 
@@ -236,10 +268,12 @@
       <div class="head">
         <span class="etag">03 · הזמנות</span>
         <h2 id="h-bookings">הזמנות</h2>
-        <p class="sub">הזמנות מהאתר, הזמנות ידניות וחסימות מיומן ההזמנות. להוספת חסימה: יומן Google.</p>
+        <p class="sub">הזמנות מהאתר ומהטלפון, ותאריכים סגורים. לסגירת תאריכים: לשונית יומן.</p>
       </div>
       <h3 class="tag">קרובות</h3>
       <ul class="list" id="bookings-upcoming"></ul>
+      <h3 class="tag">תאריכים סגורים</h3>
+      <ul class="list" id="blocks"></ul>
       <h3 class="tag">הסתיימו לאחרונה</h3>
       <ul class="list" id="bookings-past"></ul>
     </section>
@@ -266,7 +300,7 @@
 
 <script>
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
-  var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [] };
+  var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null };
   // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
   // first, marked, once the data has loaded (after the login, if one is needed).
   var linked = (function () {
@@ -312,7 +346,7 @@
     attempt = attempt || 1;
     var controller = new AbortController();
     // A decision with a calendar invitation can take a while; other calls answer faster.
-    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' ? 60000 : 30000);
+    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' || body.op === 'block' ? 60000 : 30000);
     return fetch(API, { method: 'POST', body: JSON.stringify(body), signal: controller.signal })
       .then(function (res) { return res.json(); })
       .then(function (data) {
@@ -328,7 +362,7 @@
 
   function call(op, args) {
     args = args || {};
-    return post({ action: 'console', op: op, token: token(), id: args.id || '', decision: args.decision || '' }).then(function (data) {
+    return post({ action: 'console', op: op, token: token(), id: args.id || '', decision: args.decision || '', args: args.args }).then(function (data) {
       if (data.ok === false && data.error === 'unauthorized') {
         setToken('');
         showLogin('החיבור הסתיים. יש להיכנס שוב.');
@@ -621,19 +655,34 @@
 
   // ---- Calendar
 
+  // What each night holds. Bookings-calendar events carry a kind: website, phone, manual (made in
+  // Google Calendar), or a console closing (block) or temporary hold (hold).
+  var KIND_CLASS = { website: 'booked', phone: 'booked', manual: 'block', block: 'block', hold: 'tent' };
+  function bookingLabel(b) {
+    if (b.kind === 'website') return 'הזמנה · ' + (b.name || b.title) + ' · ' + nightsText(b.nights);
+    if (b.kind === 'phone') return 'הזמנה טלפונית · ' + b.name + ' · ' + nightsText(b.nights);
+    if (b.kind === 'block') return 'סגור · ' + b.reason + ' · ' + nightsText(b.nights);
+    if (b.kind === 'hold') return 'שמירה זמנית' + (b.holder ? ' · ' + b.holder : '') + ' · ' + holdLeft(b.expiresAt);
+    return 'ידני · ' + b.title + ' · ' + nightsText(b.nights);
+  }
+  function holdLeft(expiresAt) {
+    var hours = Math.max(1, Math.round((Date.parse(expiresAt) - Date.now()) / 3600000));
+    return 'נפתח לבד בעוד ' + (hours === 1 ? 'שעה' : hours + ' שעות');
+  }
   function nightKinds() {
     var d = state.data, out = {};
-    function mark(start, end, kind, label) {
-      for (var n = start; n < end; n = addDays(n, 1)) (out[n] = out[n] || []).push({ kind: kind, label: label });
+    function mark(start, end, entry) {
+      for (var n = start; n < end; n = addDays(n, 1)) (out[n] = out[n] || []).push(entry);
     }
-    d.bookings.forEach(function (b) { mark(b.start, b.end, b.source === 'website' ? 'booked' : 'block', (b.source === 'website' ? 'הזמנה · ' : 'ידני · ') + (b.name || b.title) + ' · ' + nightsText(b.nights)); });
-    d.channels.forEach(function (c) { mark(c.start, c.end, 'ota', 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights)); });
-    d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r.start, r.end, 'hold', 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate)); });
+    d.bookings.forEach(function (b) { mark(b.start, b.end, { kind: KIND_CLASS[b.kind] || 'block', label: bookingLabel(b), booking: b }); });
+    d.channels.forEach(function (c) { mark(c.start, c.end, { kind: 'ota', label: 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights) }); });
+    d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r.start, r.end, { kind: 'hold', label: 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate), request: r }); });
     return out;
   }
 
   function renderCalendar() {
-    var d = state.data, kinds = nightKinds();
+    var d = state.data, kinds = nightKinds(), b = state.block;
+    var picking = b && b.step === 'pick';
     var y = Number(state.month.slice(0, 4)), m = Number(state.month.slice(5, 7)) - 1;
     $('h-calendar').textContent = MONTHS[m] + ' ' + y;
     var first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate();
@@ -644,21 +693,90 @@
       var k = kinds[date] || [];
       var cls = k.length ? k[0].kind : '';
       var label = he(date) + (k.length ? ': ' + k.map(function (x) { return x.label; }).join('; ') : ': פנוי');
-      html += '<button type="button" class="day ' + cls + (date === d.today ? ' today' : '') + (date < d.today ? ' past' : '') + '" data-date="' + date + '" aria-label="' + esc(label) + '" aria-pressed="' + (state.day === date) + '">' + day + '</button>';
+      var mark = '';
+      var pressed = state.day === date;
+      if (b && b.start && (b.step === 'pick' || b.step === 'form' || b.step === 'confirm')) {
+        var end = b.end || addDays(b.start, 1);
+        if (date >= b.start && date < end) { cls = k.length ? 'clash' : 'sel'; label += ' · נבחר'; pressed = true; }
+        else if (b.end && date === b.end) { cls += ' co'; mark = '<span class="mark" aria-hidden="true">יציאה</span>'; label += ' · יום היציאה'; }
+      }
+      if (cls.indexOf('block') === 0 || cls.indexOf('tent') === 0) mark = mark || '<span class="mark" aria-hidden="true">🔒</span>';
+      html += '<button type="button" class="day ' + cls + (date === d.today ? ' today' : '') + (date < d.today ? ' past' : '') + '" data-date="' + date + '" aria-label="' + esc(label) + '" aria-pressed="' + pressed + '">' + day + mark + '</button>';
     }
     $('cal').innerHTML = html;
+    $('select-bar').innerHTML = picking
+      ? '<div class="modebar" role="status"><div><p>בחירת לילות</p><small>' + (!b.start || b.end ? 'לחצי על הלילה הראשון' : 'עכשיו לחצי על יום היציאה') + '</small></div><button type="button" class="btn" data-block="cancel">ביטול</button></div>'
+      : '';
+    $('block-start-row').hidden = !!b;
+    renderBlockPanel(kinds);
     var panel = $('day-panel');
-    if (state.day && state.day.slice(0, 7) === state.month) {
-      var list = kinds[state.day] || [];
+    if (!b && state.day && state.day.slice(0, 7) === state.month) {
       panel.hidden = false;
-      panel.innerHTML = '<h3>' + he(state.day) + '</h3>' + (list.length ? '<ul class="list">' + list.map(function (x) { return '<li class="what" style="padding:4px 0">' + esc(x.label) + '</li>'; }).join('') + '</ul>' : '<p class="what">הלילה הזה פנוי.</p>');
+      panel.innerHTML = dayPanel(state.day, kinds[state.day] || []);
     } else panel.hidden = true;
   }
+
+  function dayPanel(date, list) {
+    var html = '<h3>' + he(date) + '</h3>';
+    if (!list.length) return html + '<p class="what">הלילה הזה פנוי.</p>';
+    return html + list.map(function (x) {
+      var b = x.booking;
+      var out = '<div class="what" style="padding:4px 0">' + esc(x.label) + '</div>';
+      if (!b || !b.reopenable || b.end <= state.data.today) return out;
+      if (b.blockNote) out += '<p class="note" style="margin:6px 0">' + esc(b.blockNote) + '</p>';
+      var busy = state.dayBusy === b.id;
+      if (state.dayConfirm === b.id) {
+        return out + '<div class="confirm" role="group" aria-label="אישור הפתיחה"><p>לפתוח את ' + range(b.start, b.end) + ' (' + nightsText(b.nights) + ')?</p>' +
+          '<div class="actions two"><button type="button" class="btn danger primary" data-day="reopen" data-id="' + esc(b.id) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'פותחים…' : 'כן, לפתוח') + '</button>' +
+          '<button type="button" class="btn quiet" data-day="cancel"' + (busy ? ' disabled' : '') + '>לא</button></div></div>';
+      }
+      if (b.kind === 'hold') {
+        return out + '<div class="actions" style="grid-template-columns:1fr 1fr 1fr"><button type="button" class="btn" data-day="extend" data-id="' + esc(b.id) + '"' + (busy ? ' disabled' : '') + '>הארכה ב-24 שעות</button>' +
+          '<button type="button" class="btn primary" data-day="convert" data-id="' + esc(b.id) + '">להזמנה</button>' +
+          '<button type="button" class="btn danger" data-day="ask" data-id="' + esc(b.id) + '">שחרור</button></div>';
+      }
+      return out + '<button type="button" class="btn danger" data-day="ask" data-id="' + esc(b.id) + '">פתיחת התאריכים</button>';
+    }).join('');
+  }
+
+  function findBooking(id) { return state.data.bookings.filter(function (b) { return b.id === id; })[0]; }
+
+  $('day-panel').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-day]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-day'), id = btn.getAttribute('data-id');
+    if (action === 'ask') { state.dayConfirm = id; renderCalendar(); focusFirst('#day-panel [data-day="reopen"]'); return; }
+    if (action === 'cancel') { state.dayConfirm = null; renderCalendar(); return; }
+    if (action === 'convert') {
+      var h = findBooking(id);
+      state.block = { step: 'form', start: h.start, end: h.end, replaceId: id, form: newForm('phone', { name: h.holder || '', note: h.blockNote || '' }) };
+      state.day = null;
+      renderCalendar();
+      focusFirst('#block-panel input');
+      return;
+    }
+    if (action === 'reopen' || action === 'extend') {
+      state.dayBusy = id;
+      renderCalendar();
+      var req = action === 'reopen' ? call('unblock', { id: id }) : call('extendHold', { id: id, args: { hours: 24 } });
+      req.then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; }).then(function (res) {
+        state.dayBusy = null;
+        state.dayConfirm = null;
+        announce(res.ok ? (action === 'reopen' ? 'התאריכים נפתחו' : 'השמירה הוארכה ב-24 שעות') : res.error === 'is_booking' ? 'זו הזמנה של אורח: ביטול נעשה ביומן Google.' : 'לא הצלחנו לשמור. רעננו ונסו שוב.');
+        load(true);
+      });
+    }
+  });
+
+  function focusFirst(selector) { var el = document.querySelector(selector); if (el) el.focus(); }
 
   $('cal').addEventListener('click', function (e) {
     var b = e.target.closest('[data-date]');
     if (!b) return;
-    state.day = b.getAttribute('data-date');
+    var date = b.getAttribute('data-date');
+    if (state.block && state.block.step === 'pick') return pickNight(date);
+    state.day = date;
+    state.dayConfirm = null;
     renderCalendar();
     var again = document.querySelector('[data-date="' + state.day + '"]');
     if (again) again.focus();
@@ -672,6 +790,304 @@
   $('prev-month').onclick = function () { shiftMonth(-1); };
   $('next-month').onclick = function () { shiftMonth(1); };
 
+  // ---- Closing dates (backend: closeDates_ in apps-script/src/Code.js; rules: validateBlock)
+
+  var KIND_TEXT = { block: ['סגירה', 'עד שאפתח'], phone: ['הזמנה טלפונית', 'אורח סגור'], hold: ['שמירה זמנית', 'נפתחת לבד'] };
+  var STAY_CHOICES = [['couple', 'חופשה זוגית'], ['wedding_night', 'ליל כלולות'], ['bride_night_day', 'לילה לפני + יום כלה'], ['bride_day', 'יום כלה']];
+
+  function newForm(kind, extra) {
+    var f = { kind: kind, reason: (state.data.blockReasons || [])[0] || '', hours: 48, note: '', name: '', phone: '', email: '', stayType: 'couple', adults: 2, price: '', errors: {} };
+    Object.keys(extra || {}).forEach(function (k) { f[k] = extra[k]; });
+    return f;
+  }
+
+  /** A price suggestion for a phone booking, the way the website estimates (shared/rules.js estimatePrice). */
+  function suggestPrice(f, start, end) {
+    var p = state.data.prices;
+    if (!p) return 0;
+    if (p[f.stayType] && f.stayType !== 'couple') return p[f.stayType];
+    var total = 0, nights = 0;
+    for (var n = start; n < end; n = addDays(n, 1)) {
+      var dow = parse(n).getDay();
+      total += dow === 5 || dow === 6 ? (p.weekendPerNight || p.perNight) : p.perNight;
+      nights++;
+    }
+    return total + (Number(f.adults) === 3 ? p.thirdGuestPerNight * nights : 0);
+  }
+
+  function startBlock() {
+    state.block = { step: 'pick', start: null, end: null };
+    state.day = null;
+    state.dayConfirm = null;
+    renderCalendar();
+    announce('בחירת לילות: לחצי על הלילה הראשון');
+    focusFirst('#cal .day:not(.out)');
+  }
+  $('block-start').onclick = startBlock;
+
+  function pickNight(date) {
+    var b = state.block, kinds = nightKinds();
+    if (date < state.data.today) return announce('אי אפשר לסגור לילה שעבר');
+    if (!b.start || b.end || date <= b.start) {
+      if (kinds[date]) return announce(he(date) + ' כבר תפוס. בחרי לילה פנוי להתחלה.');
+      b.start = date;
+      b.end = null;
+      announce('לילה ראשון: ' + he(date) + '. עכשיו לחצי על יום היציאה');
+    } else {
+      b.end = date;
+      announce(nightsText(daysBetweenDates(b.start, b.end)) + ' נבחרו, יציאה ' + he(date));
+    }
+    renderCalendar();
+    var again = document.querySelector('[data-date="' + date + '"]');
+    if (again) again.focus();
+  }
+  function daysBetweenDates(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); }
+
+  /** The nights of the selection that are taken, with what takes them. */
+  function clashesOf(b, kinds) {
+    var out = [];
+    for (var n = b.start; n < b.end; n = addDays(n, 1)) if (kinds[n]) out.push({ date: n, items: kinds[n] });
+    return out;
+  }
+
+  function renderBlockPanel(kinds) {
+    var b = state.block, el = $('block-panel');
+    if (!b) { el.innerHTML = ''; return; }
+    if (b.step === 'pick') {
+      if (!b.start || !b.end) { el.innerHTML = ''; return; }
+      var n = daysBetweenDates(b.start, b.end), clashes = clashesOf(b, kinds);
+      if (!clashes.length) {
+        el.innerHTML = '<div class="panel"><h3>' + nightsText(n) + ' · ' + he(b.start) + ' – יציאה ' + he(b.end) + '</h3>' +
+          '<p class="what">' + (n === 1 ? 'הלילה של ' + heFull(b.start) + ' ייסגר.' : 'הלילות מ-' + heFull(b.start) + ' עד ' + heFull(addDays(b.end, -1)) + ' ייסגרו.') + ' ' + heFull(b.end) + ' נשאר פתוח לכניסה של האורח הבא.</p>' +
+          '<button type="button" class="btn primary" data-block="continue" style="width:100%;margin-top:6px">המשך</button></div>';
+        return;
+      }
+      var first = clashes[0].date;
+      var request = null;
+      var lines = clashes.map(function (c) {
+        c.items.forEach(function (x) { if (x.request) request = request || x.request; });
+        return '<div>הלילה של ' + he(c.date) + ': ' + esc(c.items.map(function (x) { return x.label; }).join('; ')) + '</div>';
+      }).join('');
+      el.innerHTML = '<div class="warnbox" role="alert"><b>אי אפשר לסגור את כל הטווח.</b>' + lines + '</div><div class="stack">' +
+        (first > b.start ? '<button type="button" class="btn primary" data-block="trim">לסגור רק ' + range(b.start, first) + ' (' + nightsText(daysBetweenDates(b.start, first)) + ')</button>' : '') +
+        (request ? '<button type="button" class="btn" data-block="open-request" data-id="' + esc(request.id) + '">לפתוח את הבקשה (אישור או דחייה)</button>' : '') +
+        '<button type="button" class="btn quiet" data-block="restart">בחירה מחדש</button></div>';
+      return;
+    }
+    if (b.step === 'form' || b.step === 'confirm' || b.step === 'busy') { el.innerHTML = blockForm(b); return; }
+    if (b.step === 'result') { el.innerHTML = blockResult(b.result); return; }
+  }
+
+  function choice(group, value, current, label, extra) {
+    return '<button type="button" data-choice="' + group + '" data-value="' + esc(value) + '" aria-pressed="' + (String(value) === String(current)) + '">' + label + (extra || '') + '</button>';
+  }
+  function input(id, label, type, value, err, attrs) {
+    return '<label for="bf-' + id + '">' + label + '</label><input id="bf-' + id + '" data-field="' + id + '" type="' + type + '" value="' + esc(value) + '"' + (attrs || '') + (err ? ' aria-invalid="true" aria-describedby="bf-' + id + '-err"' : '') + '>' +
+      (err ? '<p class="fielderr" id="bf-' + id + '-err">' + err + '</p>' : '');
+  }
+
+  function blockForm(b) {
+    var f = b.form, n = daysBetweenDates(b.start, b.end), e = f.errors || {};
+    var html = '<form class="panel blockform" id="block-form" novalidate><h3>' + range(b.start, b.end) + ' · ' + nightsText(n) + '</h3>' +
+      '<p class="what">' + he(b.start) + ' עד ' + he(b.end) + ' (יציאה)</p>' +
+      '<span class="label" id="bf-kind-l">מה זה</span><div class="choices kinds" role="group" aria-labelledby="bf-kind-l">' +
+      ['block', 'phone', 'hold'].map(function (k) { return b.replaceId && k !== 'phone' ? '' : choice('kind', k, f.kind, KIND_TEXT[k][0], '<small>' + KIND_TEXT[k][1] + '</small>'); }).join('') + '</div>';
+    if (f.kind === 'block') {
+      html += '<span class="label" id="bf-reason-l">סיבה</span><div class="choices" role="group" aria-labelledby="bf-reason-l">' +
+        (state.data.blockReasons || []).map(function (r) { return choice('reason', r, f.reason, esc(r)); }).join('') + '</div>';
+    } else if (f.kind === 'hold') {
+      html += '<span class="label" id="bf-hours-l">לכמה זמן</span><div class="choices" role="group" aria-labelledby="bf-hours-l">' +
+        (state.data.holdChoices || [24, 48, 72]).map(function (h) { return choice('hours', h, f.hours, h + ' שעות'); }).join('') + '</div>' +
+        input('name', 'למי (לא חובה)', 'text', f.name, e.name, ' maxlength="80" autocomplete="off"');
+    } else {
+      var suggested = suggestPrice(f, b.start, b.end);
+      html += input('name', 'שם האורח', 'text', f.name, e.name, ' maxlength="80" autocomplete="off"') +
+        input('phone', 'טלפון', 'tel', f.phone, e.phone, ' dir="ltr" autocomplete="off"') +
+        '<span class="label" id="bf-stay-l">מסלול</span><div class="choices" role="group" aria-labelledby="bf-stay-l">' +
+        STAY_CHOICES.map(function (s) { return choice('stayType', s[0], f.stayType, s[1]); }).join('') + '</div>' +
+        '<span class="label" id="bf-adults-l">מבוגרים</span><div class="choices" role="group" aria-labelledby="bf-adults-l">' +
+        [1, 2, 3].map(function (a) { return choice('adults', a, f.adults, String(a)); }).join('') + '</div>' +
+        input('price', 'מחיר מוסכם ב-₪' + (suggested ? ' (מחושב: ' + money(suggested) + ')' : ''), 'number', f.price === '' ? (suggested || '') : f.price, e.price, ' inputmode="numeric" min="0" step="1"') +
+        input('email', 'מייל (לא חובה): לשליחת הזמנה ליומן', 'email', f.email, e.email, ' dir="ltr" autocomplete="off"');
+    }
+    html += '<label for="bf-note">' + (f.kind === 'phone' ? 'הערה פנימית (האורח לא רואה)' : 'הערה פנימית (לא מוצגת לאף אחד)') + '</label>' +
+      '<textarea id="bf-note" data-field="note" maxlength="450">' + esc(f.note) + '</textarea>' +
+      '<p class="where"><b>ייסגר ב:</b> האתר (תוך כדקה) · יומן Google · ובערוצים שיחוברו ליומן</p>';
+    if (b.error) html += '<div class="warnbox" role="alert">' + esc(b.error) + '</div>';
+    if (b.step === 'form') {
+      return html + '<div class="actions two"><button type="button" class="btn quiet" data-block="back">חזרה</button><button type="submit" class="btn primary">' + submitText(f, n) + '</button></div></form>';
+    }
+    // While confirming, the filled-in form is frozen (inert) and the confirm step follows it.
+    var busy = b.step === 'busy';
+    return html.replace('<form', '<form inert') + '</form>' +
+      '<div class="confirm" role="group" aria-label="אישור"><p>' + confirmText(f, b, n) + '</p>' +
+      '<div class="actions two"><button type="button" class="btn primary" data-block="yes"' + (busy ? ' disabled' : '') + '>' + (busy ? 'שומרים…' : 'כן, לשמור') + '</button>' +
+      '<button type="button" class="btn quiet" data-block="no"' + (busy ? ' disabled' : '') + '>לא</button></div></div>';
+  }
+  function submitText(f, n) {
+    if (f.kind === 'phone') return 'שמירת ההזמנה';
+    if (f.kind === 'hold') return 'שמירה ל-' + f.hours + ' שעות';
+    return 'סגירת ' + nightsText(n);
+  }
+  function confirmText(f, b, n) {
+    if (f.kind === 'phone') return 'לשמור הזמנה של ' + esc(f.name) + ' ל-' + range(b.start, b.end) + '?';
+    if (f.kind === 'hold') return 'לשמור את ' + range(b.start, b.end) + ' ל-' + f.hours + ' שעות?';
+    return 'לסגור את ' + range(b.start, b.end) + ' (' + nightsText(n) + ')?';
+  }
+
+  function blockResult(r) {
+    var title = r.kind === 'phone' ? '✓ ההזמנה של ' + esc(r.name) + ' נשמרה' : r.kind === 'hold' ? '✓ התאריכים שמורים' : '✓ התאריכים נסגרו';
+    var html = '<div class="result ok" id="block-result"><p class="title">' + title + '</p><p>' + range(r.start, r.end) + ' · ' + nightsText(r.nights) + (r.reason ? ' · ' + esc(r.reason) : '') + '</p>' +
+      '<ul class="prop"><li>יומן ההזמנות של Google<span class="pill ok">נשמר</span></li>' +
+      '<li>האתר<span class="pill ' + (r.snapshot ? 'ok">מעודכן' : 'warn">יתעדכן תוך כמה דקות') + '</span></li></ul>';
+    if (r.kind === 'hold') html += '<p>' + holdLeft(r.expiresAt) + ', אם לא תהפכי אותה להזמנה קודם.</p>';
+    if (r.kind === 'phone') html += '<p>' + (r.invited ? 'נשלחה הזמנה ליומן אל ' + esc(r.email) + '.' : 'לא נשלחה הזמנה ליומן: לא נמסר מייל.') + '</p>' +
+      (r.whatsapp ? '<a class="btn wa primary" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener">' + waIcon() + 'שליחת אישור ב-WhatsApp</a> ' : '');
+    html += '<div class="actions two" style="margin-top:10px">' + (r.kind !== 'phone' ? '<button type="button" class="btn quiet" data-block="undo"' + (r.undoing ? ' disabled' : '') + '>' + (r.undoing ? 'פותחים…' : 'ביטול הסגירה') + '</button>' : '<span></span>') +
+      '<button type="button" class="btn primary" data-block="done">סיום</button></div></div>';
+    return html;
+  }
+
+  function requestId() {
+    try { return crypto.randomUUID(); } catch (e) { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+  }
+
+  function checkForm(f) {
+    var e = {};
+    if (f.kind === 'phone') {
+      if (f.name.trim().length < 2) e.name = 'צריך שם (לפחות 2 אותיות).';
+      if (f.phone.replace(/\D/g, '').length < 9) e.phone = 'צריך מספר טלפון.';
+      if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = 'המייל לא נראה תקין.';
+      if (f.price !== '' && !(Number(f.price) >= 0 && Math.floor(Number(f.price)) === Number(f.price))) e.price = 'מחיר בשקלים שלמים.';
+    }
+    return e;
+  }
+
+  function submitBlock() {
+    var b = state.block, f = b.form;
+    var args = { requestId: b.requestId, kind: f.kind, start: b.start, end: b.end, note: f.note.trim() };
+    if (f.kind === 'block') args.reason = f.reason;
+    if (f.kind === 'hold') { args.hours = Number(f.hours); args.name = f.name.trim(); }
+    if (f.kind === 'phone') {
+      var price = f.price === '' ? suggestPrice(f, b.start, b.end) : Number(f.price);
+      args.name = f.name.trim(); args.phone = f.phone.trim(); args.email = f.email.trim(); args.stayType = f.stayType; args.adults = Number(f.adults); args.price = price || 0;
+    }
+    if (b.replaceId) args.replaceId = b.replaceId;
+    b.step = 'busy';
+    renderCalendar();
+    announce('שומרים…');
+    call('block', { args: args })
+      .then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; })
+      .then(function (res) {
+        if (res.ok) {
+          b.step = 'result';
+          b.result = { kind: res.kind, id: res.id, start: res.start, end: res.end, nights: res.nights, snapshot: res.snapshot, expiresAt: res.expiresAt, invited: res.invited, whatsapp: res.whatsapp, name: f.name.trim(), email: f.email.trim(), reason: f.kind === 'block' ? f.reason : '' };
+          renderCalendar();
+          var t = document.querySelector('#block-result .title');
+          if (t) { t.setAttribute('tabindex', '-1'); t.focus(); announce(t.textContent); }
+          return load(true);
+        }
+        b.requestId = requestId();
+        if (res.error === 'unavailable') {
+          b.step = 'pick';
+          announce('חלק מהלילות כבר תפוסים');
+          return load(true).then(function () { focusFirst('#block-panel button'); });
+        }
+        b.step = 'form';
+        if (res.error === 'invalid') {
+          var map = { name: 'name', phone: 'phone', email: 'email', price: 'price' };
+          f.errors = {};
+          Object.keys(res.fields || {}).forEach(function (k) { if (map[k]) f.errors[k] = 'הערך לא תקין.'; });
+          b.error = Object.keys(f.errors).length ? '' : 'התאריכים או הפרטים לא תקינים. בדקי ונסי שוב.';
+        } else if (res.error === 'not_found') b.error = 'השמירה הזמנית כבר לא קיימת (נפתחה או פג תוקפה).';
+        else b.error = 'לא הצלחנו לוודא שהשמירה עברה. רענני ובדקי ביומן לפני שמנסים שוב.';
+        renderCalendar();
+        if (res.error === 'network') load(true);
+      });
+  }
+
+  $('block-panel').addEventListener('input', function (e) {
+    var field = e.target.getAttribute('data-field');
+    if (field && state.block && state.block.form) state.block.form[field] = e.target.value;
+  });
+  $('block-panel').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var b = state.block;
+    if (!b || b.step !== 'form') return;
+    b.form.errors = checkForm(b.form);
+    b.error = '';
+    if (Object.keys(b.form.errors).length) {
+      renderCalendar();
+      focusFirst('#block-panel [aria-invalid="true"]');
+      return;
+    }
+    b.step = 'confirm';
+    b.requestId = b.requestId || requestId();
+    renderCalendar();
+    focusFirst('#block-panel [data-block="yes"]');
+  });
+  function onBlockClick(e) {
+    var btn = e.target.closest('button');
+    if (!btn || !state.block) return;
+    var b = state.block;
+    var group = btn.getAttribute('data-choice');
+    if (group && b.step === 'form') {
+      var v = btn.getAttribute('data-value');
+      b.form[group] = group === 'hours' || group === 'adults' ? Number(v) : v;
+      if (group === 'kind') b.form.errors = {};
+      if (group === 'stayType' || group === 'adults') b.form.price = '';
+      renderCalendar();
+      focusFirst('#block-panel [data-choice="' + group + '"][data-value="' + CSS.escape(v) + '"]');
+      return;
+    }
+    var action = btn.getAttribute('data-block');
+    if (!action) return;
+    if (action === 'cancel' || action === 'done') {
+      state.block = null;
+      renderCalendar();
+      focusFirst('#block-start');
+    } else if (action === 'continue') {
+      b.step = 'form';
+      b.form = b.form || newForm('block');
+      renderCalendar();
+      focusFirst('#block-panel [data-choice="kind"][aria-pressed="true"]');
+    } else if (action === 'trim') {
+      b.end = clashesOf(b, nightKinds())[0].date;
+      renderCalendar();
+      focusFirst('#block-panel [data-block="continue"]');
+    } else if (action === 'restart') {
+      b.start = null; b.end = null;
+      renderCalendar();
+    } else if (action === 'open-request') {
+      state.block = null;
+      state.linkedId = btn.getAttribute('data-id');
+      document.querySelector('nav.tabs button[data-tab="requests"]').click();
+      renderRequests();
+      var card = document.querySelector('[data-request-id="' + CSS.escape(state.linkedId) + '"]');
+      if (card) card.scrollIntoView({ block: 'start' });
+    } else if (action === 'back') {
+      if (b.replaceId) { state.block = null; renderCalendar(); return; }
+      b.step = 'pick';
+      renderCalendar();
+    } else if (action === 'no') {
+      b.step = 'form';
+      renderCalendar();
+      focusFirst('#block-panel button[type="submit"]');
+    } else if (action === 'yes') {
+      submitBlock();
+    } else if (action === 'undo') {
+      b.result.undoing = true;
+      renderCalendar();
+      call('unblock', { id: b.result.id }).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
+        announce(res.ok ? 'הסגירה בוטלה והתאריכים נפתחו' : 'לא הצלחנו לבטל. אפשר לפתוח את התאריכים מהיומן.');
+        if (res.ok) state.block = null; else b.result.undoing = false;
+        load(true).then(function () { focusFirst('#block-start'); });
+      });
+    }
+  }
+  $('block-panel').addEventListener('click', onBlockClick);
+  $('select-bar').addEventListener('click', onBlockClick);
+
   // ---- Bookings and channels
 
   function dateTile(date) {
@@ -679,21 +1095,55 @@
     return '<div class="date"><b>' + dt.getDate() + '</b><span>' + MONTHS[dt.getMonth()].slice(0, 3) + '׳ · ' + DOW[dt.getDay()] + '</span></div>';
   }
 
+  var KIND_PILL = { website: ['ok', 'אתר'], phone: ['plain', 'טלפון'], manual: ['plain', 'ידני'], block: ['plain', 'סגור'], hold: ['warn', 'זמני'] };
   function bookingItem(b) {
-    var website = b.source === 'website';
-    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants)].filter(Boolean).join(' · ');
+    var guest = b.kind === 'website' || b.kind === 'phone';
+    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants), b.kind === 'phone' && b.estimate ? money(b.estimate) : ''].filter(Boolean).join(' · ');
+    var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
     return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.start) +
-      '<div><p class="who">' + esc(website ? b.name || b.title : b.title) + '</p><p class="what">' + esc(what) + '</p>' +
+      '<div><p class="who">' + esc(guest ? b.name || b.title : b.title) + '</p><p class="what">' + esc(what) + '</p>' +
       (b.phone ? '<p class="what"><a href="tel:' + esc(b.phone) + '" dir="ltr">' + esc(b.phone) + '</a>' + (b.email ? ' · <span dir="ltr">' + esc(b.email) + '</span>' : '') + '</p>' : '') +
       (b.notes ? '<p class="what">' + esc(b.notes) + '</p>' : '') +
       (b.ref ? '<p class="what ref">' + esc(b.ref) + '</p>' : '') + '</div>' +
-      '<div class="side"><span class="pill ' + (website ? 'ok' : 'plain') + '">' + (website ? 'אתר' : 'ידני') + '</span>' +
+      '<div class="side"><span class="pill ' + pill[0] + '">' + pill[1] + '</span>' +
       (b.whatsapp ? '<a class="btn wa icon" href="' + esc(b.whatsapp) + '" target="_blank" rel="noopener" aria-label="WhatsApp ל' + esc(b.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
   }
 
+  /** A closed date in the bookings tab: what closed it, and a reopen button with a second tap. */
+  function blockItem(b) {
+    var who = b.kind === 'block' ? 'סגור · ' + b.reason : b.kind === 'hold' ? 'שמירה זמנית' + (b.holder ? ' · ' + b.holder : '') : b.title;
+    var what = [range(b.start, b.end), nightsText(b.nights), b.kind === 'hold' ? holdLeft(b.expiresAt) : '', b.kind === 'manual' ? 'נסגר ביומן Google' : ''].filter(Boolean).join(' · ');
+    var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
+    var side;
+    if (!b.reopenable) side = '<span class="pill ' + pill[0] + '">' + pill[1] + '</span>';
+    else if (state.dayConfirm === 'list:' + b.id) side = '<button type="button" class="btn danger primary" data-list="reopen" data-id="' + esc(b.id) + '"' + (state.dayBusy === b.id ? ' disabled>פותחים…' : '>כן, לפתוח') + '</button><button type="button" class="btn quiet" data-list="cancel">לא</button>';
+    else side = '<span class="pill ' + pill[0] + '">' + pill[1] + '</span><button type="button" class="btn quiet" data-list="ask" data-id="' + esc(b.id) + '" aria-label="פתיחת ' + esc(range(b.start, b.end)) + '">פתיחה</button>';
+    return '<li class="item" data-block-id="' + esc(b.id) + '">' + dateTile(b.start) + '<div><p class="who">' + esc(who) + '</p><p class="what">' + esc(what) + '</p>' +
+      (b.blockNote ? '<p class="what">' + esc(b.blockNote) + '</p>' : '') + '</div><div class="side">' + side + '</div></li>';
+  }
+
+  $('blocks').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-list]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-list'), id = btn.getAttribute('data-id');
+    if (action === 'ask') { state.dayConfirm = 'list:' + id; renderBookings(); focusFirst('#blocks [data-list="reopen"]'); return; }
+    if (action === 'cancel') { state.dayConfirm = null; renderBookings(); return; }
+    state.dayBusy = id;
+    renderBookings();
+    call('unblock', { id: id }).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
+      state.dayBusy = null;
+      state.dayConfirm = null;
+      announce(res.ok ? 'התאריכים נפתחו' : 'לא הצלחנו לפתוח. רעננו ונסו שוב.');
+      load(true);
+    });
+  });
+
   function renderBookings() {
     var d = state.data;
-    var sorted = d.bookings.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    var all = d.bookings.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    var sorted = all.filter(function (b) { return b.kind === 'website' || b.kind === 'phone'; });
+    var closed = all.filter(function (b) { return b.kind !== 'website' && b.kind !== 'phone' && b.end > d.today; });
+    $('blocks').innerHTML = closed.length ? closed.map(blockItem).join('') : '<li class="empty">אין תאריכים סגורים.</li>';
     var upcoming = sorted.filter(function (b) { return b.end > d.today; });
     var past = sorted.filter(function (b) { return b.end <= d.today; }).reverse();
     $('bookings-upcoming').innerHTML = upcoming.length ? upcoming.map(bookingItem).join('') : '<li class="empty">אין הזמנות קרובות.</li>';
