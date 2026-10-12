@@ -317,7 +317,9 @@ function blockingEvents_(start, end, opts) {
     if (item.iCalUID === opts.excludeId) return false;
     if (bookingIsLive_(item, now)) {
       var props = eventProps_(item);
-      if (props.kind === 'hold' && opts.holdEnds) opts.holdEnds.push(Date.parse(props.expiresAt));
+      var ends = props.source === 'console' && props.kind === 'hold' ? Date.parse(props.expiresAt) : NaN;
+      // An unreadable expiresAt keeps the hold live but must not poison the next-expiry time.
+      if (isFinite(ends) && opts.holdEnds) opts.holdEnds.push(ends);
       return true;
     }
     if (opts.expireStale) deleteExpiredHold_(item);
