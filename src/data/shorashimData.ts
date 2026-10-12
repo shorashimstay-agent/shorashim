@@ -89,7 +89,6 @@ export const GALLERY_ITEMS: GalleryItem[] = [
   { id: 'bride', title: 'כלה בשורשים', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.bride_dress, description: 'שמלת כלה בחדר השינה' },
   { id: '1', title: 'עץ הפיקוס הוותיק', category: 'courtyard', categoryLabel: 'חצר הבית', image: IMAGES.ficus_trunk, description: 'גזע הפיקוס העתיק וקיר האבן בחצר' },
   { id: '3', title: 'יין וגבינות מקומיים', category: 'details', categoryLabel: 'תמונת אווירה', image: IMAGES.wine_cheese, description: 'בקבוק יין מקומי, כוסות ומגש גבינות' },
-  { id: '4', title: 'עיצוב שנבנה משכבות של זמן', category: 'house', categoryLabel: 'הבית', image: IMAGES.lounge, description: 'פינת ישיבה רכה, תמונות משפחה ואור חם' },
   { id: '6', title: 'העבר על הקיר. החיים ממשיכים לפרוח.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.flowers_wall, description: 'פרחים לבנים מול קיר תמונות המשפחה' },
   { id: '7', title: 'חומרים מתקופות שונות. סיפור אחד.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.corridor_shutter, description: 'מסדרון עם קיר אבן, תמונות משפחה ותריס ירוק' },
 ];
