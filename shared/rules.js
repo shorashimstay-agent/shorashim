@@ -316,7 +316,7 @@ export function validateRequest(input, today, prices) {
 export var BLOCK_KINDS = ['block', 'phone', 'hold'];
 export var BLOCK_REASONS = ['שימוש משפחתי', 'תחזוקה', 'שיפוץ', 'חופשה', 'אחר'];
 export var HOLD_CHOICES = [24, 48, 72];
-// Longest a hold may run, counting extensions.
+// Longest a hold may run, counting extensions: measured from when it was made.
 export var HOLD_MAX_HOURS = 7 * 24;
 export var PHONE_PRICE_MAX = 100000;
 

@@ -207,7 +207,7 @@ function readPricesSheet_() {
 // calendars in parallel. CalendarApp's tags are the event's *shared* extended properties, and an
 // event's iCalUID is what CalendarApp's getId() returns, so both APIs see the same events.
 
-var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties,attendees(email)),nextPageToken';
+var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties,attendees(email),recurringEventId),nextPageToken';
 
 function calendarRequest_(key, method, path, query, payload) {
   var url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CONFIG.calendars[key]) + '/events' + (path || '');
@@ -294,11 +294,14 @@ function itemRange_(item) {
 
 /**
  * Whether a bookings-calendar event blocks its nights now. Everything there does, except a console
- * hold (kind "hold") whose expiresAt has passed.
+ * hold whose expiresAt has passed. A hold with an unreadable expiresAt keeps blocking: a closing
+ * must never vanish because of bad data.
  */
 function bookingIsLive_(item, now) {
   var props = eventProps_(item);
-  return props.kind !== 'hold' || Date.parse(props.expiresAt) > now;
+  if (props.source !== 'console' || props.kind !== 'hold') return true;
+  var expires = Date.parse(props.expiresAt);
+  return isNaN(expires) || expires > now;
 }
 
 /**
@@ -815,11 +818,12 @@ function adminData_() {
       kind: props.source === 'website' ? 'website' : props.source === 'console' ? props.kind : 'manual',
       reason: props.reason || '',
       holder: props.holder || '',
-      blockNote: props.note || '',
+      blockNote: props.kind === 'phone' ? '' : props.note || '',
       expiresAt: props.expiresAt || '',
       createdAt: props.createdAt || '',
-      // Only closings without guests can be reopened from the console; bookings are cancelled in the calendar.
-      reopenable: props.source === 'console' ? props.kind !== 'phone' : props.source !== 'website' && !(item.attendees || []).length,
+      // Only console closings and holds can be reopened from the console. Bookings, and manual events
+      // made in Google Calendar (which may be a guest's stay), are changed in the calendar itself.
+      reopenable: isReopenable_(item, props),
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       adults: req.adults || '',
@@ -827,7 +831,8 @@ function adminData_() {
       name: req.name || '',
       phone: req.phone || '',
       email: req.email || '',
-      notes: req.notes || '',
+      // A phone booking's internal note is a private property (the guest's copy never has it).
+      notes: req.notes || (props.kind === 'phone' ? props.note || '' : ''),
       estimate: req.estimate || 0,
       ref: req.ref || '',
       whatsapp: req.phone ? waLink_(req.phone, 'שלום ' + req.name + ', ') : '',
@@ -983,8 +988,13 @@ function consoleCall_(body) {
   if (body.op === 'block') return consoleOnce_('block', body.args && body.args.requestId, function () {
     return closeDates_(body.args || {});
   });
-  if (body.op === 'unblock') return reopenDates_(String(body.id || ''));
-  if (body.op === 'extendHold') return extendHold_(String(body.id || ''), body.args || {});
+  // Both run once per requestId too: a retried "extend" must not add the hours twice.
+  if (body.op === 'unblock') return consoleOnce_('unblock', body.args && body.args.requestId, function () {
+    return reopenDates_(String(body.id || ''));
+  });
+  if (body.op === 'extendHold') return consoleOnce_('extendHold', body.args && body.args.requestId, function () {
+    return extendHold_(String(body.id || ''), body.args || {});
+  });
   if (body.op === 'logoutAll') {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(CONSOLE_SESSION_VERSION_KEY, String(Number(props.getProperty(CONSOLE_SESSION_VERSION_KEY) || 1) + 1));
@@ -1185,10 +1195,11 @@ function consoleOnce_(op, requestId, fn) {
 /** The event that stores a validated closing. */
 function closingEvent_(c, ref) {
   var props = { source: 'console', kind: c.kind, createdAt: new Date().toISOString() };
-  if (c.note) props.note = c.note;
+  // The note is a private property: Google copies shared properties to invited guests' events.
+  var priv = c.note ? { note: c.note } : {};
   if (c.kind === 'block') {
     props.reason = c.reason;
-    return { summary: '🔒 סגור · ' + c.reason, description: [c.note, 'נסגר מהמסוף'].filter(Boolean).join('\n'), start: { date: c.start }, end: { date: c.end }, transparency: 'opaque', extendedProperties: { shared: props } };
+    return { summary: '🔒 סגור · ' + c.reason, description: [c.note, 'נסגר מהמסוף'].filter(Boolean).join('\n'), start: { date: c.start }, end: { date: c.end }, transparency: 'opaque', extendedProperties: { shared: props, private: priv } };
   }
   if (c.kind === 'hold') {
     props.expiresAt = new Date(Date.now() + c.hours * 3600 * 1000).toISOString();
@@ -1198,7 +1209,7 @@ function closingEvent_(c, ref) {
       description: [c.note, 'נפתח לבד ב-' + fmt_(new Date(props.expiresAt), 'dd.MM.yyyy HH:mm')].filter(Boolean).join('\n'),
       start: { date: c.start },
       end: { date: c.end },
-      extendedProperties: { shared: props },
+      extendedProperties: { shared: props, private: priv },
     };
   }
   // A phone booking is stored like an approved website booking, so every view treats it as one. The
@@ -1216,19 +1227,18 @@ function closingEvent_(c, ref) {
     name: c.name,
     phone: c.phone,
     email: c.email,
-    notes: c.note,
+    notes: '',
     estimate: c.price,
     ref: ref,
   };
   props.request = JSON.stringify(req);
-  var guestReq = Object.assign({}, req, { notes: '' });
   var booking = {
     summary: 'שורשים · ' + c.name,
-    description: guestDescription_(guestReq),
+    description: guestDescription_(req),
     location: ADDRESS,
     start: { date: c.start },
     end: { date: c.end },
-    extendedProperties: { shared: props },
+    extendedProperties: { shared: props, private: priv },
   };
   if (c.email) booking.attendees = [{ email: c.email }];
   return booking;
@@ -1292,26 +1302,30 @@ function refreshSnapshotQuietly_() {
 /** The bookings-calendar event with this iCalUID, or null. */
 function findBooking_(id) {
   if (!id) return null;
-  var page = calendarCall_(calendarRequest_('bookings', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(id,iCalUID,status,summary,start,end,extendedProperties,attendees(email))' }));
+  var page = calendarCall_(calendarRequest_('bookings', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(id,iCalUID,status,summary,start,end,extendedProperties,attendees(email),recurrence,recurringEventId)' }));
   return (page.items || []).filter(function (item) {
     return item.status !== 'cancelled';
   })[0] || null;
 }
 
 /**
- * Reopens a closing: deletes a console closing or hold, or a manual event made in Google Calendar
- * that has no guests. Website and phone bookings are refused: cancelling a guest's stay is done in
- * the calendar, where Google tells the guest.
+ * Console closings and holds can be reopened from the console. Everything else is refused: website
+ * and phone bookings are cancelled in the calendar, where Google tells the guest; a manual event made
+ * in Google Calendar may be a guest's stay; and a recurring event would go as a whole series.
  */
+function isReopenable_(item, props) {
+  if (item.recurrence || item.recurringEventId) return false;
+  return props.source === 'console' && (props.kind === 'block' || props.kind === 'hold');
+}
+
+/** Reopens a console closing or hold by deleting its event. */
 function reopenDates_(id) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var item = findBooking_(id);
     if (!item) return { ok: false, error: 'not_found' };
-    var props = eventProps_(item);
-    var reopenable = props.source === 'console' ? props.kind === 'block' || props.kind === 'hold' : props.source !== 'website' && !(item.attendees || []).length;
-    if (!reopenable) return { ok: false, error: 'is_booking' };
+    if (!isReopenable_(item, eventProps_(item))) return { ok: false, error: 'is_booking' };
     calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: 'none' }));
     invalidateAvailability_();
   } finally {
@@ -1323,24 +1337,33 @@ function reopenDates_(id) {
   return { ok: true, result: 'reopened', id: id, start: range.start, end: range.end, nights: range.nights, snapshot: snapshot };
 }
 
-/** Gives a console hold more time: args.hours more from now or from its current end, whichever is later. */
+/**
+ * Gives a live console hold args.hours more, from its current end, up to HOLD_MAX_HOURS after it was
+ * made. A hold that already ran out is not revived: its nights may have been requested since.
+ */
 function extendHold_(id, args) {
   var hours = Number(args.hours);
   if (!(hours >= 1 && hours <= HOLD_MAX_HOURS && Math.floor(hours) === hours)) return { ok: false, error: 'invalid' };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  var until;
   try {
     var item = findBooking_(id);
     var props = item ? eventProps_(item) : {};
     if (!item || props.source !== 'console' || props.kind !== 'hold') return { ok: false, error: 'not_found' };
     var now = Date.now();
-    var from = Math.max(now, Date.parse(props.expiresAt) || now);
-    var until = Math.min(from + hours * 3600 * 1000, now + HOLD_MAX_HOURS * 3600 * 1000);
-    props.expiresAt = new Date(until).toISOString();
+    var current = Date.parse(props.expiresAt);
+    if (!(current > now)) return { ok: false, error: 'expired' };
+    var created = Date.parse(props.createdAt);
+    var cap = (isNaN(created) ? now : created) + HOLD_MAX_HOURS * 3600 * 1000;
+    until = Math.min(current + hours * 3600 * 1000, cap);
+    if (until <= current) return { ok: false, error: 'max_reached', expiresAt: props.expiresAt };
+    var shared = (item.extendedProperties || {}).shared || {};
+    shared.expiresAt = new Date(until).toISOString();
     calendarCall_(
       calendarRequest_('bookings', 'patch', '/' + encodeURIComponent(item.id), { fields: 'id', sendUpdates: 'none' }, {
         description: [props.note, 'נפתח לבד ב-' + fmt_(new Date(until), 'dd.MM.yyyy HH:mm')].filter(Boolean).join('\n'),
-        extendedProperties: { shared: props },
+        extendedProperties: { shared: shared },
       })
     );
     invalidateAvailability_();
@@ -1348,7 +1371,7 @@ function extendHold_(id, args) {
     lock.releaseLock();
   }
   scheduleMirrorRefresh_();
-  return { ok: true, result: 'extended', id: id, expiresAt: props.expiresAt };
+  return { ok: true, result: 'extended', id: id, expiresAt: new Date(until).toISOString() };
 }
 
 // ---------------------------------------------------------------------------
@@ -1536,8 +1559,13 @@ function stayDatesShort_(req) {
 // ---------------------------------------------------------------------------
 // Owner decisions
 
+/**
+ * HMAC over the UTF-8 bytes. Without the explicit charset Apps Script encodes strings with another
+ * default, so signatures over Hebrew text (a closing's reason or note) would not match a tool's.
+ * ASCII values sign the same either way, so earlier links and tokens stay valid.
+ */
 function sign_(id) {
-  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(id), CONFIG.hmacSecret)).replace(/=+$/, '');
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(id), CONFIG.hmacSecret, Utilities.Charset.UTF_8)).replace(/=+$/, '');
 }
 
 function validSig_(id, sig) {

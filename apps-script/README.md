@@ -64,11 +64,15 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
   calendar is what every reader already treats as taken, so a closing reaches the website, the
   console, the admin sheet and any channel feed built from the calendar with nothing more to
   connect. The backend refuses nights already taken (bookings, channel bookings, active request
-  holds, console holds) under the script lock, runs each `requestId` once, and rewrites the
-  availability snapshot before it answers. Reopening deletes console closings and holds, and manual
-  events without guests; website and phone bookings are cancelled in the calendar, where Google
-  tells the guest. A signed (HMAC) console call covers these arguments too: `consoleSigned_`
-  appends them as JSON.
+  holds, console holds) under the script lock, runs each `requestId` once (closing, reopening and
+  extending alike), and rewrites the availability snapshot before it answers. Reopening deletes
+  console closings and holds only. Website and phone bookings are cancelled in the calendar, where
+  Google tells the guest; manual events made in Google Calendar (which may be a guest's stay) and
+  recurring events are changed there too. A hold that ran out cannot be extended back, and a hold
+  lasts at most a week from when it was made. Internal notes are private extended properties,
+  since Google copies the shared ones to invited guests' events. A signed (HMAC) console call
+  covers these arguments too: `consoleSigned_` appends `JSON.stringify(args)` of the parsed body,
+  so a tool must sign the exact JSON it sends (same key order, no spaces, non-ASCII as is).
 - **The page is public and holds no secrets.** It calls this web app's `console` action. `login`
   checks the password against `CONFIG.consolePasswordHash` (a salted HMAC, from `booking-config.json`,
   never in the repo) and returns a session token signed with the HMAC secret. Every other console
