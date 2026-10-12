@@ -156,6 +156,17 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
 - O9: the owner email's link (`/admin/?request=<id>&ref=<ref>`) at phone width: after the login the
   request is marked, focused and in view, and the query is dropped from the address; the same link
   after the request is decided says it was already declined.
+- O10: closing dates from the calendar tab at phone width: pick the nights, choose a reason, confirm.
+  The form passes axe in all three kinds; the result says the site is updated; the bookings calendar
+  has one `source: console, kind: block` event on those dates; the availability snapshot and
+  `availability` block them; reopening from the day panel deletes the event and frees the nights.
+- O11: a closing over a pending request's night is refused with that night; a past date is
+  `invalid`; the same `requestId` sent twice closes once; a signature made for other dates is
+  refused; `unblock` refuses a website booking and reopens a console closing.
+- O12: a phone booking invites the guest, keeps the internal note out of the guest's event, shows in
+  `overview` as `kind: phone` with its price, and cannot be reopened; a hold blocks its nights, is
+  extended by 24 hours and turns into a phone booking (`replaceId`); a hold whose `expiresAt` passed
+  stops blocking, and the next availability rebuild deletes it.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,

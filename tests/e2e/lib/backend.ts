@@ -70,10 +70,16 @@ export const webApp = (cfg: BackendConfig) => ({
    * uses a session token from `consoleLogin` instead. The signature covers the operation and its
    * arguments; `sig` overrides it to test refusals.
    */
-  console: (op: string, args: { id?: string; decision?: string } = {}, sig?: string) => {
+  console: (op: string, args: { id?: string; decision?: string; args?: Record<string, unknown> } = {}, sig?: string) => {
     const t = String(Date.now());
-    const body = { action: 'console', op, t, id: args.id ?? '', decision: args.decision ?? '' };
-    return call(cfg, { body: { ...body, sig: sig ?? sign(cfg, ['console', t, op, body.id, body.decision].join(':')) } }, notDefault);
+    const body: Record<string, unknown> = { action: 'console', op, t, id: args.id ?? '', decision: args.decision ?? '' };
+    // Structured arguments (closing dates) are covered by the signature as JSON, as consoleSigned_ does.
+    let signed = ['console', t, op, body.id, body.decision].join(':');
+    if (args.args) {
+      body.args = args.args;
+      signed += ':' + JSON.stringify(args.args);
+    }
+    return call(cfg, { body: { ...body, sig: sig ?? sign(cfg, signed) } }, notDefault);
   },
   consoleLogin: (password: string) => call(cfg, { body: { action: 'console', op: 'login', password } }, notDefault),
   consoleWithToken: (op: string, token: string) => call(cfg, { body: { action: 'console', op, token } }, notDefault),

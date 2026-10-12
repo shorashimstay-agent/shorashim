@@ -34,7 +34,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 
 ## Day to day (Saray)
 
-- **Close dates or add a phone booking:** create an event in **שורשים – הזמנות**. The website shows those nights as taken within about two minutes.
+- **Close dates, add a phone booking or hold dates for someone:** in the owner console, tab יומן → **סגירת תאריכים** (below). Creating an event in **שורשים – הזמנות** in Google Calendar still works too; the website shows those nights as taken within a few minutes.
 - **New website request:** an email arrives at shorashimstay@gmail.com, and a ⏳ event appears in **שורשים – בקשות**. Tap **לאישור או דחייה** in the email. It opens the owner console (shorashimstay.com/admin, password login) on that request; the link goes to the site rather than to script.google.com because on Android the Drive app claims script.google.com links and fails to open them. Emails sent before this change link to the older signed decision page, which still works.
   - **Approve** moves the stay into הזמנות. If the guest gave an email address, they get a Google Calendar invitation.
   - **Decline** removes the request and frees the dates.
@@ -52,8 +52,23 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
 
 - **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
   ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and
-  manual events), הזמנות, ערוצים. It offers what the admin sheet offers; closing dates is still done
-  in Google Calendar.
+  manual events, with **סגירת תאריכים**), הזמנות (website and phone bookings, then the closed dates
+  with a reopen button), ערוצים.
+- **Closing dates** (`block`, `unblock`, `extendHold`; rules in `validateBlock`, shared/rules.js). The
+  owner picks the first night and the check-out day, as on the website, then one of three kinds:
+  **סגירה** (closed until reopened, with a reason and a private note), **הזמנה טלפונית** (a booking
+  made by phone, stored like an approved website booking, with an optional calendar invite) or
+  **שמירה זמנית** (held for 24, 48 or 72 hours, then it stops blocking and is deleted; it can be
+  extended or turned into a phone booking). Each is an all-day event in **שורשים – הזמנות** with the
+  shared properties `source: console`, `kind`, and the reason, holder, note or `expiresAt`. That
+  calendar is what every reader already treats as taken, so a closing reaches the website, the
+  console, the admin sheet and any channel feed built from the calendar with nothing more to
+  connect. The backend refuses nights already taken (bookings, channel bookings, active request
+  holds, console holds) under the script lock, runs each `requestId` once, and rewrites the
+  availability snapshot before it answers. Reopening deletes console closings and holds, and manual
+  events without guests; website and phone bookings are cancelled in the calendar, where Google
+  tells the guest. A signed (HMAC) console call covers these arguments too: `consoleSigned_`
+  appends them as JSON.
 - **The page is public and holds no secrets.** It calls this web app's `console` action. `login`
   checks the password against `CONFIG.consolePasswordHash` (a salted HMAC, from `booking-config.json`,
   never in the repo) and returns a session token signed with the HMAC secret. Every other console

@@ -1,6 +1,7 @@
 /**
  * Shorashim booking web app. Google Calendar is the single record:
- * - bookings: confirmed stays and manual blocks (anything here blocks its nights)
+ * - bookings: confirmed stays and manual blocks (anything here blocks its nights), including the
+ *   closings made in the owner console; a console hold stops blocking when it runs out
  * - requests: website requests, holding their nights for HOLD_HOURS
  * - channels: bookings imported from OTAs
  * Two spreadsheets mirror the calendars. The admin sheet is private: tabs בקשות / הזמנות / ערוצים
@@ -206,7 +207,7 @@ function readPricesSheet_() {
 // calendars in parallel. CalendarApp's tags are the event's *shared* extended properties, and an
 // event's iCalUID is what CalendarApp's getId() returns, so both APIs see the same events.
 
-var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties),nextPageToken';
+var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties,attendees(email)),nextPageToken';
 
 function calendarRequest_(key, method, path, query, payload) {
   var url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CONFIG.calendars[key]) + '/events' + (path || '');
@@ -291,12 +292,35 @@ function itemRange_(item) {
   return { start: start, end: end, nights: Math.max(daysBetween(start, end), 0) };
 }
 
-/** Events that can block nights in [start, end): all bookings and channel events, plus active request holds. */
+/**
+ * Whether a bookings-calendar event blocks its nights now. Everything there does, except a console
+ * hold (kind "hold") whose expiresAt has passed.
+ */
+function bookingIsLive_(item, now) {
+  var props = eventProps_(item);
+  return props.kind !== 'hold' || Date.parse(props.expiresAt) > now;
+}
+
+/**
+ * Events that can block nights in [start, end): live bookings (console holds until they run out),
+ * channel events, and active request holds. `excludeId` leaves one event out (the request being
+ * approved, or the console hold being turned into a booking).
+ */
 function blockingEvents_(start, end, opts) {
   opts = opts || {};
   var lists = listEvents_(['bookings', 'channels', 'requests'], localDate_(addDays(start, -2)), localDate_(addDays(end, 2)));
-  var out = lists.bookings.concat(lists.channels).map(itemRuleEvent_);
   var now = Date.now();
+  var bookings = lists.bookings.filter(function (item) {
+    if (item.iCalUID === opts.excludeId) return false;
+    if (bookingIsLive_(item, now)) {
+      var props = eventProps_(item);
+      if (props.kind === 'hold' && opts.holdEnds) opts.holdEnds.push(Date.parse(props.expiresAt));
+      return true;
+    }
+    if (opts.expireStale) deleteExpiredHold_(item);
+    return false;
+  });
+  var out = bookings.concat(lists.channels).map(itemRuleEvent_);
   lists.requests.forEach(function (item) {
     var props = eventProps_(item);
     if (item.iCalUID === opts.excludeId || props.status !== 'pending') return;
@@ -306,6 +330,15 @@ function blockingEvents_(start, end, opts) {
     } else if (opts.expireStale) markExpired_(item);
   });
   return out;
+}
+
+/** A console hold that ran out is deleted, so other calendar readers stop seeing it too. */
+function deleteExpiredHold_(item) {
+  try {
+    calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: 'none' }));
+  } catch (err) {
+    console.warn('could not delete an expired hold; it no longer blocks anyway', err);
+  }
 }
 
 function markExpired_(item) {
@@ -587,6 +620,7 @@ var ID_COL = 17;
 var ACTION_APPROVE = 'אישור';
 var ACTION_DECLINE = 'דחייה';
 var DECISIONS_KEY = 'recentDecisions';
+var BOOKING_SOURCE_LABELS = { website: 'אתר', manual: 'ידני', phone: 'טלפון', block: 'סגור', hold: 'שמירה זמנית' };
 var DECISION_DAYS = 3;
 
 function prepareAdminSheet_() {
@@ -712,6 +746,10 @@ function adminData_() {
   var today = today_();
   var now = Date.now();
   var lists = listEvents_(['requests', 'bookings', 'channels'], localDate_(addDays(today, -30)), localDate_(addDays(today, HORIZON_DAYS + 1)));
+  // A console hold that ran out no longer exists for anyone; the next availability rebuild deletes it.
+  lists.bookings = lists.bookings.filter(function (item) {
+    return bookingIsLive_(item, now);
+  });
   var stayLabel = function (type) {
     return STAY_TYPES[type] ? STAY_TYPES[type].label : '';
   };
@@ -772,7 +810,16 @@ function adminData_() {
       start: range.start,
       end: range.end,
       nights: range.nights,
-      source: props.source === 'website' ? 'website' : 'manual',
+      source: props.source === 'website' ? 'website' : props.source === 'console' ? 'console' : 'manual',
+      // website, manual (made in Google Calendar), or a console closing: block, phone, hold.
+      kind: props.source === 'website' ? 'website' : props.source === 'console' ? props.kind : 'manual',
+      reason: props.reason || '',
+      holder: props.holder || '',
+      blockNote: props.note || '',
+      expiresAt: props.expiresAt || '',
+      createdAt: props.createdAt || '',
+      // Only closings without guests can be reopened from the console; bookings are cancelled in the calendar.
+      reopenable: props.source === 'console' ? props.kind !== 'phone' : props.source !== 'website' && !(item.attendees || []).length,
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       adults: req.adults || '',
@@ -781,6 +828,7 @@ function adminData_() {
       phone: req.phone || '',
       email: req.email || '',
       notes: req.notes || '',
+      estimate: req.estimate || 0,
       ref: req.ref || '',
       whatsapp: req.phone ? waLink_(req.phone, 'שלום ' + req.name + ', ') : '',
     };
@@ -874,12 +922,12 @@ function syncAdminSheet_() {
         text_(heDate_(b.start)),
         text_(heDate_(b.end)),
         b.nights,
-        b.source === 'website' ? 'אתר' : 'ידני',
+        BOOKING_SOURCE_LABELS[b.kind] || 'ידני',
         b.stayLabel,
         guestsCell_(b),
         text_(b.phone),
         text_(b.email),
-        text_(b.notes),
+        text_([b.reason, b.holder, b.notes || b.blockNote, b.expiresAt ? 'נפתח לבד ' + fmt_(new Date(b.expiresAt), 'dd.MM.yyyy HH:mm') : ''].filter(Boolean).join(' · ')),
         text_(b.ref),
         sheetLink_(b.whatsapp, 'WhatsApp'),
       ];
@@ -920,14 +968,23 @@ function consoleRequest_(body) {
   return consoleCall_(body);
 }
 
-/** What a console call's signature covers: the operation and its arguments, not only the time. */
+/**
+ * What a console call's signature covers: the operation and its arguments, not only the time. Calls
+ * with structured arguments (closing dates) have them appended as JSON, so they are covered too.
+ */
 function consoleSigned_(body) {
-  return ['console', body.t, body.op, body.id || '', body.decision || ''].join(':');
+  var signed = ['console', body.t, body.op, body.id || '', body.decision || ''].join(':');
+  return body.args ? signed + ':' + JSON.stringify(body.args) : signed;
 }
 
 function consoleCall_(body) {
   if (body.op === 'overview') return consoleOverview_();
   if (body.op === 'decide') return decideAndRecord_(body.decision, String(body.id || ''), false);
+  if (body.op === 'block') return consoleOnce_('block', body.args && body.args.requestId, function () {
+    return closeDates_(body.args || {});
+  });
+  if (body.op === 'unblock') return reopenDates_(String(body.id || ''));
+  if (body.op === 'extendHold') return extendHold_(String(body.id || ''), body.args || {});
   if (body.op === 'logoutAll') {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(CONSOLE_SESSION_VERSION_KEY, String(Number(props.getProperty(CONSOLE_SESSION_VERSION_KEY) || 1) + 1));
@@ -1007,6 +1064,11 @@ function consoleOverview_() {
     today: data.today,
     generatedAt: new Date().toISOString(),
     holdHours: HOLD_HOURS,
+    // For the console's closing form: the reasons and hold lengths it offers, and the prices it
+    // uses to suggest a phone booking's price (the backend stores whatever price is entered).
+    blockReasons: BLOCK_REASONS,
+    holdChoices: HOLD_CHOICES,
+    prices: currentPrices_('').prices,
     requests: data.requests,
     decisions: data.decisions,
     bookings: data.bookings,
@@ -1083,6 +1145,210 @@ function onSheetEdit(e) {
     'שורשים',
     8
   );
+}
+
+// ---------------------------------------------------------------------------
+// Closing dates from the console (shared/rules.js validateBlock). A closing is an all-day event in
+// the bookings calendar, the calendar every reader already treats as taken, so the website, the
+// console, the admin sheet and any channel feed built from that calendar see it with no extra wiring.
+// Its details are shared extended properties: source "console", kind, reason or guest, note, and
+// for a hold its expiresAt.
+
+/**
+ * Runs a console write once per requestId, like createRequest_: the page retries when Google loses
+ * an answer, and a retry must not close the dates twice. Without a requestId it just runs.
+ */
+function consoleOnce_(op, requestId, fn) {
+  var key = /^[\w-]{8,64}$/.test(String(requestId || '')) ? 'console:' + op + ':' + requestId : '';
+  if (!key) return fn();
+  var cache = CacheService.getScriptCache();
+  var claim = LockService.getUserLock();
+  claim.waitLock(10000);
+  try {
+    var previous = cache.get(key);
+    if (previous) return previous === IN_PROGRESS ? { ok: false, error: IN_PROGRESS } : JSON.parse(previous);
+    cache.put(key, IN_PROGRESS, 300);
+  } finally {
+    claim.releaseLock();
+  }
+  var result;
+  try {
+    result = fn();
+  } catch (err) {
+    cache.remove(key);
+    throw err;
+  }
+  cache.put(key, JSON.stringify(result), 3600);
+  return result;
+}
+
+/** The event that stores a validated closing. */
+function closingEvent_(c, ref) {
+  var props = { source: 'console', kind: c.kind, createdAt: new Date().toISOString() };
+  if (c.note) props.note = c.note;
+  if (c.kind === 'block') {
+    props.reason = c.reason;
+    return { summary: '🔒 סגור · ' + c.reason, description: [c.note, 'נסגר מהמסוף'].filter(Boolean).join('\n'), start: { date: c.start }, end: { date: c.end }, transparency: 'opaque', extendedProperties: { shared: props } };
+  }
+  if (c.kind === 'hold') {
+    props.expiresAt = new Date(Date.now() + c.hours * 3600 * 1000).toISOString();
+    if (c.name) props.holder = c.name;
+    return {
+      summary: '⏳ שמירה זמנית' + (c.name ? ' · ' + c.name : ''),
+      description: [c.note, 'נפתח לבד ב-' + fmt_(new Date(props.expiresAt), 'dd.MM.yyyy HH:mm')].filter(Boolean).join('\n'),
+      start: { date: c.start },
+      end: { date: c.end },
+      extendedProperties: { shared: props },
+    };
+  }
+  // A phone booking is stored like an approved website booking, so every view treats it as one. The
+  // guest may be invited, so the title and description are guest-safe; the note stays in the properties.
+  var wedding = STAY_TYPES[c.stayType].wedding;
+  var req = {
+    stayType: c.stayType,
+    checkIn: wedding ? addDays(c.end, -1) : c.start,
+    checkOut: c.end,
+    start: c.start,
+    end: c.end,
+    nights: c.nights,
+    adults: c.adults,
+    participants: 0,
+    name: c.name,
+    phone: c.phone,
+    email: c.email,
+    notes: c.note,
+    estimate: c.price,
+    ref: ref,
+  };
+  props.request = JSON.stringify(req);
+  var guestReq = Object.assign({}, req, { notes: '' });
+  var booking = {
+    summary: 'שורשים · ' + c.name,
+    description: guestDescription_(guestReq),
+    location: ADDRESS,
+    start: { date: c.start },
+    end: { date: c.end },
+    extendedProperties: { shared: props },
+  };
+  if (c.email) booking.attendees = [{ email: c.email }];
+  return booking;
+}
+
+/**
+ * The console's "close dates": validates, refuses nights already taken (bookings, channel bookings,
+ * active request holds and console holds), creates the event under the script lock, and rewrites
+ * the website's availability snapshot before answering, so the site shows the nights as taken
+ * within about a minute. args.replaceId turns that console hold into this closing.
+ */
+function closeDates_(args) {
+  var check = validateBlock(args, today_());
+  if (!check.ok) return { ok: false, error: 'invalid', fields: check.errors };
+  var c = check.value;
+  var replace = String(args.replaceId || '');
+  var replaced = null;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  var created;
+  try {
+    if (replace) {
+      replaced = findBooking_(replace);
+      var rp = replaced ? eventProps_(replaced) : {};
+      if (!replaced || rp.source !== 'console' || rp.kind !== 'hold') return { ok: false, error: 'not_found' };
+    }
+    var conflicts = conflictsFor_(c.start, c.end, { expireStale: true, excludeId: replace || undefined });
+    if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
+    var ref = c.kind === 'phone' ? newRef_() : '';
+    var event = closingEvent_(c, ref);
+    var query = { fields: 'id,iCalUID', sendUpdates: c.kind === 'phone' && c.email ? 'all' : 'none' };
+    created = calendarCall_(calendarRequest_('bookings', 'post', '', query, event));
+    if (replaced) calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(replaced.id), { sendUpdates: 'none' }));
+    invalidateAvailability_();
+  } finally {
+    lock.releaseLock();
+  }
+  var snapshot = refreshSnapshotQuietly_();
+  scheduleMirrorRefresh_();
+  var result = { ok: true, result: c.kind === 'phone' ? 'booked' : c.kind === 'hold' ? 'held' : 'blocked', id: created.iCalUID, kind: c.kind, start: c.start, end: c.end, nights: c.nights, snapshot: snapshot };
+  if (c.kind === 'hold') result.expiresAt = event.extendedProperties.shared.expiresAt;
+  if (c.kind === 'phone') {
+    result.ref = ref;
+    result.invited = !!c.email;
+    result.whatsapp = waLink_(c.phone, 'שלום ' + c.name + ', ההזמנה שלך בשורשים נקבעה (' + heDate_(c.start) + '–' + heDate_(c.end) + '). מחכים לכם!');
+  }
+  return result;
+}
+
+/** Rewrites the availability snapshot now; a failure only means waiting for the queued refresh. */
+function refreshSnapshotQuietly_() {
+  try {
+    refreshAvailabilitySnapshot_();
+    return true;
+  } catch (err) {
+    console.error('snapshot refresh after a console change failed; the queued refresh will retry', err);
+    return false;
+  }
+}
+
+/** The bookings-calendar event with this iCalUID, or null. */
+function findBooking_(id) {
+  if (!id) return null;
+  var page = calendarCall_(calendarRequest_('bookings', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(id,iCalUID,status,summary,start,end,extendedProperties,attendees(email))' }));
+  return (page.items || []).filter(function (item) {
+    return item.status !== 'cancelled';
+  })[0] || null;
+}
+
+/**
+ * Reopens a closing: deletes a console closing or hold, or a manual event made in Google Calendar
+ * that has no guests. Website and phone bookings are refused: cancelling a guest's stay is done in
+ * the calendar, where Google tells the guest.
+ */
+function reopenDates_(id) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var item = findBooking_(id);
+    if (!item) return { ok: false, error: 'not_found' };
+    var props = eventProps_(item);
+    var reopenable = props.source === 'console' ? props.kind === 'block' || props.kind === 'hold' : props.source !== 'website' && !(item.attendees || []).length;
+    if (!reopenable) return { ok: false, error: 'is_booking' };
+    calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: 'none' }));
+    invalidateAvailability_();
+  } finally {
+    lock.releaseLock();
+  }
+  var range = itemRange_(item);
+  var snapshot = refreshSnapshotQuietly_();
+  scheduleMirrorRefresh_();
+  return { ok: true, result: 'reopened', id: id, start: range.start, end: range.end, nights: range.nights, snapshot: snapshot };
+}
+
+/** Gives a console hold more time: args.hours more from now or from its current end, whichever is later. */
+function extendHold_(id, args) {
+  var hours = Number(args.hours);
+  if (!(hours >= 1 && hours <= HOLD_MAX_HOURS && Math.floor(hours) === hours)) return { ok: false, error: 'invalid' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var item = findBooking_(id);
+    var props = item ? eventProps_(item) : {};
+    if (!item || props.source !== 'console' || props.kind !== 'hold') return { ok: false, error: 'not_found' };
+    var now = Date.now();
+    var from = Math.max(now, Date.parse(props.expiresAt) || now);
+    var until = Math.min(from + hours * 3600 * 1000, now + HOLD_MAX_HOURS * 3600 * 1000);
+    props.expiresAt = new Date(until).toISOString();
+    calendarCall_(
+      calendarRequest_('bookings', 'patch', '/' + encodeURIComponent(item.id), { fields: 'id', sendUpdates: 'none' }, {
+        description: [props.note, 'נפתח לבד ב-' + fmt_(new Date(until), 'dd.MM.yyyy HH:mm')].filter(Boolean).join('\n'),
+        extendedProperties: { shared: props },
+      })
+    );
+    invalidateAvailability_();
+  } finally {
+    lock.releaseLock();
+  }
+  scheduleMirrorRefresh_();
+  return { ok: true, result: 'extended', id: id, expiresAt: props.expiresAt };
 }
 
 // ---------------------------------------------------------------------------
