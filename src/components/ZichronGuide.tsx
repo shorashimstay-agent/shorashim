@@ -1,111 +1,28 @@
-import { useState } from 'react';
-import { Coffee, Utensils, Wine, Compass, MapPin } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { BRAND_DATA, LOCAL_PLACES } from '../data/shorashimData';
-import { RootLine, EditorialTag } from './RootLine';
+import { EditorialTag } from './RootLine';
 
 export default function ZichronGuide() {
-  const [showAll, setShowAll] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const officialSites: Record<string, string> = { manuella: 'https://www.visit-zichronyaakov.co.il/מסעדת-מנואלה/', uma: 'https://umasushi.co.il/', hobbit: 'https://www.visit-zichronyaakov.co.il/ההוביט-בר/', luma: 'https://www.visit-zichronyaakov.co.il/קפה-לומא/', simcha: 'https://www.visit-zichronyaakov.co.il/שמחה-בר-יין/' };
-
-  const categories = [
-    { id: 'all', label: 'כל המקומות' },
-    { id: 'coffee', label: 'קפה' },
-    { id: 'food', label: 'לאכול' },
-    { id: 'wine', label: 'יין' },
-  ];
-
-  const filteredPlaces =
-    activeCategory === 'all'
-      ? LOCAL_PLACES
-      : LOCAL_PLACES.filter((p) => p.category === activeCategory);
-
+  const [index, setIndex] = useState(0);
+  const swipeStart = useRef<number | null>(null);
+  const move = (direction: number) => setIndex(old => (old + direction + LOCAL_PLACES.length) % LOCAL_PLACES.length);
+  const places = Array.from({ length: Math.min(3, LOCAL_PLACES.length) }, (_, offset) => LOCAL_PLACES[(index + offset) % LOCAL_PLACES.length]);
   return (
     <section tabIndex={-1} id="zichron" className="py-12 sm:py-24 lg:py-36 bg-[#F4F0E8] relative" dir="rtl" lang="he">
       <div className="max-w-7xl mx-auto px-7 sm:px-10 lg:px-12">
-        
-        {/* Section Header: Experiential Zichron framing */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-6 sm:mb-8 pb-6 sm:pb-8 border-b border-[#DED5C8]">
-          <div className="w-full max-w-none md:max-w-3xl text-right">
-            <EditorialTag className="mb-3 sm:mb-4 block">
-              זכרון יעקב
-            </EditorialTag>
-            
-            <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">
-              יוצאים לגלות את המושבה
-            </h2>
-
-            <p className="text-sm sm:text-lg text-[#292824]/75 font-light leading-relaxed text-right">
-              קפה של בוקר, ארוחה זוגית או דרינק בערב — כמה מקומות שכדאי להכיר בזמן החופשה בשורשים.
-            </p>
-          </div>
-
-          {/* Editorial Category Selector */}
-          <div role="group" aria-label="סינון לפי סוג המקום" className="mt-6 lg:mt-0 flex flex-wrap gap-2" dir="rtl">
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => { setActiveCategory(cat.id); setShowAll(false); }}
-                  className={`text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all cursor-pointer font-sans tracking-wide rounded-[6px] ${
-                    isActive
-                      ? 'bg-[#1E1D1A] text-white'
-                      : 'text-[#292824]/70 hover:text-[#1E1D1A] border border-[#DED5C8]'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              );
-            })}
-          </div>
+        <div className="mb-6 sm:mb-8 pb-6 sm:pb-8 border-b border-[#DED5C8]">
+          <EditorialTag className="mb-3 sm:mb-4 block">זכרון יעקב</EditorialTag>
+          <h2 className="font-serif text-3xl sm:text-5xl md:text-6xl text-[#1E1D1A] font-normal tracking-tight mb-3 sm:mb-4 text-right">יוצאים לגלות את המושבה</h2>
+          <p className="text-sm sm:text-lg text-[#292824]/75 font-light leading-relaxed text-right">קפה של בוקר, ארוחה זוגית או דרינק בערב — כמה מקומות שכדאי להכיר בזמן החופשה בשורשים.</p>
         </div>
-
         <p className="arrival-note">חניה פרטית בתוך המשק. <a className="text-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BRAND_DATA.address)}`} target="_blank" rel="noopener noreferrer">חיפוש הכתובת במפה</a> לתיאום הכניסה ולבירור התאמות גישה: <a className="text-action" href={`tel:${BRAND_DATA.phone}`}>{BRAND_DATA.phoneFormatted}</a>. הוראות הגעה מדויקות יימסרו בתיאום עם המארחים.</p>
-        {/* Editorial Unboxed Places Grid */}
-        <div className="local-cards">
-          {(showAll ? filteredPlaces : filteredPlaces.slice(0, 3)).map((place) => (
-            <div
-              key={place.id}
-              className="local-card text-right"
-              dir="rtl"
-            >
-              <div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#7B6045] mb-2" dir="rtl">
-                  <span>{place.categoryLabel}</span>
-                  
-                </div>
-
-                <h3 className="font-serif text-2xl text-[#1E1D1A] font-normal mb-3 text-right">
-                  {place.name}
-                </h3>
-
-                <p className="text-sm text-[#292824]/75 font-light leading-relaxed mb-6 text-right">
-                  {place.description}
-                </p>
-              </div>
-
-              {place.tip && (
-                <div className="pt-4 border-t border-[#DED5C8]/50 flex items-start gap-1.5 text-xs text-[#7B6045] font-serif italic text-right" dir="rtl" style={{ direction: 'rtl', textAlign: 'right' }}>
-                  <span className="shrink-0">טיפ מ{place.recommendationBy}:</span>
-                  <span dir="rtl">״{place.tip}״</span>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-3 mt-3">
-                <a className="text-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' זכרון יעקב')}`} target="_blank" rel="noopener noreferrer" aria-label={`חיפוש ${place.name} במפה`}>חיפוש במפה</a>
-                {officialSites[place.id] && <a className="text-action" href={officialSites[place.id]} target="_blank" rel="noopener noreferrer">לאתר המקום</a>}
-                {place.id === '5' && <a className="text-action" href="https://nili-museum.org.il/" target="_blank" rel="noopener noreferrer">לאתר בית ניל״י</a>}
-              </div>
-            </div>
-          ))}
+        <div className="places-carousel" role="region" aria-roledescription="קרוסלה" aria-label="המלצות למסעדות, בתי קפה ובילויים" onKeyDown={event => { if (event.key === 'ArrowLeft') { event.preventDefault(); move(1); } if (event.key === 'ArrowRight') { event.preventDefault(); move(-1); } }}>
+          <div className="local-cards places-carousel-cards" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); swipeStart.current = event.clientX; }} onPointerUp={event => { if (swipeStart.current !== null && Math.abs(event.clientX - swipeStart.current) > 40) move(event.clientX > swipeStart.current ? 1 : -1); swipeStart.current = null; }} onPointerCancel={() => { swipeStart.current = null; }}>
+            {places.map(place => <article key={place.id} className="local-card text-right"><h3 className="font-serif text-2xl text-[#1E1D1A] font-normal mb-3">{place.name}</h3><p className="text-sm text-[#292824]/75 font-light leading-relaxed">{place.description}</p></article>)}
+          </div>
+          <div className="gallery-carousel-controls places-carousel-controls"><button type="button" aria-label="ההמלצה הקודמת" onClick={() => move(-1)}><span aria-hidden="true">→</span></button><span aria-live="polite" aria-atomic="true">{index + 1} מתוך {LOCAL_PLACES.length}</span><button type="button" aria-label="ההמלצה הבאה" onClick={() => move(1)}><span aria-hidden="true">←</span></button></div>
         </div>
-        {filteredPlaces.length > 3 && <button className="secondary-action mt-5" onClick={() => setShowAll(!showAll)} aria-expanded={showAll}>{showAll ? 'פחות המלצות' : 'עוד המלצות מהמארחים'}</button>}
-
       </div>
     </section>
   );
 }
-
-
