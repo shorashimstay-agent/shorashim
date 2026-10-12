@@ -112,8 +112,7 @@ test('O1: the overview shows requests, bookings and channel bookings, as the adm
   await expect(card(page, r.id)).toContainText(r.name);
   await expect(card(page, r.id)).toContainText('התאריכים שמורים');
   await page.getByRole('button', { name: 'הזמנות' }).click();
-  // A manual event made in Google Calendar is listed with the closed dates, with a reopen button.
-  await expect(page.locator('#blocks')).toContainText(blockTitle);
+  await expect(page.locator('#bookings-upcoming')).toContainText(blockTitle);
   await page.getByRole('button', { name: 'ערוצים' }).click();
   await expect(page.locator('#channels')).toContainText(channelTitle);
   await page.getByRole('button', { name: 'יומן' }).click();
@@ -293,7 +292,11 @@ test('O10: closing dates in the console blocks them on the site at once, and reo
   await expect(result).toContainText('התאריכים נסגרו', { timeout: 120_000 });
   await expect(result).toContainText('מעודכן');
 
-  const events = await bookingEvents(cfg, note);
+  // Calendar's search index can lag a write by a few seconds.
+  const events = await waitFor('the closing in the bookings calendar', async () => {
+    const found = await bookingEvents(cfg, note);
+    return found.length ? found : undefined;
+  }, 60_000, 3_000);
   expect(events).toHaveLength(1);
   expect(events[0].extendedProperties?.shared).toMatchObject({ source: 'console', kind: 'block', reason: 'תחזוקה' });
   expect([events[0].start?.date, events[0].end?.date]).toEqual([start, end]);
@@ -327,6 +330,7 @@ test('O11: closings that overlap taken nights are refused, a retry closes once, 
   const first = await api.console('block', { args: once });
   expect(first).toMatchObject({ ok: true, result: 'blocked', nights: 1 });
   expect((await api.console('block', { args: once })).id).toBe(first.id);
+  await waitFor('the closing in the bookings calendar', async () => (await bookingEvents(cfg, once.note)).length > 0, 60_000, 3_000);
   expect(await bookingEvents(cfg, once.note)).toHaveLength(1);
 
   // A signature made for one set of dates does not authorize others.
@@ -339,6 +343,9 @@ test('O11: closings that overlap taken nights are refused, a retry closes once, 
   // A website booking cannot be "reopened" from the console; cancelling a stay is done in the calendar.
   const booked = await owner.insertEvent(cfg.calendars.bookings, { summary: `${runTag} אורח מהאתר`, start: { date: addDays(start, 6) }, end: { date: addDays(start, 7) }, extendedProperties: { shared: { source: 'website' } } });
   expect(await api.console('unblock', { id: booked.iCalUID })).toMatchObject({ ok: false, error: 'is_booking' });
+  // Nor can a manual event made in Google Calendar: it may be a guest's stay.
+  const manual = await owner.insertEvent(cfg.calendars.bookings, { summary: `${runTag} ידני ביומן`, start: { date: addDays(start, 8) }, end: { date: addDays(start, 9) } });
+  expect(await api.console('unblock', { id: manual.iCalUID })).toMatchObject({ ok: false, error: 'is_booking' });
   expect(await api.console('unblock', { id: first.id })).toMatchObject({ ok: true, result: 'reopened' });
 });
 
@@ -348,9 +355,12 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
   const phone = await api.console('block', { args: { kind: 'phone', start, end: addDays(start, 2), stayType: 'couple', name, phone: randomPhone(), email: e2e.guestA.email, adults: 2, price: 1900, note: 'הערה פנימית' } });
   expect(phone).toMatchObject({ ok: true, result: 'booked', invited: true });
   expect(phone.whatsapp).toMatch(/^https:\/\/wa\.me\//);
-  const ev = (await bookingEvents(cfg, name))[0];
+  const ev = await waitFor('the phone booking in the calendar', async () => (await bookingEvents(cfg, name))[0], 60_000, 3_000);
   expect(ev.attendees?.map((a) => a.email)).toEqual([e2e.guestA.email]);
+  // The internal note stays private: not in the description, nor in the shared properties guests' copies get.
   expect(ev.description ?? '').not.toContain('הערה פנימית');
+  expect(JSON.stringify(ev.extendedProperties?.shared ?? {})).not.toContain('הערה פנימית');
+  expect(ev.extendedProperties?.private?.note).toBe('הערה פנימית');
   const o = await api.console('overview');
   expect(o.bookings.find((b: any) => b.id === phone.id)).toMatchObject({ kind: 'phone', name, estimate: 1900, reopenable: false });
   expect(await api.console('unblock', { id: phone.id })).toMatchObject({ ok: false, error: 'is_booking' });
@@ -362,9 +372,16 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
   expect((await api.availability()).blocked).toEqual(expect.arrayContaining(held));
   const extended = await api.console('extendHold', { id: hold.id, args: { hours: 24 } });
   expect(Date.parse(extended.expiresAt) - Date.parse(hold.expiresAt)).toBeGreaterThan(23 * 3600_000);
+  // A retry of the same extension (same requestId) does not add the hours twice.
+  const again = { requestId: `${runTag}-ext`.replace(/[^\w-]/g, ''), hours: 24 };
+  const once = await api.console('extendHold', { id: hold.id, args: again });
+  expect((await api.console('extendHold', { id: hold.id, args: again })).expiresAt).toBe(once.expiresAt);
   const converted = await api.console('block', { args: { kind: 'phone', start: held[0], end: addDays(start, 5), stayType: 'couple', name: holder, phone: randomPhone(), email: '', adults: 2, price: 0, replaceId: hold.id } });
   expect(converted).toMatchObject({ ok: true, result: 'booked', invited: false });
-  const after = await bookingEvents(cfg, holder);
+  const after = await waitFor('the hold replaced by the booking', async () => {
+    const found = await bookingEvents(cfg, holder);
+    return found.length === 1 && found[0].extendedProperties?.shared?.kind === 'phone' ? found : undefined;
+  }, 60_000, 3_000);
   expect(after).toHaveLength(1);
   expect(after[0].extendedProperties?.shared?.kind).toBe('phone');
 
@@ -377,6 +394,9 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
     end: { date: addDays(staleNight, 1) },
     extendedProperties: { shared: { source: 'console', kind: 'hold', holder: stale, createdAt: new Date(Date.now() - 86400_000).toISOString(), expiresAt: new Date(Date.now() - 60_000).toISOString() } },
   });
+  // An expired hold cannot be extended back to life.
+  const staleEvent = await waitFor('the stale hold in the calendar', async () => (await bookingEvents(cfg, stale))[0], 60_000, 3_000);
+  expect(await api.console('extendHold', { id: staleEvent.iCalUID, args: { hours: 24 } })).toMatchObject({ ok: false, error: 'expired' });
   await api.diag();
   expect((await api.availability()).blocked).not.toContain(staleNight);
   await waitFor('expired hold deleted', async () => (await bookingEvents(cfg, stale)).length === 0, 90_000, 5_000);

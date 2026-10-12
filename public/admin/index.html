@@ -674,7 +674,9 @@
     function mark(start, end, entry) {
       for (var n = start; n < end; n = addDays(n, 1)) (out[n] = out[n] || []).push(entry);
     }
-    d.bookings.forEach(function (b) { mark(b.start, b.end, { kind: KIND_CLASS[b.kind] || 'block', label: bookingLabel(b), booking: b }); });
+    // While a hold is being turned into a booking, its own nights do not count as taken.
+    var replacing = state.block && state.block.replaceId;
+    d.bookings.forEach(function (b) { if (b.id !== replacing) mark(b.start, b.end, { kind: KIND_CLASS[b.kind] || 'block', label: bookingLabel(b), booking: b }); });
     d.channels.forEach(function (c) { mark(c.start, c.end, { kind: 'ota', label: 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights) }); });
     d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r.start, r.end, { kind: 'hold', label: 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate), request: r }); });
     return out;
@@ -758,15 +760,26 @@
     if (action === 'reopen' || action === 'extend') {
       state.dayBusy = id;
       renderCalendar();
-      var req = action === 'reopen' ? call('unblock', { id: id }) : call('extendHold', { id: id, args: { hours: 24 } });
+      var req = action === 'reopen' ? reopen(id) : call('extendHold', { id: id, args: { requestId: requestId(), hours: 24 } });
       req.then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; }).then(function (res) {
         state.dayBusy = null;
         state.dayConfirm = null;
-        announce(res.ok ? (action === 'reopen' ? 'התאריכים נפתחו' : 'השמירה הוארכה ב-24 שעות') : res.error === 'is_booking' ? 'זו הזמנה של אורח: ביטול נעשה ביומן Google.' : 'לא הצלחנו לשמור. רעננו ונסו שוב.');
+        var errors = { is_booking: 'זו הזמנה או אירוע מיומן Google: שינוי נעשה ביומן Google.', expired: 'השמירה כבר פגה, ואי אפשר להאריך אותה.', max_reached: 'שמירה זמנית נמשכת עד שבוע מיום שנוצרה. אפשר להפוך אותה להזמנה.' };
+        announce(res.ok ? (action === 'reopen' ? 'התאריכים נפתחו' : 'השמירה הוארכה ב-24 שעות') : errors[res.error] || 'לא הצלחנו לשמור. רעננו ונסו שוב.');
         load(true);
       });
     }
   });
+
+  /**
+   * Reopens a console closing. A retry after a lost answer finds it already gone ("not_found"),
+   * which means the first attempt worked.
+   */
+  function reopen(id) {
+    return call('unblock', { id: id, args: { requestId: requestId() } }).then(function (res) {
+      return res.ok || res.error !== 'not_found' ? res : { ok: true, result: 'reopened' };
+    });
+  }
 
   function focusFirst(selector) { var el = document.querySelector(selector); if (el) el.focus(); }
 
@@ -987,7 +1000,8 @@
           if (t) { t.setAttribute('tabindex', '-1'); t.focus(); announce(t.textContent); }
           return load(true);
         }
-        b.requestId = requestId();
+        // A lost answer may still have saved; keep the same requestId so a retry returns that result.
+        if (res.error === 'unavailable' || res.error === 'invalid' || res.error === 'not_found') b.requestId = requestId();
         if (res.error === 'unavailable') {
           b.step = 'pick';
           announce('חלק מהלילות כבר תפוסים');
@@ -1078,7 +1092,7 @@
     } else if (action === 'undo') {
       b.result.undoing = true;
       renderCalendar();
-      call('unblock', { id: b.result.id }).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
+      reopen(b.result.id).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
         announce(res.ok ? 'הסגירה בוטלה והתאריכים נפתחו' : 'לא הצלחנו לבטל. אפשר לפתוח את התאריכים מהיומן.');
         if (res.ok) state.block = null; else b.result.undoing = false;
         load(true).then(function () { focusFirst('#block-start'); });
@@ -1098,6 +1112,7 @@
   var KIND_PILL = { website: ['ok', 'אתר'], phone: ['plain', 'טלפון'], manual: ['plain', 'ידני'], block: ['plain', 'סגור'], hold: ['warn', 'זמני'] };
   function bookingItem(b) {
     var guest = b.kind === 'website' || b.kind === 'phone';
+    // Manual events (made in Google Calendar) stay here: they may be a guest's stay.
     var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants), b.kind === 'phone' && b.estimate ? money(b.estimate) : ''].filter(Boolean).join(' · ');
     var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
     return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.start) +
@@ -1111,8 +1126,8 @@
 
   /** A closed date in the bookings tab: what closed it, and a reopen button with a second tap. */
   function blockItem(b) {
-    var who = b.kind === 'block' ? 'סגור · ' + b.reason : b.kind === 'hold' ? 'שמירה זמנית' + (b.holder ? ' · ' + b.holder : '') : b.title;
-    var what = [range(b.start, b.end), nightsText(b.nights), b.kind === 'hold' ? holdLeft(b.expiresAt) : '', b.kind === 'manual' ? 'נסגר ביומן Google' : ''].filter(Boolean).join(' · ');
+    var who = b.kind === 'block' ? 'סגור · ' + b.reason : 'שמירה זמנית' + (b.holder ? ' · ' + b.holder : '');
+    var what = [range(b.start, b.end), nightsText(b.nights), b.kind === 'hold' ? holdLeft(b.expiresAt) : ''].filter(Boolean).join(' · ');
     var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
     var side;
     if (!b.reopenable) side = '<span class="pill ' + pill[0] + '">' + pill[1] + '</span>';
@@ -1130,7 +1145,7 @@
     if (action === 'cancel') { state.dayConfirm = null; renderBookings(); return; }
     state.dayBusy = id;
     renderBookings();
-    call('unblock', { id: id }).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
+    reopen(id).then(function (res) { return res; }, function () { return { ok: false }; }).then(function (res) {
       state.dayBusy = null;
       state.dayConfirm = null;
       announce(res.ok ? 'התאריכים נפתחו' : 'לא הצלחנו לפתוח. רעננו ונסו שוב.');
@@ -1141,8 +1156,8 @@
   function renderBookings() {
     var d = state.data;
     var all = d.bookings.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
-    var sorted = all.filter(function (b) { return b.kind === 'website' || b.kind === 'phone'; });
-    var closed = all.filter(function (b) { return b.kind !== 'website' && b.kind !== 'phone' && b.end > d.today; });
+    var sorted = all.filter(function (b) { return b.kind !== 'block' && b.kind !== 'hold'; });
+    var closed = all.filter(function (b) { return (b.kind === 'block' || b.kind === 'hold') && b.end > d.today; });
     $('blocks').innerHTML = closed.length ? closed.map(blockItem).join('') : '<li class="empty">אין תאריכים סגורים.</li>';
     var upcoming = sorted.filter(function (b) { return b.end > d.today; });
     var past = sorted.filter(function (b) { return b.end <= d.today; }).reverse();
