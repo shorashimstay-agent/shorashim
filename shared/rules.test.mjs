@@ -18,6 +18,7 @@ import {
   pricesFromRows,
   pricesVersionOf,
   stayRange,
+  validateBlock,
   validateRequest,
   whatsappNumber,
 } from './rules.js';
@@ -198,6 +199,46 @@ test('invalid requests report each field', () => {
   assert.equal(validateRequest({ ...valid, checkIn: '2026-02-30' }, '2026-01-15').errors.checkIn, 'invalid');
 });
 
+const closing = { kind: 'block', start: '2026-10-01', end: '2026-10-04', reason: 'תחזוקה', note: '  צבע  ' };
+
+test('a console closing is normalized, with its nights', () => {
+  const res = validateBlock(closing, '2026-09-15');
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.value, { kind: 'block', start: '2026-10-01', end: '2026-10-04', nights: 3, note: 'צבע', reason: 'תחזוקה' });
+  // Today itself may be closed; a closing may run to the end of the booking window.
+  assert.equal(validateBlock({ ...closing, start: '2026-09-15', end: '2026-09-16' }, '2026-09-15').ok, true);
+  assert.equal(validateBlock({ ...closing, start: '2026-09-15', end: '2027-09-16' }, '2026-09-15').ok, true);
+});
+
+test('a console closing refuses bad dates, kinds and reasons', () => {
+  const errors = (input) => validateBlock({ ...closing, ...input }, '2026-09-15').errors || {};
+  assert.equal(errors({ start: '2026-09-14' }).start, 'past');
+  assert.equal(errors({ start: '2026-02-30' }).start, 'invalid');
+  assert.equal(errors({ end: '2026-10-01' }).end, 'invalid', 'no nights');
+  assert.equal(errors({ end: '2027-09-17' }).end, 'too_far');
+  assert.equal(errors({ kind: 'party' }).kind, 'invalid');
+  assert.equal(errors({ reason: 'סתם' }).reason, 'invalid');
+  assert.equal(errors({ note: 'x'.repeat(451) }).note, 'too_long');
+});
+
+test('a temporary hold needs whole hours up to a week', () => {
+  const hold = { kind: 'hold', start: '2026-10-01', end: '2026-10-02', hours: 48, name: ' רונית ' };
+  assert.deepEqual(validateBlock(hold, '2026-09-15').value, { kind: 'hold', start: '2026-10-01', end: '2026-10-02', nights: 1, note: '', hours: 48, name: 'רונית' });
+  for (const bad of [0, 1.5, 169, 'x', undefined]) {
+    assert.equal(validateBlock({ ...hold, hours: bad }, '2026-09-15').errors.hours, 'invalid', String(bad));
+  }
+});
+
+test('a phone booking needs the guest details a website request needs', () => {
+  const phone = { kind: 'phone', start: '2026-10-01', end: '2026-10-03', stayType: 'couple', name: 'דנה לוי', phone: '050-1234567', email: '', adults: 2, price: 1900 };
+  const res = validateBlock(phone, '2026-09-15');
+  assert.equal(res.ok, true);
+  assert.equal(res.value.price, 1900);
+  assert.equal(validateBlock({ ...phone, price: '' }, '2026-09-15').value.price, 0, 'the price may be left out');
+  const bad = validateBlock({ ...phone, stayType: 'x', name: 'א', phone: 'abc', email: 'nope', adults: 4, price: -1 }, '2026-09-15');
+  assert.deepEqual(Object.keys(bad.errors).sort(), ['adults', 'email', 'name', 'phone', 'price', 'stayType']);
+});
+
 test('the Apps Script form of the module is plain globals that behave the same', () => {
   const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'rules.js'), 'utf8');
   // The same transform deploy.py applies on upload.
@@ -210,7 +251,7 @@ test('the Apps Script form of the module is plain globals that behave the same',
   const globals = vm.createContext({});
   vm.runInContext(stripped, globals);
   assert.equal(globals.PRICES, undefined, 'no prices in the code');
-  for (const name of ['STAY_TYPES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf']) {
+  for (const name of ['STAY_TYPES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf', 'validateBlock', 'BLOCK_REASONS', 'HOLD_MAX_HOURS']) {
     assert.ok(globals[name] !== undefined, `Code.js calls ${name}, so it must be a global`);
   }
   assert.equal(globals.estimatePrice('couple', 2, 3, PRICES, '2026-10-09'), estimatePrice('couple', 2, 3, PRICES, '2026-10-09'));
