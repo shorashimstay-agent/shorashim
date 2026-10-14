@@ -13,7 +13,7 @@
     "clean": "rm -rf dist src/assets/images/optimized src/data/generatedImages.ts public/og-image.jpg",
     "prelint": "npm run images",
     "lint": "tsc --noEmit",
-    "test": "node --test shared/*.test.mjs",
+    "test": "node --test shared/*.test.mjs apps-script/*.test.mjs",
     "test:e2e": "bash scripts/e2e.sh",
     "test:smoke": "E2E_TARGET=smoke playwright test --project=smoke",
     "test:a11y": "playwright test --project=staging a11y.spec.ts"

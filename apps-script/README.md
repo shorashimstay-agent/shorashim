@@ -41,7 +41,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
   - Both screens offer a ready-made WhatsApp message to the guest.
 - **Or decide from the sheet:** in **שורשים – ניהול הזמנות**, tab בקשות, choose אישור or דחייה in the **פעולה** column, then tick **ביצוע**. The tick is the confirmation, and it works in the Sheets phone app too. Decided requests stay at the bottom of the tab for 3 days with a WhatsApp link to the guest.
 - **Unanswered requests** stop holding their dates after 24 hours and are marked ⌛ פג תוקף. They can still be approved while the dates are free.
-- **Cancel a booking:** in the owner console, tab הזמנות → **ביטול** next to the booking (or from its night in יומן). Choose who asked to cancel (האורח / אנחנו) and, if the guest has an email, whether Google should send them a cancellation email; nothing is chosen in advance. The console shows the cancellation fee the terms set, for information only. The cancellation is logged in the sheet's **ביטולים** tab and the dates open on the website within about a minute. It cannot be undone: to restore a booking, add it again as a phone booking. Stays that have already started cannot be cancelled from the console. Manual events made in Google Calendar are still cancelled by deleting the event there.
+- **Cancel a booking:** in the owner console, tab הזמנות → **ביטול** next to the booking (or from its night in יומן). Choose who asked to cancel (האורח / אנחנו) and, if the guest has an email, whether Google should send them a cancellation email; nothing is chosen in advance. The console shows the cancellation fee the terms set, for information only. The cancellation is logged in the sheet's **ביטולים** tab and the dates open on the website within about a minute. It cannot be undone: to restore a booking, add it again as a phone booking. A stay cannot be cancelled from the console once its check-in time has passed. Manual events made in Google Calendar are still cancelled by deleting the event there.
 - **Or use the owner console** (below): the same requests, bookings and channel bookings, with approve
   and decline, on a page made for the phone.
 
@@ -75,21 +75,28 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
   so a tool must sign the exact JSON it sends (same key order, no spaces, non-ASCII as is).
 - **Cancelling a booking** (`cancelBooking`, `cancelBooking_`; fees in `cancellationFee`,
   shared/rules.js). Website bookings (`source: website`) and phone bookings (`source: console`,
-  `kind: phone`) whose first night is today or later; everything else is refused (`not_cancellable`,
-  `started`). Shortening a stay already in progress is a later feature. The call needs
+  `kind: phone`) until the stay starts (`stayStartsAt`: check-in at 15:00 on the first night; a bride
+  day on the wedding day); everything else is refused (`not_cancellable`, `started`). Shortening a stay already in progress is a later feature. The call needs
   `by` (`guest` or `us`) and `notify` as an explicit `true` or `false`: whether Google emails the
   guest a cancellation is the owner's choice each time, and it only happens when the event has an
   attendee. Under the script lock it appends a line to the admin sheet's **ביטולים** tab (time,
   reference, guest, dates, price, the confirmation date, who cancelled, the fee band and amount, the
-  reason, whether the guest was emailed, the event id), then deletes the event; if the delete fails,
-  the line is removed again. The deleted event is gone from every reader (the website, the sheets,
+  reason, whether the guest was emailed, the event id), then deletes the event. If the delete
+  reports an error, the event is looked up again: the line is removed only if the event is still
+  there, kept if it is gone (Google may delete and still answer with an error), and marked
+  "לא ודאי" if the lookup fails too. The console waits up to 60 seconds and, while the backend
+  answers `in_progress`, asks again with the same `requestId`; it starts a new attempt only after
+  a definite refusal. The deleted event is gone from every reader (the website, the sheets,
   and later the channel feeds), so ביטולים is the booking's only record afterwards: it is protected,
-  never rewritten by the mirror refresh, and `setup` keeps it. The fee is what the terms set, by
-  days left before the first night (14+ free, 7–13 half, under 7 full; nothing when we cancel), or
+  never rewritten by the mirror refresh, and `setup` keeps it. The fee is what the terms set, by the
+  time left before the stay starts (14+ days free, 7–14 half, under 7 full; nothing when we cancel), or
   the statutory 5% / ₪100 when the booking was confirmed at most 14 days ago and at least 7 days
   that are not Saturdays are left (holidays are not known, so this is guidance). The system charges
-  nothing; `overview` gives each cancellable booking its `cancelFees` for today, by the guest and by
-  us, so the console does not compute them itself.
+  nothing; `overview` gives each cancellable booking its `cancelFees` as of now, by the guest and by
+  us, so the console does not compute them itself. A website booking's price is the site's estimate,
+  so the console and the log mark it as one. `apps-script/code.test.mjs` runs Code.js in Node with
+  stand-ins for Google's services, to test the log line's fate on a failed delete and that `setup`
+  keeps ביטולים.
 - **The page is public and holds no secrets.** It calls this web app's `console` action. `login`
   checks the password against `CONFIG.consolePasswordHash` (a salted HMAC, from `booking-config.json`,
   never in the repo) and returns a session token signed with the HMAC secret. Every other console

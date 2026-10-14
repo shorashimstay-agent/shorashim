@@ -624,7 +624,7 @@ var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: '
 var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה'];
 var BOOKING_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות', 'מקור', 'סוג אירוח', 'אורחים', 'טלפון', 'אימייל', 'הערות', 'מספר', 'WhatsApp'];
 var CHANNEL_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות'];
-var CANCEL_COLUMNS = ['בוטלה', 'מספר', 'שם', 'טלפון', 'אימייל', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'מחיר', 'אושרה', 'ביוזמת', 'דמי ביטול לפי התנאים', 'סיבה', 'מייל ביטול לאורח', 'מזהה'];
+var CANCEL_COLUMNS = ['בוטלה', 'מספר', 'שם', 'טלפון', 'אימייל', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'מחיר (באתר: הערכה)', 'אושרה', 'ביוזמת', 'דמי ביטול לפי התנאים', 'סיבה', 'מייל ביטול לאורח', 'מזהה'];
 var ACTION_COL = 14;
 var CONFIRM_COL = 15;
 var ID_COL = 17;
@@ -671,7 +671,7 @@ function protectAdminTabs_(ss) {
     sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (protection) {
       protection.remove();
     });
-    var protection = sheet.protect().setDescription('נכתב אוטומטית מהיומנים. אפשר לערוך רק פעולה וביצוע בלשונית בקשות.');
+    var protection = sheet.protect().setDescription(name === ADMIN_TABS.cancellations ? CANCEL_LOG_PROTECTION : 'נכתב אוטומטית מהיומנים. אפשר לערוך רק פעולה וביצוע בלשונית בקשות.');
     if (name === ADMIN_TABS.requests) {
       protection.setUnprotectedRanges([sheet.getRange(2, ACTION_COL, sheet.getMaxRows() - 1, CONFIRM_COL - ACTION_COL + 1)]);
     }
@@ -761,6 +761,7 @@ var MIRRORS_REFRESHED_KEY = 'mirrorsRefreshedAt';
 function adminData_() {
   var today = today_();
   var now = Date.now();
+  var nowLocal = fmt_(new Date(now), "yyyy-MM-dd'T'HH:mm");
   var lists = listEvents_(['requests', 'bookings', 'channels'], localDate_(addDays(today, -30)), localDate_(addDays(today, HORIZON_DAYS + 1)));
   // A console hold that ran out no longer exists for anyone; the next availability rebuild deletes it.
   lists.bookings = lists.bookings.filter(function (item) {
@@ -820,7 +821,8 @@ function adminData_() {
     var props = eventProps_(item);
     var req = JSON.parse(props.request || '{}');
     var range = itemRange_(item);
-    var cancellable = isCancellable_(item, props) && range.start >= today;
+    var startsAt = stayStartsAt(req.stayType, range.start);
+    var cancellable = isCancellable_(item, props) && nowLocal < startsAt;
     var confirmed = bookingConfirmed_(item, props);
     return {
       id: item.iCalUID,
@@ -839,11 +841,11 @@ function adminData_() {
       // Only console closings and holds can be reopened from the console. Bookings, and manual events
       // made in Google Calendar (which may be a guest's stay), are changed in the calendar itself.
       reopenable: isReopenable_(item, props),
-      // Website and phone bookings can be cancelled from the console until their first night has
-      // passed. cancelFees is what the terms set if the guest cancels today, and if we do.
+      // Website and phone bookings can be cancelled from the console until the stay starts.
+      // cancelFees is what the terms set if the guest cancels now, and if we do.
       cancellable: cancellable,
       confirmedAt: confirmed,
-      cancelFees: cancellable ? cancelFees_(range.start, confirmed, today, req.estimate) : null,
+      cancelFees: cancellable ? cancelFees_(startsAt, confirmed, nowLocal, req.estimate) : null,
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       adults: req.adults || '',
@@ -1359,15 +1361,16 @@ function bookingConfirmed_(item, props) {
   return isNaN(at) ? '' : fmt_(new Date(at), 'yyyy-MM-dd');
 }
 
-/** The fee the terms set for cancelling today, by the guest and by us (shared/rules.js cancellationFee). */
-function cancelFees_(arrival, confirmed, today, price) {
+/** The fee the terms set for cancelling now, by the guest and by us (shared/rules.js cancellationFee). */
+function cancelFees_(startsAt, confirmed, nowLocal, price) {
   var fee = function (by) {
-    return cancellationFee({ arrival: arrival, confirmed: confirmed, today: today, price: Number(price) || 0, by: by });
+    return cancellationFee({ startsAt: startsAt, confirmed: confirmed, now: nowLocal, price: Number(price) || 0, by: by });
   };
   return { guest: fee('guest'), us: fee('us') };
 }
 
 var CANCEL_BY = { guest: 'האורח', us: 'אנחנו' };
+var CANCEL_LOG_PROTECTION = 'יומן ביטולים: נכתב רק מהמסוף, ואינו נכתב מחדש מהיומנים.';
 var FEE_BAND_LABELS = { ours: 'ללא (ביטול שלנו)', free: 'ללא חיוב', half: '50%', full: '100%', statutory: 'לפי החוק: 5% או 100 ₪, הנמוך' };
 
 /** The fee as the log and the owner read it: the band, and the amount when the price is known. */
@@ -1379,8 +1382,10 @@ function feeText_(fee) {
  * Cancels a website or phone booking: logs it in ביטולים, then deletes its event. args.by is 'guest'
  * or 'us'; args.notify must be given as true or false, because the owner decides each time whether
  * Google emails the guest a cancellation (it only can when the booking has an email). The log line
- * is written first and removed again if the delete fails, so a cancelled booking always has its
- * record. Stays whose first night has passed are refused; shortening one is a separate feature.
+ * is written first, so a cancelled booking always has its record (see the delete's error handling).
+ * A stay that has started (check-in time on its first night, stayStartsAt) is refused; shortening
+ * one is a separate feature. For a website booking the price is the site's estimate, which the
+ * console and the log say.
  */
 function cancelBooking_(id, args) {
   args = args || {};
@@ -1389,20 +1394,21 @@ function cancelBooking_(id, args) {
   var reason = String(args.reason || '').trim();
   if (reason.length > NOTES_MAX) return { ok: false, error: 'invalid', fields: { reason: 'too_long' } };
   if (!CONFIG.adminSheetId) return { ok: false, error: 'not_configured' };
-  var today = today_();
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  var item, req, range, fee, emailed;
+  var item, props, req, range, fee, emailed;
   try {
     item = findBooking_(id);
     if (!item) return { ok: false, error: 'not_found' };
-    var props = eventProps_(item);
+    props = eventProps_(item);
     if (!isCancellable_(item, props)) return { ok: false, error: 'not_cancellable' };
     range = itemRange_(item);
-    if (range.start < today) return { ok: false, error: 'started' };
     req = JSON.parse(props.request || '{}');
+    var nowLocal = fmt_(new Date(), "yyyy-MM-dd'T'HH:mm");
+    var startsAt = stayStartsAt(req.stayType, range.start);
+    if (nowLocal >= startsAt) return { ok: false, error: 'started' };
     var confirmed = bookingConfirmed_(item, props);
-    fee = cancellationFee({ arrival: range.start, confirmed: confirmed, today: today, price: Number(req.estimate) || 0, by: args.by });
+    fee = cancellationFee({ startsAt: startsAt, confirmed: confirmed, now: nowLocal, price: Number(req.estimate) || 0, by: args.by });
     emailed = args.notify && (item.attendees || []).length > 0;
     var log = cancellationsLog_();
     log.appendRow([
@@ -1415,7 +1421,7 @@ function cancelBooking_(id, args) {
       text_(heDate_(range.start)),
       text_(heDate_(range.end)),
       range.nights,
-      req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US')) : '',
+      req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US') + (props.source === 'website' ? ' (הערכה)' : '')) : '',
       confirmed ? text_(heDate_(confirmed)) : '',
       CANCEL_BY[args.by],
       text_(feeText_(fee)),
@@ -1427,8 +1433,25 @@ function cancelBooking_(id, args) {
     try {
       calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: emailed ? 'all' : 'none' }));
     } catch (err) {
-      log.deleteRow(row);
-      throw err;
+      // An error does not prove the event survived: Google may have deleted it and then answered
+      // 5xx, timed out, or said 404/410 to a delete that already happened. Only an event that is
+      // still there undoes the line; one that is gone was cancelled, so its line stays. When neither
+      // is known, the line stays marked for checking: a line too many beats a cancellation without one.
+      var survived;
+      try {
+        survived = !!findBooking_(id);
+      } catch (checkErr) {
+        survived = null;
+      }
+      if (survived === true) {
+        log.deleteRow(row);
+        throw err;
+      }
+      if (survived === null) {
+        log.getRange(row, 1).setValue(text_(fmt_(new Date(), 'dd.MM.yyyy HH:mm') + ' · לא ודאי: לבדוק ביומן'));
+        throw err;
+      }
+      console.warn('the delete reported an error but the event is gone; the cancellation stands', err);
     }
     invalidateAvailability_();
   } finally {
@@ -1437,9 +1460,11 @@ function cancelBooking_(id, args) {
   var snapshot = refreshSnapshotQuietly_();
   scheduleMirrorRefresh_();
   var name = req.name || item.summary || '';
+  // Wedding packages are named by the wedding date, as in the approval message.
+  var dates = STAY_TYPES[req.stayType] && STAY_TYPES[req.stayType].wedding ? stayDatesShort_(req) : heDate_(range.start) + '–' + heDate_(range.end);
   var text = args.by === 'us'
-    ? 'שלום ' + name + ', לצערנו נאלצנו לבטל את ההזמנה שלך בשורשים (' + heDate_(range.start) + '–' + heDate_(range.end) + '). נשמח לתאם מועד אחר, או להחזיר את מלוא התשלום.'
-    : 'שלום ' + name + ', ההזמנה שלך בשורשים (' + heDate_(range.start) + '–' + heDate_(range.end) + ') בוטלה לבקשתך.';
+    ? 'שלום ' + name + ', לצערנו נאלצנו לבטל את ההזמנה שלך בשורשים (' + dates + '). נשמח לתאם מועד אחר, או להחזיר את מלוא התשלום.'
+    : 'שלום ' + name + ', ההזמנה שלך בשורשים (' + dates + ') בוטלה לבקשתך.';
   return {
     ok: true,
     result: 'cancelled',
@@ -1453,6 +1478,7 @@ function cancelBooking_(id, args) {
     emailed: emailed,
     fee: fee,
     feeText: feeText_(fee),
+    estimated: props.source === 'website',
     snapshot: snapshot,
     whatsapp: req.phone ? waLink_(req.phone, text) : '',
   };
@@ -1464,7 +1490,7 @@ function cancellationsLog_() {
   var sheet = ss.getSheetByName(ADMIN_TABS.cancellations);
   if (sheet) return sheet;
   sheet = adminTab_(ss, ADMIN_TABS.cancellations, CANCEL_COLUMNS);
-  var protection = sheet.protect().setDescription('יומן ביטולים. נכתב אוטומטית מהמסוף.');
+  var protection = sheet.protect().setDescription(CANCEL_LOG_PROTECTION);
   protection.removeEditors(protection.getEditors());
   if (protection.canDomainEdit()) protection.setDomainEdit(false);
   return sheet;

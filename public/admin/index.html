@@ -270,7 +270,7 @@
         <h2 id="h-bookings">הזמנות</h2>
         <p class="sub">הזמנות מהאתר ומהטלפון, ותאריכים סגורים. לסגירת תאריכים: לשונית יומן.</p>
       </div>
-      <div id="cancel-panel" aria-live="polite"></div>
+      <div id="cancel-panel"></div>
       <h3 class="tag">קרובות</h3>
       <ul class="list" id="bookings-upcoming"></ul>
       <h3 class="tag">תאריכים סגורים</h3>
@@ -346,8 +346,8 @@
   function post(body, attempt) {
     attempt = attempt || 1;
     var controller = new AbortController();
-    // A decision with a calendar invitation can take a while; other calls answer faster.
-    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' || body.op === 'block' ? 60000 : 30000);
+    // A decision, closing or cancellation can take a while (the lock, the calendar, the sheets); other calls answer faster.
+    var timer = setTimeout(function () { controller.abort(); }, body.op === 'decide' || body.op === 'block' || body.op === 'cancelBooking' ? 60000 : 30000);
     return fetch(API, { method: 'POST', body: JSON.stringify(body), signal: controller.signal })
       .then(function (res) { return res.json(); })
       .then(function (data) {
@@ -1136,17 +1136,19 @@
   // in shared/rules.js). The owner says who asked to cancel and, when the guest has an email, whether
   // Google should email them; neither has a default. The fee is what the terms set, shown only.
 
-  var FEE_TEXT = { ours: 'אין דמי ביטול: הביטול שלנו. האורח בוחר בין החזר מלא למועד אחר.', free: 'ללא חיוב: נותרו 14 ימים או יותר.', half: '50% ממחיר ההזמנה: נותרו 7 עד 13 ימים.', full: '100% ממחיר ההזמנה: נותרו פחות מ-7 ימים.', statutory: 'לפי החוק: 5% או 100 ₪, הנמוך מביניהם (בוטלה תוך 14 ימים מהאישור, ונותרו לפחות 7 ימים שאינם ימי מנוחה).' };
+  var FEE_TEXT = { ours: 'אין דמי ביטול: הביטול שלנו. האורח בוחר בין החזר מלא למועד אחר.', free: 'ללא חיוב: נותרו 14 ימים או יותר עד שעת תחילת האירוח.', half: '50% ממחיר ההזמנה: נותרו 7 עד 14 ימים עד שעת תחילת האירוח.', full: '100% ממחיר ההזמנה: נותרו פחות מ-7 ימים עד שעת תחילת האירוח.', statutory: 'לפי החוק: 5% או 100 ₪, הנמוך מביניהם (בוטלה תוך 14 ימים מהאישור, ונותרו לפחות 7 ימים שאינם ימי מנוחה).' };
+  // Definite refusals: nothing was cancelled, so a new attempt may run under a new requestId.
   var CANCEL_ERRORS = {
-    started: 'השהייה כבר התחילה, ואי אפשר לבטל אותה מכאן.',
+    started: 'השהייה כבר התחילה (שעת תחילת האירוח עברה), ואי אפשר לבטל אותה מכאן.',
     not_cancellable: 'מכאן אפשר לבטל רק הזמנות מהאתר והזמנות טלפוניות.',
     not_found: 'ההזמנה כבר לא ביומן. ייתכן שבוטלה כבר: רעננו ובדקו בלשונית ההזמנות ובלשונית ביטולים בגיליון.',
     invalid: 'חסרה בחירה. בחרו מי ביקש לבטל, ואם לשלוח מייל.',
     not_configured: 'גיליון הניהול לא מוגדר, ולכן אי אפשר לרשום את הביטול. ההזמנה לא בוטלה.',
   };
 
-  function feeLine(fee) {
-    return FEE_TEXT[fee.band] + (fee.fee === null ? (fee.band === 'ours' ? '' : ' לא נקבע מחיר להזמנה, ולכן אין סכום.') : ' סכום: ' + (fee.fee ? money(fee.fee) : '₪0') + '.');
+  /** `estimated`: a website booking, whose price is the site's estimate rather than the agreed price. */
+  function feeLine(fee, estimated) {
+    return FEE_TEXT[fee.band] + (fee.fee === null ? (fee.band === 'ours' ? '' : ' לא נקבע מחיר להזמנה, ולכן אין סכום.') : ' סכום: ' + (fee.fee ? money(fee.fee) : '₪0') + (fee.fee && estimated ? ' (לפי הערכת המחיר באתר; בדקו מול המחיר שסוכם)' : '') + '.');
   }
 
   function renderCancel() {
@@ -1154,14 +1156,16 @@
     if (!c) { el.innerHTML = ''; return; }
     if (c.step === 'result') { el.innerHTML = cancelResult(c.result); return; }
     var b = findBooking(c.id);
-    if (!b) { el.innerHTML = ''; state.cancel = null; return; }
+    // While the call runs, the booking may already be gone from a refreshed overview: keep the state,
+    // so the answer still has somewhere to land.
+    if (!b) { el.innerHTML = c.step === 'busy' ? '<div class="panel" role="status">מבטלים…</div>' : ''; if (c.step !== 'busy') state.cancel = null; return; }
     var busy = c.step === 'busy';
     var ready = c.by && (!b.email || c.notify !== null);
     var html = '<div class="panel blockform" id="cancel-form" role="group" aria-labelledby="cf-title"><h3 id="cf-title">ביטול ההזמנה של ' + esc(b.name || b.title) + '</h3>' +
-      '<p class="what">' + range(b.start, b.end) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
+      '<p class="what">' + range(b.start, b.end) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) + (b.kind === 'website' ? ' (הערכה)' : '') : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
       '<span class="label" id="cf-by-l">מי ביקש לבטל</span><div class="choices" role="group" aria-labelledby="cf-by-l">' +
       choice('by', 'guest', c.by, 'האורח') + choice('by', 'us', c.by, 'אנחנו') + '</div>';
-    if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by])) + ' לידיעה בלבד: המערכת לא גובה תשלום.</p>';
+    if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by], b.kind === 'website')) + ' לידיעה בלבד: המערכת לא גובה תשלום.</p>';
     if (b.email) {
       html += '<span class="label" id="cf-notify-l">לשלוח לאורח מייל ביטול מיומן Google אל <span dir="ltr">' + esc(b.email) + '</span>?</span><div class="choices" role="group" aria-labelledby="cf-notify-l">' +
         choice('notify', 'yes', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'כן, לשלוח') + choice('notify', 'no', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'לא לשלוח') + '</div>';
@@ -1180,13 +1184,15 @@
       '<li>יומן הביטולים בגיליון<span class="pill ok">נרשם</span></li>' +
       '<li>האתר<span class="pill ' + (r.snapshot ? 'ok">התאריכים פנויים' : 'warn">יתעדכן תוך כמה דקות') + '</span></li>' +
       '<li>מייל לאורח<span class="pill ' + (r.emailed ? 'ok">נשלח' : 'plain">לא נשלח') + '</span></li></ul>' +
-      '<p>דמי ביטול לפי התנאים: ' + esc(feeLine(r.fee)) + '</p>' +
+      '<p>דמי ביטול לפי התנאים: ' + esc(feeLine(r.fee, r.estimated)) + '</p>' +
       (r.whatsapp ? '<a class="btn wa primary" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener">' + waIcon() + 'שליחת הודעת ביטול ב-WhatsApp</a> ' : '') +
       '<div class="actions" style="margin-top:10px"><button type="button" class="btn primary" data-cancel="done">סיום</button></div></div>';
     return html;
   }
 
   function openCancel(id) {
+    // One cancellation at a time: while one runs, its answer must not land on another booking's form.
+    if (state.cancel && state.cancel.step === 'busy') { announce('ביטול אחר עדיין מתבצע. רגע.'); return; }
     state.cancel = { id: id, step: 'form', by: '', notify: null, reason: '', error: '', requestId: '' };
     renderCancel();
     var form = $('cancel-form');
@@ -1197,14 +1203,26 @@
   function submitCancel() {
     var c = state.cancel, b = findBooking(c.id);
     c.reason = $('cf-reason') ? $('cf-reason').value : c.reason;
+    c.notifyArg = !!(b && b.email) && c.notify === true;
     c.step = 'busy';
     c.error = '';
     // One requestId per attempt: a retry of the same tap returns the first answer instead of running twice.
     c.requestId = c.requestId || requestId();
+    c.polls = 0;
     renderCancel();
-    call('cancelBooking', { id: c.id, args: { requestId: c.requestId, by: c.by, notify: !!(b && b.email) && c.notify === true, reason: c.reason } })
+    sendCancel(c);
+  }
+
+  /**
+   * Sends the cancellation, and asks again with the same requestId while the backend says the first
+   * call is still running (in_progress): it then returns the first call's answer, not a new attempt.
+   */
+  function sendCancel(c) {
+    call('cancelBooking', { id: c.id, args: { requestId: c.requestId, by: c.by, notify: c.notifyArg, reason: c.reason } })
       .then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; })
       .then(function (res) {
+        if (state.cancel !== c) return;
+        if (res.error === 'in_progress' && c.polls++ < 12) { setTimeout(function () { sendCancel(c); }, 5000); return; }
         if (res.ok) {
           state.cancel = { step: 'result', result: res };
           announce('ההזמנה בוטלה');
@@ -1214,10 +1232,13 @@
           return;
         }
         c.step = 'form';
-        c.error = CANCEL_ERRORS[res.error] || 'לא הצלחנו לבטל. רעננו ובדקו שההזמנה עדיין ברשימה לפני שמנסים שוב.';
-        // A new attempt after a definite refusal gets a new requestId; after a network error it keeps
-        // the same one, so a cancellation that did go through is not run again.
-        if (res.error !== 'network') c.requestId = '';
+        var definite = Object.prototype.hasOwnProperty.call(CANCEL_ERRORS, res.error);
+        c.error = definite ? CANCEL_ERRORS[res.error] : 'לא ברור אם הביטול בוצע. בדקו ברשימה (היא מתרעננת עכשיו): אם ההזמנה עדיין שם, אפשר לנסות שוב.';
+        // Only a definite refusal gets a new requestId. After anything uncertain (no answer, a server
+        // error, still running) the next tap reuses this one, so a cancellation that went through is
+        // answered with its first result instead of being reported as missing.
+        if (definite) c.requestId = '';
+        else load(true);
         renderCancel();
         focusFirst('#cancel-panel [role="alert"]');
       });
@@ -1233,6 +1254,8 @@
       if (group === 'by') c.by = v;
       if (group === 'notify') c.notify = v === 'yes';
       renderCancel();
+      var feeEl = $('cf-fee');
+      if (group === 'by' && feeEl) announce(feeEl.textContent);
       focusFirst('#cancel-panel [data-choice="' + group + '"][data-value="' + CSS.escape(v) + '"]');
       return;
     }
