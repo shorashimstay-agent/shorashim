@@ -2,6 +2,7 @@
 export function navigateTo(id: string) {
   const target = document.getElementById(id);
   if (!target) return;
+  if (id === 'booking') window.dispatchEvent(new Event('shorashim:open-booking'));
   if (id === 'faq') {
     window.dispatchEvent(new Event('shorashim:show-faq'));
     return;
