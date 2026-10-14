@@ -1,14 +1,8 @@
 import { BRAND_DATA, IMAGES } from '../data/shorashimData';
 import ShorashimWordmark from './ShorashimWordmark';
 import Picture from './Picture';
-import { Images } from 'lucide-react';
-import { navigateTo } from './navigate';
 
-interface HeroProps {
-  onOpenBooking: () => void;
-}
-
-export default function Hero({ onOpenBooking }: HeroProps) {
+export default function Hero() {
 
 
   return (
@@ -104,37 +98,6 @@ export default function Hero({ onOpenBooking }: HeroProps) {
             </div>
           </div>
 
-          {/* 
-            Generous breathing space to the CTA
-          */}
-          <div className="h-6 sm:h-12 lg:h-14" />
-
-          {/* 
-            ACTIONS:
-            CTA: Warm ivory background (#F4EFE5), dark charcoal typography (#27241F),
-            minimal padding, subtle soft corners (rounded-[6px]), no pill shape, no icon.
-            
-            Secondary action: a quiet outlined gallery link beside availability.
-          */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 pr-1 sm:pr-4">
-            <button
-              type="button"
-              id="hero-check-availability-btn"
-              onClick={onOpenBooking}
-              className="min-h-11 px-5 py-2.5 sm:px-7 sm:py-3 border border-[#F4EFE5] bg-[#F4EFE5] text-[#27241F] hover:bg-[#DED5C8] transition-colors duration-300 text-[16px] sm:text-[15px] font-normal tracking-wide cursor-pointer rounded-[6px]"
-            >
-              בירור זמינות
-            </button>
-
-            <a href="#gallery"
-              id="hero-gallery-btn"
-              onClick={(event) => { event.preventDefault(); navigateTo('gallery'); }}
-              className="hero-secondary inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 sm:px-7 sm:py-3 border border-[#F4EFE5]/80 text-[#F4EFE5] hover:bg-[#151412]/30 transition-colors duration-300 text-[16px] sm:text-[15px] cursor-pointer font-normal tracking-wide rounded-[6px]"
-            >
-              <Images className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>גלריה</span>
-            </a>
-          </div>
 
         </div>
       </div>
