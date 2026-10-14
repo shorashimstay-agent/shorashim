@@ -357,3 +357,11 @@ main figcaption { color: #51483e; font-size: 15px; line-height: 1.6; }
 .footer-links a { font-size:15px; min-height:44px; display:inline-flex; align-items:center; }
 .footer-copyright { font-size:13px; color:#665548; margin-top:16px; padding-top:16px; border-top:1px solid #d6ccbc; }
 @media(max-width:767px) { .local-cards { grid-template-columns:1fr; gap:16px; } .local-card { padding:20px; } .gallery-preview { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .gallery-preview .gallery-tile:first-child { grid-column:1/-1; grid-row:auto; } .gallery-preview .gallery-tile:first-child .gallery-photo { height:auto; min-height:0; aspect-ratio:3/2; } .gallery-preview .gallery-photo { height:auto; aspect-ratio:4/3; } .gallery-tile span { font-size:20px; } .gallery-expanded { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .footer-inner { padding:24px 24px 90px; } .footer-contact { gap:16px; } .footer-contact p { font-size:15px; } .closing-invitation { padding:40px 24px; } }
+
+/* Return to the top with a decorative reading-progress ring. */
+.back-to-top { position: fixed; left: 20px; bottom: max(82px, calc(env(safe-area-inset-bottom) + 82px)); z-index: 40; display: grid; place-items: center; width: 56px; height: 56px; min-height: 56px; padding: 0; border: 0; border-radius: 50%; background: #faf7f2; color: #57432f; box-shadow: 0 4px 22px #241e1a24; transition: background .25s ease, box-shadow .25s ease; }
+.top-progress-ring { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke-width: 2; transform: rotate(-90deg); pointer-events: none; }
+.top-progress-track { stroke: #ded5c8; }
+.top-progress-value { stroke: #796047; stroke-linecap: round; }
+.back-to-top:hover { background: #eee7dc; box-shadow: 0 6px 24px #241e1a35; }
+.back-to-top:focus-visible { outline: 3px solid #57432f; outline-offset: 4px; }
