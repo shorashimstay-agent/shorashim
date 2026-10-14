@@ -1,7 +1,9 @@
 import Picture from './Picture';
 import { useEffect, useRef, useState } from 'react';
 import { GALLERY_ITEMS } from '../data/shorashimData';
-export default function GallerySection() {
+import type { GalleryItem } from '../types';
+interface GallerySectionProps { items?: GalleryItem[]; embedded?: boolean; }
+export default function GallerySection({ items = GALLERY_ITEMS, embedded = false }: GallerySectionProps = {}) {
   const [slide, setSlide] = useState(0);
   const [playing, setPlaying] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [hovered, setHovered] = useState(false);
@@ -13,7 +15,7 @@ export default function GallerySection() {
   const [index, setIndex] = useState<number | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
-  const filtered = GALLERY_ITEMS;
+  const filtered = items;
   const current = filtered[slide];
   const next = filtered[(slide + 1) % filtered.length];
   const moveSlide = (direction: number) => {
@@ -46,9 +48,9 @@ export default function GallerySection() {
   }, []);
   useEffect(() => {
     if (!playing || hovered || !inView || !pageVisible || index !== null) return;
-    const timer = window.setInterval(() => setSlide(old => (old + 1) % GALLERY_ITEMS.length), 8000);
+    const timer = window.setInterval(() => setSlide(old => (old + 1) % filtered.length), 8000);
     return () => window.clearInterval(timer);
-  }, [playing, hovered, inView, pageVisible, index !== null]);
+  }, [playing, hovered, inView, pageVisible, index !== null, filtered.length]);
   useEffect(() => {
     if (index === null) return;
     dialog.current?.showModal();
@@ -56,11 +58,11 @@ export default function GallerySection() {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = oldOverflow; };
   }, [index !== null]);
-  return <section id="gallery" tabIndex={-1} className="py-12 sm:py-24 bg-[#DED5C8]/30">
-    <div className="max-w-7xl mx-auto px-6 sm:px-10">
-      <h2 className="font-serif text-4xl sm:text-5xl mb-4 text-center">מבט אל שורשים</h2>
-      <p className="mb-6 text-center">חדרי הסוויטה, החצר והרגעים הקטנים שביניהם</p>
-      <div ref={carousel} className="gallery-carousel" role="region" aria-roledescription="קרוסלה" aria-label="תמונות שורשים" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={event => { if (!(event.target as HTMLElement).closest('[data-autoplay]')) setPlaying(false); }} onKeyDown={event => { if (event.key === 'ArrowLeft') { event.preventDefault(); moveSlide(1); } if (event.key === 'ArrowRight') { event.preventDefault(); moveSlide(-1); } }}>
+  const content = <>
+    <div className={embedded ? "w-full" : "max-w-7xl mx-auto px-6 sm:px-10"}>
+      {!embedded && <h2 className="font-serif text-4xl sm:text-5xl mb-4 text-center">מבט אל שורשים</h2>}
+      {!embedded && <p className="mb-6 text-center">חדרי הסוויטה, החצר והרגעים הקטנים שביניהם</p>}
+      <div ref={carousel} className="gallery-carousel" role="region" aria-roledescription="קרוסלה" aria-label={embedded ? "פרטים שמחברים בין העבר להווה" : "תמונות שורשים"} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={event => { if (!(event.target as HTMLElement).closest('[data-autoplay]')) setPlaying(false); }} onKeyDown={event => { if (event.key === 'ArrowLeft') { event.preventDefault(); moveSlide(1); } if (event.key === 'ArrowRight') { event.preventDefault(); moveSlide(-1); } }}>
         <div className="gallery-carousel-stage">
           <button type="button" className="gallery-carousel-main" aria-label={`הגדלת התמונה: ${current.title}`} onDragStart={event => event.preventDefault()} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); swipeStart.current = event.clientX; swiped.current = false; }} onPointerUp={event => { if (swipeStart.current !== null && Math.abs(event.clientX - swipeStart.current) > 40) { swiped.current = true; moveSlide(event.clientX > swipeStart.current ? 1 : -1); } swipeStart.current = null; }} onPointerCancel={() => { swipeStart.current = null; }} onClick={event => { if (swiped.current) { swiped.current = false; return; } opener.current = event.currentTarget; setIndex(slide); }}>
             <span key={current.id} className="gallery-carousel-frame"><Picture image={current.image} alt={current.description} sizes="(max-width: 767px) 85vw, 900px" /></span>
@@ -73,10 +75,11 @@ export default function GallerySection() {
         </div>
       </div>
     </div>
-    <dialog ref={dialog} className="gallery-dialog" aria-labelledby="lightbox-title" aria-describedby="lightbox-description" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }} onKeyDown={event => { if (event.key === 'ArrowLeft') { event.preventDefault(); move(1); } if (event.key === 'ArrowRight') { event.preventDefault(); move(-1); } }}>
-      {item && <><div className="flex justify-between items-center gap-4 mb-4"><span aria-live="polite">תמונה {index! + 1} מתוך {filtered.length}</span><button type="button" className="secondary-action !text-white !border-white" onClick={close} autoFocus>סגירת התמונה <span aria-hidden="true">✕</span></button></div><Picture image={item.image} alt={item.title} sizes="(max-width: 1100px) 100vw, 1100px" /><h3 id="lightbox-title" className="font-serif text-2xl mt-4">{item.title}</h3><p id="lightbox-description">{item.description}</p><div className="flex justify-between gap-3 mt-4"><button type="button" className="secondary-action !text-white !border-white" onClick={() => move(-1)}>התמונה הקודמת</button><button type="button" className="secondary-action !text-white !border-white" onClick={() => move(1)}>התמונה הבאה</button></div></>}
+    <dialog ref={dialog} className="gallery-dialog" aria-labelledby={embedded ? "concept-lightbox-title" : "lightbox-title"} aria-describedby={embedded ? "concept-lightbox-description" : "lightbox-description"} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }} onKeyDown={event => { if (event.key === 'ArrowLeft') { event.preventDefault(); move(1); } if (event.key === 'ArrowRight') { event.preventDefault(); move(-1); } }}>
+      {item && <><div className="flex justify-between items-center gap-4 mb-4"><span aria-live="polite">תמונה {index! + 1} מתוך {filtered.length}</span><button type="button" className="secondary-action !text-white !border-white" onClick={close} autoFocus>סגירת התמונה <span aria-hidden="true">✕</span></button></div><Picture image={item.image} alt={item.title} sizes="(max-width: 1100px) 100vw, 1100px" /><h3 id={embedded ? "concept-lightbox-title" : "lightbox-title"} className="font-serif text-2xl mt-4">{item.title}</h3><p id={embedded ? "concept-lightbox-description" : "lightbox-description"}>{item.description}</p><div className="flex justify-between gap-3 mt-4"><button type="button" className="secondary-action !text-white !border-white" onClick={() => move(-1)}>התמונה הקודמת</button><button type="button" className="secondary-action !text-white !border-white" onClick={() => move(1)}>התמונה הבאה</button></div></>}
     </dialog>
-  </section>;
+  </>;
+  return embedded ? <div className="mt-7">{content}</div> : <section id="gallery" tabIndex={-1} className="py-12 sm:py-24 bg-[#DED5C8]/30">{content}</section>;
 }
 
 
