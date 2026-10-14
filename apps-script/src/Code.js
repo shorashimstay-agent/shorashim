@@ -37,6 +37,7 @@ function doGet(e) {
     return json_({ ok: true, service: 'shorashim-booking' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
+    logEvent_('error', { where: 'doGet', action: p.action, message: logMessage_(err) });
     return json_({ ok: false, error: 'server_error' });
   }
 }
@@ -68,9 +69,13 @@ function doPost(e) {
     if (body.action === 'testSetPrices' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testSetPrices_(body.file));
     }
+    if (body.action === 'testEventLog' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(testEventLog_(body.op, body.count));
+    }
     return json_({ ok: false, error: 'bad_request' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
+    logEvent_('error', { where: 'doPost', action: body.action, message: logMessage_(err) });
     return json_({ ok: false, error: 'server_error' });
   }
 }
@@ -102,6 +107,7 @@ function diagnose_(pricesVersion) {
   } finally {
     lock.releaseLock();
   }
+  out.eventLog = eventLogStatus_();
   out.triggers = ScriptApp.getProjectTriggers().map(function (tr) {
     return tr.getHandlerFunction() + ':' + tr.getEventType();
   });
@@ -192,16 +198,19 @@ function readPricesSheet_() {
     var sheet = SpreadsheetApp.openById(CONFIG.pricesSheetId).getSheetByName(PRICES_TAB);
     if (!sheet) {
       console.warn('prices sheet has no tab ' + PRICES_TAB);
+      countLogNoise_('prices.no_tab');
       return null;
     }
     var checked = pricesFromRows(sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 3).getValues());
     if (!checked.ok) {
       console.warn('prices sheet rejected: ' + checked.error);
+      countLogNoise_('prices.rejected');
       return null;
     }
     return { version: checked.version, prices: checked.prices };
   } catch (err) {
     console.warn('prices sheet unreadable', err);
+    countLogNoise_('prices.unreadable');
     return null;
   }
 }
@@ -348,7 +357,12 @@ function deleteExpiredHold_(item) {
     calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: 'none' }));
   } catch (err) {
     console.warn('could not delete an expired hold; it no longer blocks anyway', err);
+    return;
   }
+  try {
+    var range = itemRange_(item);
+    logEvent_('console.hold_expired', { id: item.iCalUID, start: range.start, end: range.end, nights: range.nights });
+  } catch (ignored) {}
 }
 
 function markExpired_(item) {
@@ -360,6 +374,10 @@ function markExpired_(item) {
       extendedProperties: { shared: props },
     })
   );
+  try {
+    var req = JSON.parse(props.request || '{}');
+    logEvent_('request.expired', { ref: req.ref, id: item.iCalUID, start: req.start, end: req.end, nights: req.nights });
+  } catch (ignored) {}
 }
 
 function conflictsFor_(start, end, opts) {
@@ -415,10 +433,11 @@ function refreshAvailabilitySnapshot_() {
  * decision made during one queues another rebuild, and the timer's change check catches anything
  * missed.
  */
-function refreshMirrors_() {
+function refreshMirrors_(why) {
   var mutex = acquireRefreshMutex_(30000);
   if (!mutex) {
     console.error('mirror refresh skipped: another one is still running');
+    countLogNoise_('mirror.skipped');
     return;
   }
   try {
@@ -441,6 +460,7 @@ function refreshMirrors_() {
     if (ok && data) {
       PropertiesService.getScriptProperties().setProperties({ [FULL_REFRESH_KEY]: String(started), [SNAPSHOT_FROM_KEY]: data.from });
     }
+    logEvent_('mirror.rebuild', { ok: ok, ms: Date.now() - started, why: why || '' }, 'system');
   } finally {
     releaseRefreshMutex_(mutex);
   }
@@ -541,32 +561,38 @@ function onMirrorsDue() {
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() === MIRROR_TRIGGER) ScriptApp.deleteTrigger(trigger);
   });
-  refreshMirrors_();
+  refreshMirrors_('queued');
 }
 
 /** Installable trigger: any change in the booking calendars, including Saray's own edits. */
 function onCalendarChange() {
-  refreshMirrors_();
+  refreshMirrors_('calendar change');
 }
 
 /**
  * Installable trigger, every 10 minutes (5 without calendar triggers): keeps the web app warm, and
  * rebuilds both spreadsheets only when something changed. Most runs find nothing and take a few
  * seconds instead of 13, which matters on a free account: all its triggers share 90 minutes a day.
+ * Each run ends by sending the event log's buffer to Firestore (EventLog.js).
  */
 function onSnapshotTimer() {
-  keepWarm_();
-  var reason;
   try {
-    reason = mirrorsNeedRefresh_();
-  } catch (err) {
-    reason = 'check failed';
-    console.warn('change check failed; rebuilding', err);
+    keepWarm_();
+    var reason;
+    try {
+      reason = mirrorsNeedRefresh_();
+    } catch (err) {
+      reason = 'check failed';
+      console.warn('change check failed; rebuilding', err);
+    }
+    if (!reason) return stampSnapshot_();
+    console.log('rebuilding: ' + reason);
+    currentPrices_('');
+    refreshMirrors_(reason);
+  } finally {
+    // Last, so a slow Firestore can never delay the rebuild; it never throws.
+    flushEventLog_(false);
   }
-  if (!reason) return stampSnapshot_();
-  console.log('rebuilding: ' + reason);
-  currentPrices_('');
-  refreshMirrors_();
 }
 
 /** Calls the web app so Google keeps it warm between visitors; a cold start adds several seconds. */
@@ -612,7 +638,7 @@ function setup() {
   ScriptApp.newTrigger('onSnapshotTimer').timeBased().everyMinutes(minutes).create();
   console.log('3/4 calendar triggers: ' + calendarTriggers + ' of 3; timer every ' + minutes + ' minutes');
 
-  refreshMirrors_();
+  refreshMirrors_('setup');
   console.log('4/4 tabs written. Setup done.');
 }
 
@@ -729,7 +755,7 @@ function pruneDecisions_(refs) {
     return !remove[d.ref];
   });
   props.setProperty(DECISIONS_KEY, JSON.stringify(kept));
-  refreshMirrors_();
+  refreshMirrors_('decisions pruned');
   return {
     ok: true,
     removed: list.length - kept.length,
@@ -1006,26 +1032,46 @@ function consoleSigned_(body) {
 
 function consoleCall_(body) {
   if (body.op === 'overview') return consoleOverview_();
-  if (body.op === 'decide') return decideAndRecord_(body.decision, String(body.id || ''), false);
+  if (body.op === 'decide') return decideAndRecord_(body.decision, String(body.id || ''), false, 'console');
+  // Logged inside consoleOnce_, so a retry that only replays the stored result is not logged again.
   if (body.op === 'block') return consoleOnce_('block', body.args && body.args.requestId, function () {
-    return closeDates_(body.args || {});
+    return logConsole_('block', '', closeDates_(body.args || {}));
   });
   // Both run once per requestId too: a retried "extend" must not add the hours twice.
   if (body.op === 'unblock') return consoleOnce_('unblock', body.args && body.args.requestId, function () {
-    return reopenDates_(String(body.id || ''));
+    return logConsole_('unblock', body.id, reopenDates_(String(body.id || '')));
   });
   if (body.op === 'extendHold') return consoleOnce_('extendHold', body.args && body.args.requestId, function () {
-    return extendHold_(String(body.id || ''), body.args || {});
+    return logConsole_('extendHold', body.id, extendHold_(String(body.id || ''), body.args || {}));
   });
   if (body.op === 'cancelBooking') return consoleOnce_('cancelBooking', body.args && body.args.requestId, function () {
-    return cancelBooking_(String(body.id || ''), body.args || {});
+    return logConsole_('cancelBooking', body.id, cancelBooking_(String(body.id || ''), body.args || {}));
   });
   if (body.op === 'logoutAll') {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(CONSOLE_SESSION_VERSION_KEY, String(Number(props.getProperty(CONSOLE_SESSION_VERSION_KEY) || 1) + 1));
+    logEvent_('console.logout_all', {}, 'console');
     return { ok: true, loggedOut: true };
   }
   return { ok: false, error: 'bad_request' };
+}
+
+/**
+ * Logs a console write's outcome and returns the result unchanged. The log keeps only its
+ * allowlisted fields (EventLog.js), so the guest's name and the WhatsApp link stay out.
+ */
+function logConsole_(op, id, result) {
+  var fields = {};
+  Object.keys(result || {}).forEach(function (k) {
+    fields[k] = result[k];
+  });
+  if (!fields.id && id) fields.id = String(id);
+  if (result && result.fee && typeof result.fee === 'object') {
+    fields.fee = result.fee.fee;
+    fields.band = result.fee.band;
+  }
+  logEvent_('console.' + op, fields, 'console');
+  return result;
 }
 
 /**
@@ -1040,13 +1086,18 @@ function consoleLogin_(password) {
   if (!salt || stored.indexOf('$') < 0) return { ok: false, error: 'not_configured' };
   var cache = CacheService.getScriptCache();
   var fails = Number(cache.get(CONSOLE_FAILS_KEY) || 0);
-  if (fails >= CONSOLE_MAX_FAILS) return { ok: false, error: 'locked', minutes: CONSOLE_LOCK_SECONDS / 60 };
+  if (fails >= CONSOLE_MAX_FAILS) {
+    countLogNoise_('console.login_locked');
+    return { ok: false, error: 'locked', minutes: CONSOLE_LOCK_SECONDS / 60 };
+  }
   var hash = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(password || ''), salt + CONFIG.hmacSecret)).replace(/=+$/, '');
   if (salt + '$' + hash !== stored) {
     cache.put(CONSOLE_FAILS_KEY, String(fails + 1), CONSOLE_LOCK_SECONDS);
+    logEvent_('console.login_failed', { result: fails + 1 >= CONSOLE_MAX_FAILS ? 'locked' : '' }, 'console');
     return { ok: false, error: 'wrong_password', attemptsLeft: CONSOLE_MAX_FAILS - fails - 1 };
   }
   cache.remove(CONSOLE_FAILS_KEY);
+  logEvent_('console.login', {}, 'console');
   var payload = sessionVersion_() + '.' + Date.now().toString(36) + '.' + Utilities.getUuid().slice(0, 8);
   return { ok: true, token: payload + '.' + sign_('session:' + payload) };
 }
@@ -1167,12 +1218,12 @@ function onSheetEdit(e) {
     ss.toast('קודם בחרי "אישור" או "דחייה" בעמודת פעולה, ואז סמני ביצוע.', 'שורשים', 8);
     return;
   }
-  var result = decideAndRecord_(choice === ACTION_APPROVE ? 'approve' : 'decline', id, true);
+  var result = decideAndRecord_(choice === ACTION_APPROVE ? 'approve' : 'decline', id, true, 'sheet');
   if (!result.ok) {
     e.range.setValue(false);
     var messages = { not_found: 'הבקשה כבר טופלה.', unavailable: 'חלק מהלילות כבר תפוסים, אי אפשר לאשר.' };
     ss.toast(messages[result.error] || 'משהו השתבש, נסי שוב.', 'שורשים', 10);
-    refreshMirrors_();
+    refreshMirrors_('sheet decision refused');
     return;
   }
   ss.toast(
@@ -1608,7 +1659,10 @@ function createRequest_(body) {
 
 function createRequestOnce_(body) {
   // Honeypot field: bots get a plausible success and nothing is stored.
-  if (body.website) return { ok: true, ref: newRef_(), holdHours: HOLD_HOURS };
+  if (body.website) {
+    countLogNoise_('request.honeypot');
+    return { ok: true, ref: newRef_(), holdHours: HOLD_HOURS };
+  }
 
   // Milliseconds per step, returned with the result so slow requests can be diagnosed.
   var timings = {};
@@ -1621,13 +1675,22 @@ function createRequestOnce_(body) {
   }
 
   var check = validateRequest(body, today_(), currentPrices_(String(body.pricesVersion || '')).prices);
-  if (!check.ok) return { ok: false, error: 'invalid', fields: check.errors };
+  if (!check.ok) {
+    countLogNoise_('request.invalid');
+    return { ok: false, error: 'invalid', fields: check.errors };
+  }
   var req = check.value;
   mark('validate');
 
-  if (CONFIG.recaptchaSecret && !verifyRecaptcha_(body.recaptchaToken)) return { ok: false, error: 'captcha' };
+  if (CONFIG.recaptchaSecret && !verifyRecaptcha_(body.recaptchaToken)) {
+    countLogNoise_('request.captcha');
+    return { ok: false, error: 'captcha' };
+  }
   mark('recaptcha');
-  if (!withinRateLimit_(req.phone)) return { ok: false, error: 'rate_limited' };
+  if (!withinRateLimit_(req.phone)) {
+    countLogNoise_('request.rate_limited');
+    return { ok: false, error: 'rate_limited' };
+  }
   mark('rateLimit');
 
   var lock = LockService.getScriptLock();
@@ -1637,7 +1700,10 @@ function createRequestOnce_(body) {
   try {
     var conflicts = conflictsFor_(req.start, req.end, { expireStale: true });
     mark('conflictCheck');
-    if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
+    if (conflicts.length) {
+      logEvent_('request.unavailable', { start: req.start, end: req.end, nights: req.nights, stayType: req.stayType }, 'guest');
+      return { ok: false, error: 'unavailable', nights: conflicts };
+    }
     req.ref = newRef_();
     eventId = calendarCall_(
       calendarRequest_('requests', 'post', '', { fields: 'iCalUID' }, {
@@ -1664,6 +1730,10 @@ function createRequestOnce_(body) {
   mark('email');
   timings.total = Date.now() - started;
   console.log('request timings ' + JSON.stringify(timings));
+  logEvent_('request.created', {
+    ref: req.ref, id: eventId, start: req.start, end: req.end, nights: req.nights, stayType: req.stayType,
+    adults: req.adults, participants: req.participants, estimate: req.estimate, ms: timings.total,
+  }, 'guest');
   return { ok: true, ref: req.ref, holdHours: HOLD_HOURS, start: req.start, end: req.end, timings: timings };
 }
 
@@ -1843,12 +1913,18 @@ function decisionState_(id, sig) {
  * The other action on an already-decided request reports it as handled.
  */
 function decide(action, id, sig) {
-  if (!validSig_(id, sig)) return { ok: false, error: 'forbidden' };
-  return decideAndRecord_(action, id, false);
+  if (!validSig_(id, sig)) {
+    countLogNoise_('request.forbidden');
+    return { ok: false, error: 'forbidden' };
+  }
+  return decideAndRecord_(action, id, false, 'email');
 }
 
-/** syncMirrors: refresh the spreadsheets before returning (the sheet's own checkbox) or shortly after. */
-function decideAndRecord_(action, id, syncMirrors) {
+/**
+ * syncMirrors: refresh the spreadsheets before returning (the sheet's own checkbox) or shortly after.
+ * actor (email, console or sheet) is where the owner decided, for the event log.
+ */
+function decideAndRecord_(action, id, syncMirrors, actor) {
   if (action !== 'approve' && action !== 'decline') return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache();
   var key = 'decided:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(id)));
@@ -1858,9 +1934,11 @@ function decideAndRecord_(action, id, syncMirrors) {
     return stored.action === action ? stored.result : { ok: false, error: 'not_found' };
   }
   var result = decideOnce_(action, id);
+  if (result.ok) logEvent_('request.' + result.result, { ref: result.ref, id: id, start: result.start, end: result.end, nights: result.nights, invited: result.invited }, actor);
+  else logEvent_('request.decision_failed', { id: id, action: action, error: result.error }, actor);
   if (result.ok) {
     cache.put(key, JSON.stringify({ action: action, result: result }), 3600);
-    if (syncMirrors) refreshMirrors_();
+    if (syncMirrors) refreshMirrors_('sheet decision');
     else scheduleMirrorRefresh_();
   }
   return result;
@@ -1881,7 +1959,7 @@ function decideOnce_(action, id) {
       invalidateAvailability_();
       var declineLink = waLink_(req.phone, 'שלום ' + req.name + ', תודה על הפנייה לשורשים. לצערנו התאריכים שביקשת אינם פנויים. נשמח לעזור למצוא מועד אחר.');
       recordDecision_('declined', req, declineLink);
-      return { ok: true, result: 'declined', whatsapp: declineLink };
+      return { ok: true, result: 'declined', whatsapp: declineLink, ref: req.ref, start: req.start, end: req.end, nights: req.nights };
     }
 
     var conflicts = conflictsFor_(req.start, req.end, { excludeId: id });
@@ -1901,7 +1979,7 @@ function decideOnce_(action, id) {
     invalidateAvailability_();
     var approveLink = waLink_(req.phone, 'שלום ' + req.name + ', ההזמנה שלך בשורשים אושרה (' + stayDatesShort_(req) + '). מחכים לכם!');
     recordDecision_('approved', req, approveLink);
-    return { ok: true, result: 'approved', invited: !!req.email, whatsapp: approveLink };
+    return { ok: true, result: 'approved', invited: !!req.email, whatsapp: approveLink, ref: req.ref, start: req.start, end: req.end, nights: req.nights };
   } finally {
     lock.releaseLock();
   }
