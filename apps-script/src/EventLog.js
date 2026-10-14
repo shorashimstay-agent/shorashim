@@ -28,6 +28,9 @@ var LOG_FIELDS = [
 // Top-level, indexed fields; the rest of an event goes in its unindexed `data` map.
 var LOG_INDEXED = ['type', 'actor', 'ref', 'id'];
 var LOG_NOISE_KEY = 'logNoise';
+// The counts waiting to be sent: one property, merged on every flush, so a long outage cannot grow
+// the buffer past LOG_BUFFER_MAX + 1. Not a log: key, so the ceiling check does not count it.
+var LOG_COUNTS_KEY = 'logCountsPending';
 var LOG_BACKOFF_KEY = 'logBackoff';
 var LOG_PRUNED_KEY = 'logPrunedOn';
 var LOG_TOKEN_KEY = 'logToken';
@@ -53,15 +56,29 @@ function logClass_(type) {
   return /^(request|console)\./.test(type) ? 'business' : 'system';
 }
 
-/** Error text without anything that looks like an email address or a phone number. */
+// Phrases from Google's own errors worth keeping; the rest of an error's text is never stored.
+var LOG_ERROR_PHRASES = ['too many times', 'timed out', 'timeout', 'quota', 'unavailable', 'rate limit', 'Lock'];
+
+/**
+ * A classification of an error, never its text: error text is free text, and Calendar or JSON
+ * errors can quote a guest's name or note. Keeps the error's name, the start of its message when
+ * that is plain words with an optional HTTP status ("Calendar API 403"), and known phrases.
+ */
 function logMessage_(err) {
   var text = String(err && err.message ? err.message : err || '');
-  return text.replace(/\S+@\S+/g, '[email]').replace(/\+?\d[\d\s-]{6,}\d/g, '[number]');
+  var head = text.split(':')[0];
+  var out = [err && err.name ? String(err.name) : 'Error'];
+  if (/^[A-Za-z][A-Za-z ]{0,30}( \d{3})?$/.test(head)) out.push(head);
+  LOG_ERROR_PHRASES.forEach(function (phrase) {
+    if (text.toLowerCase().indexOf(phrase.toLowerCase()) >= 0) out.push(phrase);
+  });
+  return out.join(' · ');
 }
 
+/** Cut by code points, so a cut never splits a surrogate pair (Firestore refuses invalid UTF-8). */
 function logValue_(value) {
   if (typeof value === 'number' || typeof value === 'boolean') return value;
-  return String(value).slice(0, LOG_STRING_MAX);
+  return Array.from(String(value)).slice(0, LOG_STRING_MAX).join('');
 }
 
 /** The event as it is buffered: the type, who acted, when, and the allowed fields only. */
@@ -74,7 +91,7 @@ function logRecord_(type, fields, actor) {
     if (name === 'counts' && typeof value === 'object') {
       var counts = {};
       Object.keys(value).slice(0, 30).forEach(function (k) {
-        counts[String(k).slice(0, 40)] = Number(value[k]) || 0;
+        counts[Array.from(String(k)).slice(0, 40).join('')] = Number(value[k]) || 0;
       });
       event.counts = counts;
     } else if (typeof value !== 'object') {
@@ -138,14 +155,14 @@ function flushEventLog_(force) {
     var noise = cache.get(LOG_NOISE_KEY);
     if (noise) {
       cache.remove(LOG_NOISE_KEY);
-      // Written straight to the buffer: a full buffer is exactly when the dropped count matters.
-      props.setProperty(LOG_KEY_PREFIX + Date.now() + '-counts', logRecord_('log.counts', { counts: JSON.parse(noise) }, 'system'));
+      addLogCounts_(props, JSON.parse(noise));
     }
 
     var all = props.getProperties();
     var keys = Object.keys(all).filter(isLogKey_).sort();
+    var pending = JSON.parse(all[LOG_COUNTS_KEY] || 'null');
     var out = { ok: true, sent: 0 };
-    if (keys.length) {
+    if (keys.length || pending) {
       var writes = [];
       keys.forEach(function (key) {
         var event;
@@ -156,17 +173,24 @@ function flushEventLog_(force) {
         }
         writes.push({ update: { name: logDocName_(key.slice(LOG_KEY_PREFIX.length)), fields: logDocument_(event) } });
       });
+      if (pending) writes.push({ update: { name: logDocName_(pending.id), fields: logDocument_(JSON.parse(logRecord_('log.counts', { counts: pending.counts }, 'system'))) } });
       var started = Date.now();
-      var res = writes.length ? firestoreCall_('commit', { writes: writes }) : { ok: true };
+      var res = firestoreCall_('commit', { writes: writes });
       var ms = Date.now() - started;
+      if (!res.ok && res.code === 400) {
+        // Firestore refused the batch itself, so sending it again would fail the same way forever.
+        // Drop it and count what was lost; the counts go out with the next flush.
+        deleteLogKeys_(props, keys);
+        props.deleteProperty(LOG_COUNTS_KEY);
+        addLogCounts_(props, { 'log.rejected': writes.length });
+        return { ok: false, error: res.error, rejected: writes.length };
+      }
       if (!res.ok) {
         setLogBackoff_(props, backoff);
         return { ok: false, error: res.error, buffered: keys.length };
       }
-      // Deleted one by one: deleteAllProperties would take the prices and the decisions with them.
-      keys.forEach(function (key) {
-        props.deleteProperty(key);
-      });
+      deleteLogKeys_(props, keys);
+      if (pending) props.deleteProperty(LOG_COUNTS_KEY);
       out.sent = writes.length;
       out.ms = ms;
       if (ms > LOG_SLOW_MS) {
@@ -187,6 +211,26 @@ function flushEventLog_(force) {
   }
 }
 
+/** Deleted one by one: deleteAllProperties would take the prices and the decisions with them. */
+function deleteLogKeys_(props, keys) {
+  keys.forEach(function (key) {
+    props.deleteProperty(key);
+  });
+}
+
+/**
+ * Adds counts to the one pending counts record. Its document ID is fixed when the record is made,
+ * so a commit that is retried overwrites the same document.
+ */
+function addLogCounts_(props, counts) {
+  var pending = JSON.parse(props.getProperty(LOG_COUNTS_KEY) || 'null') || { id: Date.now() + '-counts', counts: {} };
+  Object.keys(counts).forEach(function (name) {
+    if (Object.keys(pending.counts).length >= 30 && !(name in pending.counts)) return;
+    pending.counts[name] = (pending.counts[name] || 0) + (Number(counts[name]) || 0);
+  });
+  props.setProperty(LOG_COUNTS_KEY, JSON.stringify(pending));
+}
+
 /** Waits an hour after the first failure, doubling each time up to six hours. */
 function setLogBackoff_(props, previous) {
   var delay = previous && previous.delayMs ? Math.min(previous.delayMs * 2, LOG_BACKOFF_MAX_MS) : LOG_BACKOFF_FIRST_MS;
@@ -203,6 +247,8 @@ function pruneEventLog_(props) {
       limit: LOG_PRUNE_BATCH,
     },
   });
+  // A failure waits for tomorrow too: retrying every run could read 500 documents 144 times a day.
+  props.setProperty(LOG_PRUNED_KEY, today_());
   if (!res.ok) return -1;
   var names = (res.body || [])
     .filter(function (row) {
@@ -219,7 +265,6 @@ function pruneEventLog_(props) {
     });
     if (!del.ok) return -1;
   }
-  props.setProperty(LOG_PRUNED_KEY, today_());
   return names.length;
 }
 
@@ -280,7 +325,7 @@ function firestoreCall_(method, payload) {
   );
   var code = res.getResponseCode();
   if (code === 401) CacheService.getScriptCache().remove(LOG_TOKEN_KEY);
-  if (code !== 200) return { ok: false, error: 'firestore ' + code };
+  if (code !== 200) return { ok: false, code: code, error: 'firestore ' + code };
   return { ok: true, body: JSON.parse(res.getContentText() || '{}') };
 }
 
@@ -319,18 +364,39 @@ function firestoreToken_() {
   return token;
 }
 
-/** For diag and the smoke test: whether logging is set up, what is waiting, and any backoff. */
+/**
+ * For diag and the smoke test: whether logging is set up, what is waiting (by type), any backoff
+ * and its current step, and the pending counts. Never throws.
+ */
 function eventLogStatus_() {
-  if (!logConfigured_()) return { configured: false };
-  var props = PropertiesService.getScriptProperties();
-  var backoff = JSON.parse(props.getProperty(LOG_BACKOFF_KEY) || 'null');
-  return {
-    configured: true,
-    buffered: props.getKeys().filter(isLogKey_).length,
-    backoffUntil: backoff && Date.now() < backoff.until ? new Date(backoff.until).toISOString() : '',
-    noise: JSON.parse(CacheService.getScriptCache().get(LOG_NOISE_KEY) || '{}'),
-    prunedOn: props.getProperty(LOG_PRUNED_KEY) || '',
-  };
+  try {
+    if (!logConfigured_()) return { configured: false };
+    var props = PropertiesService.getScriptProperties();
+    var all = props.getProperties();
+    var types = {};
+    Object.keys(all).filter(isLogKey_).forEach(function (key) {
+      var type = 'unreadable';
+      try {
+        type = JSON.parse(all[key]).type;
+      } catch (ignored) {}
+      types[type] = (types[type] || 0) + 1;
+    });
+    var backoff = JSON.parse(all[LOG_BACKOFF_KEY] || 'null');
+    var active = backoff && Date.now() < backoff.until;
+    var pending = JSON.parse(all[LOG_COUNTS_KEY] || 'null');
+    return {
+      configured: true,
+      buffered: Object.keys(all).filter(isLogKey_).length,
+      bufferedTypes: types,
+      backoffUntil: active ? new Date(backoff.until).toISOString() : '',
+      backoffMs: active ? backoff.delayMs : 0,
+      noise: JSON.parse(CacheService.getScriptCache().get(LOG_NOISE_KEY) || '{}'),
+      pendingCounts: pending ? pending.counts : {},
+      prunedOn: all[LOG_PRUNED_KEY] || '',
+    };
+  } catch (err) {
+    return { configured: logConfigured_(), error: logMessage_(err) };
+  }
 }
 
 /**
@@ -349,6 +415,7 @@ function testEventLog_(op, count) {
   if (op === 'repair') {
     props.deleteProperty(LOG_TEST_BREAK_KEY);
     props.deleteProperty(LOG_BACKOFF_KEY);
+    CacheService.getScriptCache().remove(LOG_TOKEN_KEY);
     return { ok: true, status: eventLogStatus_() };
   }
   if (op === 'fill') {
