@@ -46,16 +46,30 @@ var LOG_PRUNE_BATCH = 500;
 // Requests and owner actions are kept 3 years; rebuilds, errors and counters 90 days.
 var LOG_KEEP_DAYS = { business: 3 * 365, system: 90 };
 
-/** A JSON property, or null; a value that does not parse is deleted, so it cannot jam the log. */
-function logJsonProperty_(props, key) {
+/**
+ * A JSON object property, or null. A value that does not parse, is not an object, or fails `valid`
+ * is deleted, so it cannot jam the log.
+ */
+function logJsonProperty_(props, key, valid) {
   var text = props.getProperty(key);
   if (!text) return null;
+  var value = null;
   try {
-    return JSON.parse(text);
-  } catch (err) {
+    value = JSON.parse(text);
+  } catch (err) {}
+  if (!value || typeof value !== 'object' || (valid && !valid(value))) {
     props.deleteProperty(key);
     return null;
   }
+  return value;
+}
+
+function validLogCounts_(v) {
+  return typeof v.id === 'string' && !!v.counts && typeof v.counts === 'object';
+}
+
+function validLogBackoff_(v) {
+  return typeof v.until === 'number' && typeof v.delayMs === 'number';
 }
 
 function logConfigured_() {
@@ -169,7 +183,7 @@ function flushEventLog_(force) {
   try {
     if (!logConfigured_()) return { ok: true, skipped: 'not_configured' };
     var props = PropertiesService.getScriptProperties();
-    var backoff = logJsonProperty_(props, LOG_BACKOFF_KEY);
+    var backoff = logJsonProperty_(props, LOG_BACKOFF_KEY, validLogBackoff_);
     if (!force && backoff && Date.now() < backoff.until) return { ok: true, skipped: 'backoff', until: new Date(backoff.until).toISOString() };
 
     var cache = CacheService.getScriptCache();
@@ -181,7 +195,7 @@ function flushEventLog_(force) {
 
     var all = props.getProperties();
     var keys = Object.keys(all).filter(isLogKey_).sort();
-    var pending = logJsonProperty_(props, LOG_COUNTS_KEY);
+    var pending = logJsonProperty_(props, LOG_COUNTS_KEY, validLogCounts_);
     var out = { ok: true, sent: 0 };
     if (keys.length || pending) {
       var writes = [];
@@ -236,7 +250,7 @@ function flushEventLog_(force) {
     console.warn('event log: flush failed', err);
     try {
       var p = PropertiesService.getScriptProperties();
-      setLogBackoff_(p, logJsonProperty_(p, LOG_BACKOFF_KEY));
+      setLogBackoff_(p, logJsonProperty_(p, LOG_BACKOFF_KEY, validLogBackoff_));
     } catch (ignored) {}
     return { ok: false, error: logMessage_(err) };
   }
@@ -254,7 +268,7 @@ function deleteLogKeys_(props, keys) {
  * so a commit that is retried overwrites the same document.
  */
 function addLogCounts_(props, counts) {
-  var pending = logJsonProperty_(props, LOG_COUNTS_KEY) || { id: Date.now() + '-counts', counts: {} };
+  var pending = logJsonProperty_(props, LOG_COUNTS_KEY, validLogCounts_) || { id: Date.now() + '-counts', counts: {} };
   Object.keys(counts).forEach(function (name) {
     if (Object.keys(pending.counts).length >= 30 && !(name in pending.counts)) return;
     pending.counts[name] = (pending.counts[name] || 0) + (Number(counts[name]) || 0);
@@ -412,9 +426,9 @@ function eventLogStatus_() {
       } catch (ignored) {}
       types[type] = (types[type] || 0) + 1;
     });
-    var backoff = JSON.parse(all[LOG_BACKOFF_KEY] || 'null');
+    var backoff = logJsonProperty_(props, LOG_BACKOFF_KEY, validLogBackoff_);
     var active = backoff && Date.now() < backoff.until;
-    var pending = JSON.parse(all[LOG_COUNTS_KEY] || 'null');
+    var pending = logJsonProperty_(props, LOG_COUNTS_KEY, validLogCounts_);
     return {
       configured: true,
       buffered: Object.keys(all).filter(isLogKey_).length,
