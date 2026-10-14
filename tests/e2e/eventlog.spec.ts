@@ -88,12 +88,14 @@ test('L2: when Firestore is unreachable the buffer stops at its ceiling, booking
   const closed = await api.console('block', { args: { kind: 'block', start, end: addDays(start, 1), reason: 'אחר', note: `${runTag} יומן מלא` } });
   expect(closed).toMatchObject({ ok: true, result: 'blocked' });
   expect(await api.console('unblock', { id: closed.id })).toMatchObject({ ok: true, result: 'reopened' });
+  // Test events stop at 80, so these owner actions still found room in the buffer.
+  expect((await api.eventLog('status')).status.bufferedTypes['console.block']).toBeGreaterThan(0);
 
   await api.eventLog('repair');
   const drained = await api.eventLog('flush');
   expect(drained.flush.ok, JSON.stringify(drained)).toBe(true);
   // A timer run may have sent them first, so check Firestore rather than this flush's own count.
-  expect((await logEvents(cfg, 'type', 'test.fill', 500)).length).toBeGreaterThan(0);
+  expect((await logEventsSince(cfg, since)).filter((e) => e.fields.type === 'test.fill').length).toBeGreaterThan(0);
   // Rebuilds queued by the closing may log while it runs; what matters is that the fill is gone.
   expect(drained.status.bufferedTypes['test.fill'] ?? 0).toBe(0);
   expect(drained.status.backoffUntil).toBe('');
@@ -101,12 +103,12 @@ test('L2: when Firestore is unreachable the buffer stops at its ceiling, booking
   // What was dropped while full is on record, as one counts event.
   const recent = await logEventsSince(cfg, since);
   expect(recent.some((e) => e.fields.type === 'log.counts' && (e.fields.counts?.['log.dropped'] ?? 0) > 0)).toBe(true);
-  // The closing made while the buffer was full was dropped, and counted above. Once the buffer has
-  // drained, closings are logged as usual.
+  // Both closings are logged by their event ID: the one made during the outage waited in the buffer.
   const reopened = await api.console('block', { args: { kind: 'block', start, end: addDays(start, 1), reason: 'אחר', note: `${runTag} יומן ריק` } });
   expect(reopened).toMatchObject({ ok: true });
   expect(await api.console('unblock', { id: reopened.id })).toMatchObject({ ok: true });
   await api.eventLog('flush');
   const logged = await logEvents(cfg, 'id', reopened.id);
   expect(logged.map((e) => e.fields.type).sort()).toEqual(['console.block', 'console.unblock']);
+  expect((await logEvents(cfg, 'id', closed.id)).map((e) => e.fields.type).sort()).toEqual(['console.block', 'console.unblock']);
 });
