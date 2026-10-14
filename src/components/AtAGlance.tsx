@@ -8,7 +8,7 @@ export default function AtAGlance({ onSelectCouple }: { onSelectCouple: () => vo
       <li><strong>חצר ומרפסת גג</strong><span>אווירה פסטורלית, סיפור של פעם והרבה שלווה</span></li>
       <li><strong>חניה בתוך המשק</strong><span>חניה פרטית לאורחים</span></li>
     </ul>
-    <p className="text-sm leading-relaxed mt-5">אירוח למבוגרים בלבד, לעד שלושה אורחי לינה. הסוויטה במפלס הקרקע; העלייה לגג במדרגות.</p>
+    <p className="text-sm leading-relaxed mt-5">לינה לזוג או לעד שלושה מבוגרים. הסוויטה במפלס הקרקע; העלייה לגג במדרגות.</p>
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5"><p className="text-sm">לשאלות על הגישה לסוויטה ולגג, נשמח לעזור לפני ההזמנה.</p><a className="text-action" href={`tel:${BRAND_DATA.phone}`}>שיחה עם המארחים</a></div>
   </div></section>;
 }
