@@ -142,10 +142,11 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
   `try/catch`. The 10-minute timer sends the buffer in one Firestore commit at the end of its run.
   After a failed or slow commit it waits an hour before trying again, doubling up to six hours. The
   buffer stops at 100 events (the rest are counted as `log.dropped`), so it can never fill Script
-  Properties. Rejected requests and locked-out logins are only counted, and each flush writes the
+  Properties; events other than bookings and owner actions stop at 80, so a flood of refused
+  requests or rebuilds cannot push the business record out. Rejected requests and locked-out logins are only counted, and each flush writes the
   counts as one `log.counts` event, so a flood of bad requests is one entry. Counts waiting through
   an outage stay one merged record (`logCountsPending`). A batch Firestore refuses outright (HTTP
-  400) is dropped and counted as `log.rejected` rather than retried forever. A failed prune waits
+  400) is dropped, counted as `log.rejected` (by type) and backed off, rather than retried forever. A failed prune waits
   for the next day.
 - **Access:** the service account `event-log-writer@<project>.iam.gserviceaccount.com` may only read
   and write documents (`roles/datastore.user`). Its key is `firestore` in `booking-config*.json`,
