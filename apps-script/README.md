@@ -76,7 +76,7 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
 - **Cancelling a booking** (`cancelBooking`, `cancelBooking_`; fees in `cancellationFee`,
   shared/rules.js). Website bookings (`source: website`) and phone bookings (`source: console`,
   `kind: phone`) until the stay starts (`stayStartsAt`: check-in at 15:00 on the first night; a bride
-  day on the wedding day); everything else is refused (`not_cancellable`, `started`). Shortening a stay already in progress is a later feature. The call needs
+  day at 08:00 on the wedding day); everything else is refused (`not_cancellable`, `started`). Shortening a stay already in progress is a later feature. The call needs
   `by` (`guest` or `us`) and `notify` as an explicit `true` or `false`: whether Google emails the
   guest a cancellation is the owner's choice each time, and it only happens when the event has an
   attendee. Under the script lock it appends a line to the admin sheet's **ביטולים** tab (time,
@@ -84,7 +84,8 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
   reason, whether the guest was emailed, the event id), then deletes the event. If the delete
   reports an error, the event is looked up again: the line is removed only if the event is still
   there, kept if it is gone (Google may delete and still answer with an error), and marked
-  "לא ודאי" if the lookup fails too. The console waits up to 60 seconds and, while the backend
+  "לא ודאי" if the lookup fails too (a retry then runs again, so ביטולים may hold a "לא ודאי" line
+  next to the real one; a line too many, never one too few). The console waits up to 60 seconds and, while the backend
   answers `in_progress`, asks again with the same `requestId`; it starts a new attempt only after
   a definite refusal. The deleted event is gone from every reader (the website, the sheets,
   and later the channel feeds), so ביטולים is the booking's only record afterwards: it is protected,

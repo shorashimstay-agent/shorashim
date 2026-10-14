@@ -249,10 +249,11 @@ test('working days between two dates leave out both ends and Saturdays', () => {
   assert.equal(workingDaysBetween('2026-10-14', '2026-10-14'), 0);
 });
 
-test('a stay starts at check-in on its first night; a bride day on the wedding day', () => {
+test('a stay starts at check-in on its first night; a bride day at 08:00 on the wedding day', () => {
   assert.equal(stayStartsAt('couple', '2026-11-20'), '2026-11-20T15:00');
   assert.equal(stayStartsAt('bride_night_day', '2026-11-20'), '2026-11-20T15:00', 'the package with the night before starts with the night');
-  assert.equal(stayStartsAt('bride_day', '2026-11-20'), '2026-11-21T00:00', 'the night before is only kept free');
+  assert.equal(stayStartsAt('bride_day', '2026-11-20'), '2026-11-21T08:00', 'the night before is only kept free');
+  assert.equal(stayStartsAt('wedding_night', '2026-11-20'), '2026-11-20T15:00');
 });
 
 test('the cancellation fee follows the bands in the terms, counted to the hour of check-in', () => {

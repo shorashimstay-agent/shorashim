@@ -1156,16 +1156,25 @@
     if (!c) { el.innerHTML = ''; return; }
     if (c.step === 'result') { el.innerHTML = cancelResult(c.result); return; }
     var b = findBooking(c.id);
-    // While the call runs, the booking may already be gone from a refreshed overview: keep the state,
-    // so the answer still has somewhere to land.
-    if (!b) { el.innerHTML = c.step === 'busy' ? '<div class="panel" role="status">מבטלים…</div>' : ''; if (c.step !== 'busy') state.cancel = null; return; }
+    if (!b) {
+      // The booking is gone from a refreshed overview. While the call runs, keep the state so its
+      // answer has somewhere to land. After an uncertain failure (the requestId is kept), it most
+      // likely went through: ask again with the same requestId, and the backend returns the first
+      // call's result. After a definite refusal, keep showing it.
+      if (c.step === 'form' && c.requestId && (c.resends = (c.resends || 0) + 1) <= 3) { c.step = 'busy'; c.polls = 0; sendCancel(c); }
+      if (c.step === 'busy') { el.innerHTML = '<div class="panel" role="status">מבטלים…</div>'; return; }
+      if (c.error) { el.innerHTML = '<div class="panel"><div class="warnbox" role="alert" tabindex="-1">' + esc(c.error) + '</div><button type="button" class="btn quiet" data-cancel="close">סגירה</button></div>'; return; }
+      state.cancel = null;
+      el.innerHTML = '';
+      return;
+    }
     var busy = c.step === 'busy';
     var ready = c.by && (!b.email || c.notify !== null);
     var html = '<div class="panel blockform" id="cancel-form" role="group" aria-labelledby="cf-title"><h3 id="cf-title">ביטול ההזמנה של ' + esc(b.name || b.title) + '</h3>' +
       '<p class="what">' + range(b.start, b.end) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) + (b.kind === 'website' ? ' (הערכה)' : '') : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
       '<span class="label" id="cf-by-l">מי ביקש לבטל</span><div class="choices" role="group" aria-labelledby="cf-by-l">' +
       choice('by', 'guest', c.by, 'האורח') + choice('by', 'us', c.by, 'אנחנו') + '</div>';
-    if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by], b.kind === 'website')) + ' לידיעה בלבד: המערכת לא גובה תשלום.</p>';
+    if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by], b.kind === 'website')) + ' לידיעה בלבד: המערכת לא גובה תשלום. מחושב לשעת טעינת הרשימה; הביטול מחשב שוב לפי שעת הביצוע.</p>';
     if (b.email) {
       html += '<span class="label" id="cf-notify-l">לשלוח לאורח מייל ביטול מיומן Google אל <span dir="ltr">' + esc(b.email) + '</span>?</span><div class="choices" role="group" aria-labelledby="cf-notify-l">' +
         choice('notify', 'yes', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'כן, לשלוח') + choice('notify', 'no', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'לא לשלוח') + '</div>';

@@ -407,17 +407,26 @@ export var STATUTORY_MIN_DAYS = 7;
 export var STATUTORY_RATE = 5;
 export var STATUTORY_CAP = 100;
 
+// A bride day starts at 08:00 on the wedding day (the house rules in src/legal/content.ts).
+export var BRIDE_DAY_START_MINUTES = 8 * 60;
+
 /**
- * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night. Stays start at
- * check-in on their first night, including the package with the night before. A bride day blocks
- * the night before only to keep the suite ready: the guest comes on the wedding day, whose start
- * (00:00) is used because no hour is agreed for it.
+ * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night, by the house
+ * rules: check-in at 15:00 on the first night, including the package with the night before. A bride
+ * day blocks the night before only to keep the suite ready; it starts at 08:00 on the wedding day.
+ * A wedding night's arrival is "after the event, by arrangement", so its check-in hour, the earliest
+ * it can be, stands in for it.
  * @param {StayType} stayType @param {string} start @returns {string}
  */
 export function stayStartsAt(stayType, start) {
-  if (stayType === 'bride_day') return addDays(start, 1) + 'T00:00';
-  var h = Math.floor(CHECK_IN_MINUTES / 60), m = CHECK_IN_MINUTES % 60;
-  return start + 'T' + (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  if (stayType === 'bride_day') return addDays(start, 1) + 'T' + hhmm(BRIDE_DAY_START_MINUTES);
+  return start + 'T' + hhmm(CHECK_IN_MINUTES);
+}
+
+/** Minutes after midnight as 'HH:mm'. */
+function hhmm(minutes) {
+  var h = Math.floor(minutes / 60), m = minutes % 60;
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
 }
 
 /**
