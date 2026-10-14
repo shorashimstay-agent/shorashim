@@ -92,7 +92,8 @@ test('L2: when Firestore is unreachable the buffer stops at its ceiling, booking
   await api.eventLog('repair');
   const drained = await api.eventLog('flush');
   expect(drained.flush.ok, JSON.stringify(drained)).toBe(true);
-  expect(drained.flush.sent).toBeGreaterThan(0);
+  // A timer run may have sent them first, so check Firestore rather than this flush's own count.
+  expect((await logEvents(cfg, 'type', 'test.fill', 500)).length).toBeGreaterThan(0);
   // Rebuilds queued by the closing may log while it runs; what matters is that the fill is gone.
   expect(drained.status.bufferedTypes['test.fill'] ?? 0).toBe(0);
   expect(drained.status.backoffUntil).toBe('');

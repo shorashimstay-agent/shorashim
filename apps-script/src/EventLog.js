@@ -17,6 +17,10 @@
 
 var LOG_KEY_PREFIX = 'log:';
 var LOG_BUFFER_MAX = 100;
+// Events outside LOG_KEY_TYPES stop at this many, so the last slots are kept for the bookings and
+// owner actions; a flood of refused requests or rebuilds cannot push those out.
+var LOG_BUFFER_SOFT = 80;
+var LOG_KEY_TYPES = /^(request\.(created|approved|declined|decision_failed|expired)|console\.(?!login_failed)\w+)$/;
 var LOG_EVENT_MAX_CHARS = 1000;
 var LOG_STRING_MAX = 100;
 // The only fields an event may carry; anything else a caller passes is dropped.
@@ -42,6 +46,18 @@ var LOG_PRUNE_BATCH = 500;
 // Requests and owner actions are kept 3 years; rebuilds, errors and counters 90 days.
 var LOG_KEEP_DAYS = { business: 3 * 365, system: 90 };
 
+/** A JSON property, or null; a value that does not parse is deleted, so it cannot jam the log. */
+function logJsonProperty_(props, key) {
+  var text = props.getProperty(key);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    props.deleteProperty(key);
+    return null;
+  }
+}
+
 function logConfigured_() {
   var fs = CONFIG.firestore;
   return !!(fs && fs.projectId && fs.clientEmail && fs.privateKey);
@@ -56,19 +72,23 @@ function logClass_(type) {
   return /^(request|console)\./.test(type) ? 'business' : 'system';
 }
 
-// Phrases from Google's own errors worth keeping; the rest of an error's text is never stored.
+// The starts of error messages that are kept (with an HTTP status after them, if any), and phrases
+// from Google's own errors worth keeping. The rest of an error's text is never stored.
+var LOG_ERROR_PREFIXES = ['Calendar API', 'Exception', 'event log token', 'Request failed', 'Service', 'Address unavailable'];
 var LOG_ERROR_PHRASES = ['too many times', 'timed out', 'timeout', 'quota', 'unavailable', 'rate limit', 'Lock'];
 
 /**
  * A classification of an error, never its text: error text is free text, and Calendar or JSON
- * errors can quote a guest's name or note. Keeps the error's name, the start of its message when
- * that is plain words with an optional HTTP status ("Calendar API 403"), and known phrases.
+ * errors can quote a guest's name or note. Keeps the error's name, the start of its message when it
+ * is one of LOG_ERROR_PREFIXES (with its HTTP status: "Calendar API 403"), and known phrases.
  */
 function logMessage_(err) {
   var text = String(err && err.message ? err.message : err || '');
   var head = text.split(':')[0];
   var out = [err && err.name ? String(err.name) : 'Error'];
-  if (/^[A-Za-z][A-Za-z ]{0,30}( \d{3})?$/.test(head)) out.push(head);
+  LOG_ERROR_PREFIXES.forEach(function (prefix) {
+    if (head.indexOf(prefix) === 0) out.push(prefix + ((head.slice(prefix.length).match(/^ (?:HTTP )?\d{3}$/) || [''])[0]));
+  });
   LOG_ERROR_PHRASES.forEach(function (phrase) {
     if (text.toLowerCase().indexOf(phrase.toLowerCase()) >= 0) out.push(phrase);
   });
@@ -107,13 +127,14 @@ function logRecord_(type, fields, actor) {
 
 /**
  * Records an event for the next flush. `fields` may hold anything: only LOG_FIELDS are kept.
- * `actor` is who acted: guest, email, console, sheet, timer or system.
+ * `actor` is who acted: guest, email, console, sheet or system (timers, expiries, rebuilds).
  */
 function logEvent_(type, fields, actor) {
   try {
     if (!logConfigured_()) return;
     var props = PropertiesService.getScriptProperties();
-    if (props.getKeys().filter(isLogKey_).length >= LOG_BUFFER_MAX) {
+    var room = LOG_KEY_TYPES.test(String(type)) ? LOG_BUFFER_MAX : LOG_BUFFER_SOFT;
+    if (props.getKeys().filter(isLogKey_).length >= room) {
       countLogNoise_('log.dropped');
       return;
     }
@@ -148,7 +169,7 @@ function flushEventLog_(force) {
   try {
     if (!logConfigured_()) return { ok: true, skipped: 'not_configured' };
     var props = PropertiesService.getScriptProperties();
-    var backoff = JSON.parse(props.getProperty(LOG_BACKOFF_KEY) || 'null');
+    var backoff = logJsonProperty_(props, LOG_BACKOFF_KEY);
     if (!force && backoff && Date.now() < backoff.until) return { ok: true, skipped: 'backoff', until: new Date(backoff.until).toISOString() };
 
     var cache = CacheService.getScriptCache();
@@ -160,7 +181,7 @@ function flushEventLog_(force) {
 
     var all = props.getProperties();
     var keys = Object.keys(all).filter(isLogKey_).sort();
-    var pending = JSON.parse(all[LOG_COUNTS_KEY] || 'null');
+    var pending = logJsonProperty_(props, LOG_COUNTS_KEY);
     var out = { ok: true, sent: 0 };
     if (keys.length || pending) {
       var writes = [];
@@ -179,10 +200,20 @@ function flushEventLog_(force) {
       var ms = Date.now() - started;
       if (!res.ok && res.code === 400) {
         // Firestore refused the batch itself, so sending it again would fail the same way forever.
-        // Drop it and count what was lost; the counts go out with the next flush.
+        // Drop it and count what was lost, by type; the counts go out with a later flush. Back off
+        // too: if every commit is refused (wrong project, wrong database mode), that is a few
+        // attempts a day, not one per run.
+        var lost = { 'log.rejected': writes.length };
+        keys.forEach(function (key) {
+          try {
+            var type = 'log.rejected:' + JSON.parse(all[key]).type;
+            lost[type] = (lost[type] || 0) + 1;
+          } catch (ignored) {}
+        });
         deleteLogKeys_(props, keys);
         props.deleteProperty(LOG_COUNTS_KEY);
-        addLogCounts_(props, { 'log.rejected': writes.length });
+        addLogCounts_(props, lost);
+        setLogBackoff_(props, backoff);
         return { ok: false, error: res.error, rejected: writes.length };
       }
       if (!res.ok) {
@@ -205,7 +236,7 @@ function flushEventLog_(force) {
     console.warn('event log: flush failed', err);
     try {
       var p = PropertiesService.getScriptProperties();
-      setLogBackoff_(p, JSON.parse(p.getProperty(LOG_BACKOFF_KEY) || 'null'));
+      setLogBackoff_(p, logJsonProperty_(p, LOG_BACKOFF_KEY));
     } catch (ignored) {}
     return { ok: false, error: logMessage_(err) };
   }
@@ -223,7 +254,7 @@ function deleteLogKeys_(props, keys) {
  * so a commit that is retried overwrites the same document.
  */
 function addLogCounts_(props, counts) {
-  var pending = JSON.parse(props.getProperty(LOG_COUNTS_KEY) || 'null') || { id: Date.now() + '-counts', counts: {} };
+  var pending = logJsonProperty_(props, LOG_COUNTS_KEY) || { id: Date.now() + '-counts', counts: {} };
   Object.keys(counts).forEach(function (name) {
     if (Object.keys(pending.counts).length >= 30 && !(name in pending.counts)) return;
     pending.counts[name] = (pending.counts[name] || 0) + (Number(counts[name]) || 0);
