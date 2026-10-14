@@ -511,3 +511,9 @@ dialog#faq { padding: 0; }
 
 .booking-contact-panel > summary.sr-only { display: none; }
 .booking-contact-panel:not([open]) { margin: 0; }
+
+/* A direct link to the request opens all controls for an uninterrupted booking flow. */
+.booking-expanded .booking-bar { grid-template-columns: 1fr; max-width: 760px; padding: 16px; }
+.booking-expanded .booking-bar-field { border-inline-end: 0; border-bottom: 1px solid #ded5c8; }
+.booking-expanded .booking-bar-popover { position: static; width: 100%; max-width: none; box-shadow: none; border: 0; padding: 12px; }
+.booking-expanded .booking-bar-continue { display: none; }
