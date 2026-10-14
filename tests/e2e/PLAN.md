@@ -185,11 +185,14 @@ key and fill the buffer.
 - L1: a website request and its approval from the email produce `request.created` (actor guest) and
   `request.approved` (actor email), found by the request's ref, with the dates, the deployed commit
   and a three-year expiry. No stored field contains the guest's name, phone, notes or a WhatsApp link.
+- L1 also sends a guest email (guest B's alias), so the approval invites and logs `invited`, and the
+  scan covers the email address.
 - L2: with the key broken, filling the buffer stops at 100 events and counts the rest as dropped; a
   flush fails and sets a backoff; closing and reopening dates in the console still work. After the
-  repair a flush sends everything, empties the buffer, clears the backoff and writes a `log.counts`
-  event with the dropped count; later console actions are logged by their event ID. Cleanup deletes
-  the `test.fill` events.
+  repair a flush sends the `test.fill` events, clears the backoff and writes a `log.counts` event
+  with the dropped count; later console actions are logged by their event ID. Rebuilds queued by
+  the closing may log meanwhile, so the checks are on the `test.fill` events, not exact totals.
+  Cleanup deletes the `test.fill` events.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,

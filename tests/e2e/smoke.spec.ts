@@ -37,8 +37,11 @@ test('production availability, snapshot and triggers are healthy', async () => {
   const diag = await api.diag();
   expect(diag.error).toBeUndefined();
   expect(diag.triggers).toEqual(expect.arrayContaining(['onSheetEdit:ON_EDIT', 'onSnapshotTimer:CLOCK']));
-  // The event log reaches Firestore: a failed flush would have set a backoff.
-  expect(diag.eventLog).toMatchObject({ configured: true, backoffUntil: '' });
+  // The event log reaches Firestore. One failed flush backs off an hour and may be a passing
+  // hiccup; a longer backoff means it has failed twice or more in a row.
+  expect(diag.eventLog).toMatchObject({ configured: true });
+  expect(diag.eventLog.error).toBeUndefined();
+  expect(diag.eventLog.backoffMs).toBeLessThanOrEqual(3600_000);
 });
 
 test('the prices sheet is public, and the production web app prices from the same sheet', async ({ request }) => {
