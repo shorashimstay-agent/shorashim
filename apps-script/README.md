@@ -132,7 +132,8 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
 - **No personal data.** An event keeps only allowlisted fields (`LOG_FIELDS`): the booking ref, the
   calendar event ID, dates, nights, the outcome, who acted (`guest`, `email`, `console`, `sheet`,
   `system`), timings, and the deployed commit. Never a name, phone, email, note, reason or WhatsApp
-  link. **To find the guest,** look the ref up in the console or the admin sheet, which lead to the
+  link. Errors are stored as a classification (`Error · Calendar API 403`), never their text, which
+  can quote a guest's details. **To find the guest,** look the ref up in the console or the admin sheet, which lead to the
   calendar event. Once that event is deleted (declined, cancelled, expired), only the non-personal
   facts remain, by design.
 - **Retention:** requests and console actions 3 years, everything else 90 days. Firestore's TTL
@@ -142,7 +143,10 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
   After a failed or slow commit it waits an hour before trying again, doubling up to six hours. The
   buffer stops at 100 events (the rest are counted as `log.dropped`), so it can never fill Script
   Properties. Rejected requests and locked-out logins are only counted, and each flush writes the
-  counts as one `log.counts` event, so a flood of bad requests is one entry.
+  counts as one `log.counts` event, so a flood of bad requests is one entry. Counts waiting through
+  an outage stay one merged record (`logCountsPending`). A batch Firestore refuses outright (HTTP
+  400) is dropped and counted as `log.rejected` rather than retried forever. A failed prune waits
+  for the next day.
 - **Access:** the service account `event-log-writer@<project>.iam.gserviceaccount.com` may only read
   and write documents (`roles/datastore.user`). Its key is `firestore` in `booking-config*.json`,
   which `deploy.py` writes into the generated `Config.js`; it is never in git. Without that key the
@@ -152,9 +156,13 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
 - **Rotate the key** (leaked, or routine):
   ```
   P=shorashim-log   # or shorashim-log-staging
+  C=<local path>   # or booking-config.staging.json
   gcloud --configuration=shorashim iam service-accounts keys create /tmp/k.json --iam-account=event-log-writer@$P.iam.gserviceaccount.com
-  # put project_id, client_email, private_key_id and private_key into booking-config*.json → firestore, then shred /tmp/k.json
-  python3 apps-script/deploy.py "rotate event log key"
+  # The config uses camelCase names; with the key file's own names the log silently turns off.
+  python3 -c 'import json,sys; k=json.load(open("/tmp/k.json")); c=json.load(open(sys.argv[1]));
+  c["firestore"]={"projectId":k["project_id"],"clientEmail":k["client_email"],"privateKeyId":k["private_key_id"],"privateKey":k["private_key"]};
+  json.dump(c,open(sys.argv[1],"w"),ensure_ascii=False,indent=2)' "$C" && shred -u /tmp/k.json
+  python3 apps-script/deploy.py "rotate event log key"     # staging: --env staging
   gcloud --configuration=shorashim iam service-accounts keys list --iam-account=event-log-writer@$P.iam.gserviceaccount.com
   gcloud --configuration=shorashim iam service-accounts keys delete <old key id> --iam-account=event-log-writer@$P.iam.gserviceaccount.com
   ```

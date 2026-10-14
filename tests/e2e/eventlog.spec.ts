@@ -2,7 +2,7 @@
 // (shorashim-log-staging). Scenario IDs match tests/e2e/PLAN.md 搂4 (L).
 import { expect, test } from '@playwright/test';
 import { addDays, cleanup, israelToday, randomPhone, requestEvents, waitFor, webApp } from './lib/backend';
-import { runTag, staging as cfg } from './lib/env';
+import { e2e, runTag, staging as cfg } from './lib/env';
 import { deleteLogEvents, logEvents, logEventsSince } from './lib/firestore';
 import { openBooking, recaptchaToken } from './lib/site';
 
@@ -26,6 +26,8 @@ test('L1: a request and its approval are logged by ref, with none of the guest鈥
   const name = `${runTag} 讬讜诪谉 讗讬专讜注讬诐`;
   const phone = randomPhone();
   const notes = `${runTag} 讛注专讛 驻专讟讬转`;
+  // Guest B's alias, so approving sends a real invitation; cleanup removes it.
+  const email = e2e.guestB.email;
   const [checkIn, checkOut] = [base, addDays(base, 2)];
   await openBooking(page);
   const created = await api.post({
@@ -38,6 +40,7 @@ test('L1: a request and its approval are logged by ref, with none of the guest鈥
     adults: 2,
     name,
     phone,
+    email,
     notes,
   });
   expect(created).toMatchObject({ ok: true });
@@ -55,26 +58,29 @@ test('L1: a request and its approval are logged by ref, with none of the guest鈥
   }, 60_000, 5_000);
   const byType = Object.fromEntries(events.map((e) => [e.fields.type, e.fields]));
   expect(byType['request.created']).toMatchObject({ actor: 'guest', class: 'business', start: checkIn, end: checkOut, nights: 2, stayType: 'couple', adults: 2 });
-  expect(byType['request.approved']).toMatchObject({ actor: 'email', class: 'business', id: request.iCalUID, start: checkIn, end: checkOut });
+  expect(byType['request.approved']).toMatchObject({ actor: 'email', class: 'business', id: request.iCalUID, start: checkIn, end: checkOut, invited: true });
   expect(byType['request.created'].commit).toMatch(/^[0-9a-f]{7,}/);
   // Kept three years: business events.
   const days = (Date.parse(byType['request.created'].expireAt) - Date.parse(byType['request.created'].ts)) / 86400000;
   expect(days).toBe(3 * 365);
 
   const stored = JSON.stringify(events);
-  for (const secret of [name, phone, phone.slice(1), notes, 'wa.me']) expect(stored).not.toContain(secret);
+  for (const secret of [name, phone, phone.slice(1), notes, email, email.split('@')[0], 'wa.me']) expect(stored).not.toContain(secret);
 });
 
 test('L2: when Firestore is unreachable the buffer stops at its ceiling, bookings still work, and it drains afterwards', async () => {
   const since = new Date(Date.now() - 60_000).toISOString();
   await api.eventLog('break');
   const filled = await api.eventLog('fill', 120);
-  expect(filled.status.buffered).toBe(100);
-  expect(filled.status.noise['log.dropped']).toBeGreaterThan(0);
+  // A timer run may flush at the same moment, so the exact numbers can vary; the ceiling cannot.
+  expect(filled.status.buffered).toBeLessThanOrEqual(100);
+  const dropped = (s: any) => (s.noise['log.dropped'] ?? 0) + (s.pendingCounts['log.dropped'] ?? 0);
+  expect(dropped(filled.status)).toBeGreaterThan(0);
 
   const failed = await api.eventLog('flush');
   expect(failed.flush.ok).toBe(false);
-  expect(failed.status.buffered).toBeGreaterThanOrEqual(100);
+  expect(failed.status.bufferedTypes['test.fill']).toBeGreaterThan(0);
+  expect(failed.status.buffered).toBeLessThanOrEqual(100);
   expect(failed.status.backoffUntil).not.toBe('');
 
   // The booking system does not notice: a closing is made and reopened as usual.
@@ -86,8 +92,9 @@ test('L2: when Firestore is unreachable the buffer stops at its ceiling, booking
   await api.eventLog('repair');
   const drained = await api.eventLog('flush');
   expect(drained.flush.ok, JSON.stringify(drained)).toBe(true);
-  expect(drained.flush.sent).toBeGreaterThanOrEqual(100);
-  expect(drained.status.buffered).toBe(0);
+  expect(drained.flush.sent).toBeGreaterThan(0);
+  // Rebuilds queued by the closing may log while it runs; what matters is that the fill is gone.
+  expect(drained.status.bufferedTypes['test.fill'] ?? 0).toBe(0);
   expect(drained.status.backoffUntil).toBe('');
 
   // What was dropped while full is on record, as one counts event.

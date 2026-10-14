@@ -83,9 +83,19 @@ test('an event keeps only the allowed fields, so no guest details reach the log'
   assert.ok(!/0501234567|dana|דנה|wa\.me/.test(props.getProperty(key)));
 });
 
-test('error messages lose anything that looks like an email address or a phone number', () => {
+test('an error is logged as a classification, never with its text', () => {
   const { ctx } = load();
-  assert.equal(ctx.logMessage_(new Error('bad guest dana@example.com / 050-123-4567')), 'bad guest [email] / [number]');
+  assert.equal(ctx.logMessage_(new Error('Calendar API 403: {"error": "Dana Cohen dana@example.com"}')), 'Error · Calendar API 403');
+  assert.equal(ctx.logMessage_(new Error('Exception: Service invoked too many times for one day: urlfetch.')), 'Error · Exception · too many times');
+  assert.equal(ctx.logMessage_(new SyntaxError('Unexpected token D in JSON at position 0: Dana Cohen')), 'SyntaxError');
+  assert.equal(ctx.logMessage_(new Error('guest Dana Cohen 0501234567 not found')), 'Error');
+});
+
+test('long strings are cut by code points, never inside a surrogate pair', () => {
+  const { ctx } = load();
+  const cut = ctx.logValue_('a'.repeat(99) + '😀😀');
+  assert.equal(cut, 'a'.repeat(99) + '😀');
+  assert.ok(Buffer.from(cut, 'utf8').toString('utf8') === cut);
 });
 
 test('without a Firestore config nothing is recorded, counted or sent', () => {
@@ -240,4 +250,69 @@ test('a console cancellation is logged with its fee, but not the guest name or W
   assert.equal(event.band, 'free');
   assert.equal(event.name, undefined);
   assert.equal(event.whatsapp, undefined);
+});
+
+test('a long outage keeps the buffer at its ceiling: the counts stay one merged record', () => {
+  const { ctx, props } = load({ respond: (url, p) => (url.endsWith(':commit') ? [503, {}] : defaultRespond(url, p)) });
+  for (let i = 0; i < ctx.LOG_BUFFER_MAX; i++) ctx.logEvent_('mirror.rebuild', { ok: true });
+  for (let day = 0; day < 20; day++) {
+    ctx.logEvent_('mirror.rebuild', { ok: true }); // dropped and counted
+    ctx.countLogNoise_('request.captcha');
+    ctx.flushEventLog_(true);
+  }
+  assert.equal(buffered(props).length, ctx.LOG_BUFFER_MAX);
+  const pending = JSON.parse(props.getProperty('logCountsPending'));
+  assert.deepEqual(pending.counts, { 'log.dropped': 20, 'request.captcha': 20 });
+});
+
+test('a batch Firestore refuses (400) is dropped and counted, not retried forever', () => {
+  let refuse = true;
+  const { ctx, props, calls } = load({ respond: (url, p) => (url.endsWith(':commit') && refuse ? [400, {}] : defaultRespond(url, p)) });
+  props.setProperty('logPrunedOn', ctx.today_());
+  ctx.logEvent_('request.created', { ref: 'SH-1' });
+  ctx.logEvent_('request.created', { ref: 'SH-2' });
+  const out = ctx.flushEventLog_(false);
+  assert.equal(out.rejected, 2);
+  assert.equal(buffered(props).length, 0);
+  assert.equal(props.getProperty('logBackoff'), null, 'no backoff: the next flush may go ahead');
+  refuse = false;
+  assert.equal(ctx.flushEventLog_(false).sent, 1);
+  const counts = commits(calls).at(-1).writes[0].update.fields;
+  assert.equal(counts.type.stringValue, 'log.counts');
+  assert.equal(counts.data.mapValue.fields.counts.mapValue.fields['log.rejected'].integerValue, '2');
+  assert.equal(props.getProperty('logCountsPending'), null);
+});
+
+test('a retried counts record keeps its document ID, so it is written once', () => {
+  let fail = true;
+  const { ctx, props, calls } = load({ respond: (url, p) => (url.endsWith(':commit') && fail ? [503, {}] : defaultRespond(url, p)) });
+  ctx.countLogNoise_('request.captcha');
+  ctx.flushEventLog_(true);
+  fail = false;
+  ctx.flushEventLog_(true);
+  const names = commits(calls).map((c) => c.writes.at(-1).update.name);
+  assert.equal(names.length, 2);
+  assert.equal(names[0], names[1]);
+  assert.equal(props.getProperty('logCountsPending'), null);
+});
+
+test('a failing prune waits for the next day instead of retrying every run', () => {
+  const { ctx, props, calls } = load({ respond: (url, p) => (url.endsWith(':runQuery') ? [500, {}] : defaultRespond(url, p)) });
+  assert.equal(ctx.flushEventLog_(false).pruned, -1);
+  assert.equal(props.getProperty('logPrunedOn'), ctx.today_());
+  const before = calls.length;
+  ctx.flushEventLog_(false);
+  assert.equal(calls.length, before);
+});
+
+test('the status never throws, and reports what is buffered by type', () => {
+  const { ctx, props } = load();
+  ctx.logEvent_('request.created', { ref: 'SH-1' });
+  ctx.logEvent_('test.fill', {});
+  ctx.logEvent_('test.fill', {});
+  assert.deepEqual({ ...ctx.eventLogStatus_().bufferedTypes }, { 'request.created': 1, 'test.fill': 2 });
+  props.setProperty('logBackoff', '{not json');
+  const status = ctx.eventLogStatus_();
+  assert.equal(status.configured, true);
+  assert.ok(status.error);
 });

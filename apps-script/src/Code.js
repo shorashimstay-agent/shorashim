@@ -75,7 +75,7 @@ function doPost(e) {
     return json_({ ok: false, error: 'bad_request' });
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
-    logEvent_('error', { where: 'doPost', action: body.action, message: logMessage_(err) });
+    logEvent_('error', { where: 'doPost', action: body && body.action, message: logMessage_(err) });
     return json_({ ok: false, error: 'server_error' });
   }
 }
@@ -374,6 +374,8 @@ function markExpired_(item) {
       extendedProperties: { shared: props },
     })
   );
+  // This can run under the script lock (conflictsFor_). Logging adds tens of milliseconds, once per
+  // expired request, so it stays here rather than being carried out of the lock.
   try {
     var req = JSON.parse(props.request || '{}');
     logEvent_('request.expired', { ref: req.ref, id: item.iCalUID, start: req.start, end: req.end, nights: req.nights });
@@ -1697,13 +1699,11 @@ function createRequestOnce_(body) {
   lock.waitLock(20000);
   mark('lockWait');
   var eventId;
+  var conflicts;
   try {
-    var conflicts = conflictsFor_(req.start, req.end, { expireStale: true });
+    conflicts = conflictsFor_(req.start, req.end, { expireStale: true });
     mark('conflictCheck');
-    if (conflicts.length) {
-      logEvent_('request.unavailable', { start: req.start, end: req.end, nights: req.nights, stayType: req.stayType }, 'guest');
-      return { ok: false, error: 'unavailable', nights: conflicts };
-    }
+    if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
     req.ref = newRef_();
     eventId = calendarCall_(
       calendarRequest_('requests', 'post', '', { fields: 'iCalUID' }, {
@@ -1718,6 +1718,8 @@ function createRequestOnce_(body) {
     invalidateAvailability_();
   } finally {
     lock.releaseLock();
+    // Logged after the lock is released, so it never lengthens the booking's critical section.
+    if (conflicts && conflicts.length) logEvent_('request.unavailable', { start: req.start, end: req.end, nights: req.nights, stayType: req.stayType }, 'guest');
   }
 
   scheduleMirrorRefresh_();
