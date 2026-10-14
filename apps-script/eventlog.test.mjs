@@ -319,16 +319,18 @@ test('the status never throws, and reports what is buffered by type', () => {
   props.setProperty('logBackoff', '{not json');
   const status = ctx.eventLogStatus_();
   assert.equal(status.configured, true);
-  assert.ok(status.error);
+  assert.equal(status.backoffUntil, '');
+  assert.equal(props.getProperty('logBackoff'), null, 'the corrupt value is cleared');
 });
 
 test('corrupt state is cleared instead of jamming the log', () => {
   const { ctx, props } = load();
   props.setProperty('logBackoff', '{not json');
-  props.setProperty('logCountsPending', '{not json');
+  props.setProperty('logCountsPending', '"x"');
   props.setProperty('logPrunedOn', ctx.today_());
+  ctx.countLogNoise_('request.captcha');
   ctx.logEvent_('request.created', { ref: 'SH-1' });
-  assert.equal(ctx.flushEventLog_(false).sent, 1);
+  assert.equal(ctx.flushEventLog_(false).sent, 2, 'the event and a fresh counts record');
   assert.equal(props.getProperty('logCountsPending'), null);
   assert.equal(props.getProperty('logBackoff'), null);
 });
