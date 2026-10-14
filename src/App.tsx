@@ -14,6 +14,7 @@ import AccessibilityMenu from './components/AccessibilityMenu';
 import AtAGlance from './components/AtAGlance';
 import StayPaths from './components/StayPaths';
 import { navigateTo } from './components/navigate';
+import BackToTop from './components/BackToTop';
 
 export default function App() {
   const [selectedStayType, setSelectedStayType] = useState<
@@ -65,6 +66,7 @@ export default function App() {
 
       {/* Understated WhatsApp contact */}
       <FloatingWhatsApp />
+      <BackToTop />
 
       <AccessibilityMenu />
     </div>
