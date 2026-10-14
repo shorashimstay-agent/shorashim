@@ -64,7 +64,8 @@ export const webApp = (cfg: BackendConfig) => ({
   /** Staging only: removes the ביטולים lines whose guest name carries `tag`. */
   pruneCancellations: (tag: string) => {
     const t = String(Date.now());
-    return call(cfg, { body: { action: 'testPruneCancellations', tag, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'removed' in j);
+    // A backend without the hook answers bad_request: accept it, so the rest of the cleanup still runs.
+    return call(cfg, { body: { action: 'testPruneCancellations', tag, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'removed' in j || j.ok === false);
   },
   pruneDecisions: (refs: string[]) => {
     const t = String(Date.now());
@@ -227,7 +228,8 @@ export async function cleanup(cfg: BackendConfig, tag = RUN_PREFIX, waitMs = 180
   }
   // Cancelled test bookings have no event left; their only trace is a ביטולים line.
   const cancelled = await webApp(cfg).pruneCancellations(tag);
-  if (cancelled.removed) log.push(`removed ${cancelled.removed} cancellation line(s)`);
+  if (cancelled.ok === false) log.push(`LEFT OVER: ביטולים lines (the backend answered ${cancelled.error})`);
+  else if (cancelled.removed) log.push(`removed ${cancelled.removed} cancellation line(s)`);
   for (const [label, guest, conf] of guests) {
     if (!guest || !conf.calendar) continue;
     for (const ev of await guest.events('primary', { q: tag, timeMin: from })) {
