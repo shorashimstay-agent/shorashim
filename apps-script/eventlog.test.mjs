@@ -89,6 +89,8 @@ test('an error is logged as a classification, never with its text', () => {
   assert.equal(ctx.logMessage_(new Error('Exception: Service invoked too many times for one day: urlfetch.')), 'Error · Exception · too many times');
   assert.equal(ctx.logMessage_(new SyntaxError('Unexpected token D in JSON at position 0: Dana Cohen')), 'SyntaxError');
   assert.equal(ctx.logMessage_(new Error('guest Dana Cohen 0501234567 not found')), 'Error');
+  assert.equal(ctx.logMessage_(new Error('Dana Cohen: not found')), 'Error');
+  assert.equal(ctx.logMessage_(new Error('event log token: HTTP 400')), 'Error · event log token');
 });
 
 test('long strings are cut by code points, never inside a surrogate pair', () => {
@@ -110,7 +112,7 @@ test('without a Firestore config nothing is recorded, counted or sent', () => {
 
 test('the buffer stops at its ceiling, and what it drops is counted', () => {
   const { ctx, props, cache } = load();
-  for (let i = 0; i < ctx.LOG_BUFFER_MAX + 7; i++) ctx.logEvent_('mirror.rebuild', { ok: true });
+  for (let i = 0; i < ctx.LOG_BUFFER_MAX + 7; i++) ctx.logEvent_('request.created', { ref: 'SH-1' });
   assert.equal(buffered(props).length, ctx.LOG_BUFFER_MAX);
   assert.deepEqual(JSON.parse(cache.get('logNoise')), { 'log.dropped': 7 });
 });
@@ -254,7 +256,7 @@ test('a console cancellation is logged with its fee, but not the guest name or W
 
 test('a long outage keeps the buffer at its ceiling: the counts stay one merged record', () => {
   const { ctx, props } = load({ respond: (url, p) => (url.endsWith(':commit') ? [503, {}] : defaultRespond(url, p)) });
-  for (let i = 0; i < ctx.LOG_BUFFER_MAX; i++) ctx.logEvent_('mirror.rebuild', { ok: true });
+  for (let i = 0; i < ctx.LOG_BUFFER_MAX; i++) ctx.logEvent_('request.created', { ref: 'SH-1' });
   for (let day = 0; day < 20; day++) {
     ctx.logEvent_('mirror.rebuild', { ok: true }); // dropped and counted
     ctx.countLogNoise_('request.captcha');
@@ -274,12 +276,15 @@ test('a batch Firestore refuses (400) is dropped and counted, not retried foreve
   const out = ctx.flushEventLog_(false);
   assert.equal(out.rejected, 2);
   assert.equal(buffered(props).length, 0);
-  assert.equal(props.getProperty('logBackoff'), null, 'no backoff: the next flush may go ahead');
+  assert.equal(JSON.parse(props.getProperty('logBackoff')).delayMs, 3600_000, 'a refusal that repeats costs a few calls a day');
+  const before = calls.length;
+  ctx.flushEventLog_(false);
+  assert.equal(calls.length, before, 'backing off');
   refuse = false;
-  assert.equal(ctx.flushEventLog_(false).sent, 1);
-  const counts = commits(calls).at(-1).writes[0].update.fields;
-  assert.equal(counts.type.stringValue, 'log.counts');
-  assert.equal(counts.data.mapValue.fields.counts.mapValue.fields['log.rejected'].integerValue, '2');
+  assert.equal(ctx.flushEventLog_(true).sent, 1);
+  const counts = commits(calls).at(-1).writes[0].update.fields.data.mapValue.fields.counts.mapValue.fields;
+  assert.equal(counts['log.rejected'].integerValue, '2');
+  assert.equal(counts['log.rejected:request.created'].integerValue, '2');
   assert.equal(props.getProperty('logCountsPending'), null);
 });
 
@@ -315,4 +320,26 @@ test('the status never throws, and reports what is buffered by type', () => {
   const status = ctx.eventLogStatus_();
   assert.equal(status.configured, true);
   assert.ok(status.error);
+});
+
+test('corrupt state is cleared instead of jamming the log', () => {
+  const { ctx, props } = load();
+  props.setProperty('logBackoff', '{not json');
+  props.setProperty('logCountsPending', '{not json');
+  props.setProperty('logPrunedOn', ctx.today_());
+  ctx.logEvent_('request.created', { ref: 'SH-1' });
+  assert.equal(ctx.flushEventLog_(false).sent, 1);
+  assert.equal(props.getProperty('logCountsPending'), null);
+  assert.equal(props.getProperty('logBackoff'), null);
+});
+
+test('the last buffer slots are kept for bookings and owner actions', () => {
+  const { ctx, props, cache } = load();
+  for (let i = 0; i < 95; i++) ctx.logEvent_('request.unavailable', { start: '2026-12-01' });
+  assert.equal(buffered(props).length, ctx.LOG_BUFFER_SOFT);
+  ctx.logEvent_('request.created', { ref: 'SH-1' });
+  ctx.logEvent_('console.block', { id: 'x' });
+  ctx.logEvent_('console.login_failed', {});
+  assert.equal(buffered(props).length, ctx.LOG_BUFFER_SOFT + 2);
+  assert.deepEqual(JSON.parse(cache.get('logNoise')), { 'log.dropped': 16 });
 });
