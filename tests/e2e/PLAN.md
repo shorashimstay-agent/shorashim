@@ -178,6 +178,19 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   (`not_cancellable`), an unknown id (`not_found`); a retried `requestId` returns the first answer.
   The staging-only `testPruneCancellations` hook removes the run's ביטולים lines in cleanup.
 
+**L — Event log** (`eventlog.spec.ts`, staging Firestore project `shorashim-log-staging`, read with
+the writer key in `booking-config.staging.json`). The staging-only, signed `testEventLog` hook
+flushes the buffer on demand (the timer would take up to 10 minutes), and can break and repair the
+key and fill the buffer.
+- L1: a website request and its approval from the email produce `request.created` (actor guest) and
+  `request.approved` (actor email), found by the request's ref, with the dates, the deployed commit
+  and a three-year expiry. No stored field contains the guest's name, phone, notes or a WhatsApp link.
+- L2: with the key broken, filling the buffer stops at 100 events and counts the rest as dropped; a
+  flush fails and sets a backoff; closing and reopening dates in the console still work. After the
+  repair a flush sends everything, empties the buffer, clears the backoff and writes a `log.counts`
+  event with the dropped count; later console actions are logged by their event ID. Cleanup deletes
+  the `test.fill` events.
+
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
   so the guest copies go away too.
@@ -194,6 +207,7 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   and the page's JS/CSS load.
 - `availability` returns `ok` and the snapshot is fresh (under 15 minutes old).
 - Signed `diag` lists all the production triggers.
+- Signed `diag` reports the event log as configured and not backing off (Firestore reachable).
 - The prices sheet's CSV is public and passes the checks, and signed `diag`, given its version,
   reports that same version: the site and the web app read the same prices.
 - `/admin` serves the console's login and points at the production web app; a console call with a

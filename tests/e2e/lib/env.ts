@@ -26,6 +26,8 @@ export interface BackendConfig {
   testHooks?: boolean;
   /** Staging only: the /admin console password, so the suite can log in (production keeps only a hash). */
   consolePassword?: string;
+  /** The event log's Firestore project and its writer service account (apps-script/src/EventLog.js). */
+  firestore?: { projectId: string; clientEmail: string; privateKeyId: string; privateKey: string };
 }
 
 interface E2EConfig {

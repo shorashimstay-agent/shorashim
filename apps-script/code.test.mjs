@@ -16,6 +16,7 @@ function load(globals = {}) {
   const ctx = vm.createContext({ console: { log() {}, warn() {}, error() {} }, CONFIG: { adminSheetId: 'sheet' }, ...globals });
   vm.runInContext(fs.readFileSync(path.join(here, '../shared/rules.js'), 'utf8').replace(/^export /gm, ''), ctx);
   vm.runInContext(fs.readFileSync(path.join(here, 'src/Code.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(here, 'src/EventLog.js'), 'utf8'), ctx);
   return ctx;
 }
 
