@@ -61,8 +61,8 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
 
   const navLinks = [
     { label: 'הבית', href: '#house' },
-    { label: 'כלה בשורשים', href: '#bride' },
     { label: 'הסיפור', href: '#story' },
+    { label: 'כלה בשורשים', href: '#bride' },
     { label: 'זכרון יעקב', href: '#zichron' },
     { label: 'גלריה', href: '#gallery' },
     { label: 'שאלות', href: '#faq' },
