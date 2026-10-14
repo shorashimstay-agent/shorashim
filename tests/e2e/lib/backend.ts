@@ -89,6 +89,11 @@ export const webApp = (cfg: BackendConfig) => ({
   },
   consoleLogin: (password: string) => call(cfg, { body: { action: 'console', op: 'login', password } }, notDefault),
   consoleWithToken: (op: string, token: string) => call(cfg, { body: { action: 'console', op, token } }, notDefault),
+  /** Staging only: the event log's test hook (flush, break, repair, fill, status; EventLog.js testEventLog_). */
+  eventLog: (op: 'flush' | 'break' | 'repair' | 'fill' | 'status', count?: number) => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testEventLog', op, count, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'status' in j || j.ok === false);
+  },
   /** Staging only: clears the console's wrong-password lockout. */
   resetConsoleLock: () => {
     const t = String(Date.now());

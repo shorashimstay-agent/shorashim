@@ -37,6 +37,8 @@ test('production availability, snapshot and triggers are healthy', async () => {
   const diag = await api.diag();
   expect(diag.error).toBeUndefined();
   expect(diag.triggers).toEqual(expect.arrayContaining(['onSheetEdit:ON_EDIT', 'onSnapshotTimer:CLOCK']));
+  // The event log reaches Firestore: a failed flush would have set a backoff.
+  expect(diag.eventLog).toMatchObject({ configured: true, backoffUntil: '' });
 });
 
 test('the prices sheet is public, and the production web app prices from the same sheet', async ({ request }) => {

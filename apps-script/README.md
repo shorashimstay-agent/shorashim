@@ -116,6 +116,49 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
   Staging has its own random password (`consolePassword` in `booking-config.staging.json`), which
   only the test suite uses.
 
+## Event log (Firestore)
+
+The backend keeps a record of what it did in Firestore: requests, decisions, console actions,
+expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-script/src/EventLog.js`).
+
+- **Where:** Firebase project `shorashim-log` (staging: `shorashim-log-staging`), on the free Spark
+  plan with no billing account, so it cannot cost money. Collection `events`, database `(default)`,
+  location `nam5`. Browse it in the Firebase console, signed in as shorashimstay@gmail.com.
+- **Shape:** `type`, `actor`, `ref`, `id`, `class`, `ts` and `expireAt` are top-level and indexed,
+  so they can be filtered on. The rest (dates, outcome, timings, commit) is in the `data` map, which
+  is exempt from indexing: default indexes made each event about 3.4 KB instead of about 1. A new
+  database needs that exemption too:
+  `gcloud --configuration=shorashim firestore indexes fields update data --collection-group=events --disable-indexes --project=<project>`.
+- **No personal data.** An event keeps only allowlisted fields (`LOG_FIELDS`): the booking ref, the
+  calendar event ID, dates, nights, the outcome, who acted (`guest`, `email`, `console`, `sheet`,
+  `system`), timings, and the deployed commit. Never a name, phone, email, note, reason or WhatsApp
+  link. **To find the guest,** look the ref up in the console or the admin sheet, which lead to the
+  calendar event. Once that event is deleted (declined, cancelled, expired), only the non-personal
+  facts remain, by design.
+- **Retention:** requests and console actions 3 years, everything else 90 days. Firestore's TTL
+  needs billing, so the timer deletes expired events itself, once a day.
+- **It never slows or breaks a booking.** Recording an event is one Script Property write in a
+  `try/catch`. The 10-minute timer sends the buffer in one Firestore commit at the end of its run.
+  After a failed or slow commit it waits an hour before trying again, doubling up to six hours. The
+  buffer stops at 100 events (the rest are counted as `log.dropped`), so it can never fill Script
+  Properties. Rejected requests and locked-out logins are only counted, and each flush writes the
+  counts as one `log.counts` event, so a flood of bad requests is one entry.
+- **Access:** the service account `event-log-writer@<project>.iam.gserviceaccount.com` may only read
+  and write documents (`roles/datastore.user`). Its key is `firestore` in `booking-config*.json`,
+  which `deploy.py` writes into the generated `Config.js`; it is never in git. Without that key the
+  log does nothing.
+- **Health:** signed `diag` reports `eventLog` (configured, buffered events, backoff, last prune),
+  and the production smoke test checks it.
+- **Rotate the key** (leaked, or routine):
+  ```
+  P=shorashim-log   # or shorashim-log-staging
+  gcloud --configuration=shorashim iam service-accounts keys create /tmp/k.json --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  # put project_id, client_email, private_key_id and private_key into booking-config*.json → firestore, then shred /tmp/k.json
+  python3 apps-script/deploy.py "rotate event log key"
+  gcloud --configuration=shorashim iam service-accounts keys list --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  gcloud --configuration=shorashim iam service-accounts keys delete <old key id> --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  ```
+
 ## Development
 
 The code lives in git (`apps-script/` + `shared/rules.js`). Google only holds a copy, which
