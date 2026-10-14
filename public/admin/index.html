@@ -270,6 +270,7 @@
         <h2 id="h-bookings">הזמנות</h2>
         <p class="sub">הזמנות מהאתר ומהטלפון, ותאריכים סגורים. לסגירת תאריכים: לשונית יומן.</p>
       </div>
+      <div id="cancel-panel" aria-live="polite"></div>
       <h3 class="tag">קרובות</h3>
       <ul class="list" id="bookings-upcoming"></ul>
       <h3 class="tag">תאריכים סגורים</h3>
@@ -300,7 +301,7 @@
 
 <script>
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
-  var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null };
+  var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null, cancel: null };
   // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
   // first, marked, once the data has loaded (after the login, if one is needed).
   var linked = (function () {
@@ -724,6 +725,7 @@
     return html + list.map(function (x) {
       var b = x.booking;
       var out = '<div class="what" style="padding:4px 0">' + esc(x.label) + '</div>';
+      if (b && b.cancellable) return out + '<button type="button" class="btn quiet" data-day="cancel-booking" data-id="' + esc(b.id) + '">ביטול ההזמנה</button>';
       if (!b || !b.reopenable || b.end <= state.data.today) return out;
       if (b.blockNote) out += '<p class="note" style="margin:6px 0">' + esc(b.blockNote) + '</p>';
       var busy = state.dayBusy === b.id;
@@ -749,6 +751,11 @@
     var action = btn.getAttribute('data-day'), id = btn.getAttribute('data-id');
     if (action === 'ask') { state.dayConfirm = id; renderCalendar(); focusFirst('#day-panel [data-day="reopen"]'); return; }
     if (action === 'cancel') { state.dayConfirm = null; renderCalendar(); return; }
+    if (action === 'cancel-booking') {
+      document.querySelector('nav.tabs [data-tab="bookings"]').click();
+      openCancel(id);
+      return;
+    }
     if (action === 'convert') {
       var h = findBooking(id);
       state.block = { step: 'form', start: h.start, end: h.end, replaceId: id, form: newForm('phone', { name: h.holder || '', note: h.blockNote || '' }) };
@@ -764,7 +771,7 @@
       req.then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; }).then(function (res) {
         state.dayBusy = null;
         state.dayConfirm = null;
-        var errors = { is_booking: 'זו הזמנה או אירוע מיומן Google: שינוי נעשה ביומן Google.', expired: 'השמירה כבר פגה, ואי אפשר להאריך אותה.', max_reached: 'שמירה זמנית נמשכת עד שבוע מיום שנוצרה. אפשר להפוך אותה להזמנה.' };
+        var errors = { is_booking: 'זו הזמנה או אירוע מיומן Google. הזמנה מבטלים בלשונית הזמנות; אירוע מיומן Google משנים ביומן.', expired: 'השמירה כבר פגה, ואי אפשר להאריך אותה.', max_reached: 'שמירה זמנית נמשכת עד שבוע מיום שנוצרה. אפשר להפוך אותה להזמנה.' };
         announce(res.ok ? (action === 'reopen' ? 'התאריכים נפתחו' : 'השמירה הוארכה ב-24 שעות') : errors[res.error] || 'לא הצלחנו לשמור. רעננו ונסו שוב.');
         load(true);
       });
@@ -1121,8 +1128,130 @@
       (b.notes ? '<p class="what">' + esc(b.notes) + '</p>' : '') +
       (b.ref ? '<p class="what ref">' + esc(b.ref) + '</p>' : '') + '</div>' +
       '<div class="side"><span class="pill ' + pill[0] + '">' + pill[1] + '</span>' +
-      (b.whatsapp ? '<a class="btn wa icon" href="' + esc(b.whatsapp) + '" target="_blank" rel="noopener" aria-label="WhatsApp ל' + esc(b.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
+      (b.whatsapp ? '<a class="btn wa icon" href="' + esc(b.whatsapp) + '" target="_blank" rel="noopener" aria-label="WhatsApp ל' + esc(b.name) + '">' + waIcon() + '</a>' : '') +
+      (b.cancellable ? '<button type="button" class="btn quiet" data-cancel="open" data-id="' + esc(b.id) + '" aria-label="ביטול ההזמנה של ' + esc(b.name) + '">ביטול</button>' : '') + '</div></li>';
   }
+
+  // ---- Cancelling a booking (backend: cancelBooking_ in apps-script/src/Code.js; fees: cancellationFee
+  // in shared/rules.js). The owner says who asked to cancel and, when the guest has an email, whether
+  // Google should email them; neither has a default. The fee is what the terms set, shown only.
+
+  var FEE_TEXT = { ours: 'אין דמי ביטול: הביטול שלנו. האורח בוחר בין החזר מלא למועד אחר.', free: 'ללא חיוב: נותרו 14 ימים או יותר.', half: '50% ממחיר ההזמנה: נותרו 7 עד 13 ימים.', full: '100% ממחיר ההזמנה: נותרו פחות מ-7 ימים.', statutory: 'לפי החוק: 5% או 100 ₪, הנמוך מביניהם (בוטלה תוך 14 ימים מהאישור, ונותרו לפחות 7 ימים שאינם ימי מנוחה).' };
+  var CANCEL_ERRORS = {
+    started: 'השהייה כבר התחילה, ואי אפשר לבטל אותה מכאן.',
+    not_cancellable: 'מכאן אפשר לבטל רק הזמנות מהאתר והזמנות טלפוניות.',
+    not_found: 'ההזמנה כבר לא ביומן. ייתכן שבוטלה כבר: רעננו ובדקו בלשונית ההזמנות ובלשונית ביטולים בגיליון.',
+    invalid: 'חסרה בחירה. בחרו מי ביקש לבטל, ואם לשלוח מייל.',
+    not_configured: 'גיליון הניהול לא מוגדר, ולכן אי אפשר לרשום את הביטול. ההזמנה לא בוטלה.',
+  };
+
+  function feeLine(fee) {
+    return FEE_TEXT[fee.band] + (fee.fee === null ? (fee.band === 'ours' ? '' : ' לא נקבע מחיר להזמנה, ולכן אין סכום.') : ' סכום: ' + (fee.fee ? money(fee.fee) : '₪0') + '.');
+  }
+
+  function renderCancel() {
+    var el = $('cancel-panel'), c = state.cancel;
+    if (!c) { el.innerHTML = ''; return; }
+    if (c.step === 'result') { el.innerHTML = cancelResult(c.result); return; }
+    var b = findBooking(c.id);
+    if (!b) { el.innerHTML = ''; state.cancel = null; return; }
+    var busy = c.step === 'busy';
+    var ready = c.by && (!b.email || c.notify !== null);
+    var html = '<div class="panel blockform" id="cancel-form" role="group" aria-labelledby="cf-title"><h3 id="cf-title">ביטול ההזמנה של ' + esc(b.name || b.title) + '</h3>' +
+      '<p class="what">' + range(b.start, b.end) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
+      '<span class="label" id="cf-by-l">מי ביקש לבטל</span><div class="choices" role="group" aria-labelledby="cf-by-l">' +
+      choice('by', 'guest', c.by, 'האורח') + choice('by', 'us', c.by, 'אנחנו') + '</div>';
+    if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by])) + ' לידיעה בלבד: המערכת לא גובה תשלום.</p>';
+    if (b.email) {
+      html += '<span class="label" id="cf-notify-l">לשלוח לאורח מייל ביטול מיומן Google אל <span dir="ltr">' + esc(b.email) + '</span>?</span><div class="choices" role="group" aria-labelledby="cf-notify-l">' +
+        choice('notify', 'yes', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'כן, לשלוח') + choice('notify', 'no', c.notify === true ? 'yes' : c.notify === false ? 'no' : '', 'לא לשלוח') + '</div>';
+    } else html += '<p class="what">לאורח אין מייל, ולכן לא יישלח מייל. אחרי הביטול אפשר לשלוח לו הודעה ב-WhatsApp.</p>';
+    html += '<label for="cf-reason">סיבה (לא חובה, נרשמת ביומן הביטולים)</label><textarea id="cf-reason" maxlength="450"' + (busy ? ' disabled' : '') + '>' + esc(c.reason) + '</textarea>' +
+      '<p class="where"><b>אי אפשר לבטל את הפעולה.</b> ההזמנה תימחק מהיומן, והתאריכים ייפתחו להזמנה באתר תוך כדקה. הביטול נרשם בלשונית ביטולים בגיליון.</p>';
+    if (c.error) html += '<div class="warnbox" role="alert" tabindex="-1">' + esc(c.error) + '</div>';
+    html += '<div class="actions two"><button type="button" class="btn danger primary" data-cancel="confirm"' + (ready && !busy ? '' : ' disabled') + '>' + (busy ? 'מבטלים…' : 'כן, לבטל את ההזמנה') + '</button>' +
+      '<button type="button" class="btn quiet" data-cancel="close"' + (busy ? ' disabled' : '') + '>לא</button></div></div>';
+    el.innerHTML = html;
+  }
+
+  function cancelResult(r) {
+    var html = '<div class="result ok" id="cancel-result"><p class="title">✓ ההזמנה של ' + esc(r.name) + ' בוטלה</p><p>' + range(r.start, r.end) + ' · ' + nightsText(r.nights) + (r.ref ? ' · ' + esc(r.ref) : '') + '</p>' +
+      '<ul class="prop"><li>יומן ההזמנות של Google<span class="pill ok">נמחקה</span></li>' +
+      '<li>יומן הביטולים בגיליון<span class="pill ok">נרשם</span></li>' +
+      '<li>האתר<span class="pill ' + (r.snapshot ? 'ok">התאריכים פנויים' : 'warn">יתעדכן תוך כמה דקות') + '</span></li>' +
+      '<li>מייל לאורח<span class="pill ' + (r.emailed ? 'ok">נשלח' : 'plain">לא נשלח') + '</span></li></ul>' +
+      '<p>דמי ביטול לפי התנאים: ' + esc(feeLine(r.fee)) + '</p>' +
+      (r.whatsapp ? '<a class="btn wa primary" href="' + esc(r.whatsapp) + '" target="_blank" rel="noopener">' + waIcon() + 'שליחת הודעת ביטול ב-WhatsApp</a> ' : '') +
+      '<div class="actions" style="margin-top:10px"><button type="button" class="btn primary" data-cancel="done">סיום</button></div></div>';
+    return html;
+  }
+
+  function openCancel(id) {
+    state.cancel = { id: id, step: 'form', by: '', notify: null, reason: '', error: '', requestId: '' };
+    renderCancel();
+    var form = $('cancel-form');
+    if (form) form.scrollIntoView({ block: 'start' });
+    focusFirst('#cancel-panel [data-choice="by"]');
+  }
+
+  function submitCancel() {
+    var c = state.cancel, b = findBooking(c.id);
+    c.reason = $('cf-reason') ? $('cf-reason').value : c.reason;
+    c.step = 'busy';
+    c.error = '';
+    // One requestId per attempt: a retry of the same tap returns the first answer instead of running twice.
+    c.requestId = c.requestId || requestId();
+    renderCancel();
+    call('cancelBooking', { id: c.id, args: { requestId: c.requestId, by: c.by, notify: !!(b && b.email) && c.notify === true, reason: c.reason } })
+      .then(function (res) { return res; }, function () { return { ok: false, error: 'network' }; })
+      .then(function (res) {
+        if (res.ok) {
+          state.cancel = { step: 'result', result: res };
+          announce('ההזמנה בוטלה');
+          renderCancel();
+          focusFirst('#cancel-result [data-cancel="done"]');
+          load(true);
+          return;
+        }
+        c.step = 'form';
+        c.error = CANCEL_ERRORS[res.error] || 'לא הצלחנו לבטל. רעננו ובדקו שההזמנה עדיין ברשימה לפני שמנסים שוב.';
+        // A new attempt after a definite refusal gets a new requestId; after a network error it keeps
+        // the same one, so a cancellation that did go through is not run again.
+        if (res.error !== 'network') c.requestId = '';
+        renderCancel();
+        focusFirst('#cancel-panel [role="alert"]');
+      });
+  }
+
+  $('cancel-panel').addEventListener('click', function (e) {
+    var c = state.cancel;
+    if (!c) return;
+    var pick = e.target.closest('[data-choice]');
+    if (pick && c.step === 'form') {
+      var group = pick.getAttribute('data-choice'), v = pick.getAttribute('data-value');
+      c.reason = $('cf-reason') ? $('cf-reason').value : c.reason;
+      if (group === 'by') c.by = v;
+      if (group === 'notify') c.notify = v === 'yes';
+      renderCancel();
+      focusFirst('#cancel-panel [data-choice="' + group + '"][data-value="' + CSS.escape(v) + '"]');
+      return;
+    }
+    var btn = e.target.closest('[data-cancel]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-cancel');
+    if (action === 'confirm' && c.step === 'form') return submitCancel();
+    if (action === 'close' || action === 'done') {
+      var id = c.id;
+      state.cancel = null;
+      renderCancel();
+      if (id) focusFirst('#bookings-upcoming [data-cancel="open"][data-id="' + CSS.escape(id) + '"]');
+    }
+  });
+
+  $('screen-bookings').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-cancel="open"]');
+    if (btn) openCancel(btn.getAttribute('data-id'));
+  });
 
   /** A closed date in the bookings tab: what closed it, and a reopen button with a second tap. */
   function blockItem(b) {
@@ -1163,6 +1292,9 @@
     var past = sorted.filter(function (b) { return b.end <= d.today; }).reverse();
     $('bookings-upcoming').innerHTML = upcoming.length ? upcoming.map(bookingItem).join('') : '<li class="empty">אין הזמנות קרובות.</li>';
     $('bookings-past').innerHTML = past.length ? past.map(bookingItem).join('') : '<li class="empty">אין שהיות מ-30 הימים האחרונים.</li>';
+    // A refresh must not wipe a cancellation being filled in or its result; the reason box keeps its text.
+    if (state.cancel && state.cancel.step === 'form' && $('cf-reason')) state.cancel.reason = $('cf-reason').value;
+    renderCancel();
   }
 
   function renderChannels() {

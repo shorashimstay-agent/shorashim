@@ -6,7 +6,9 @@ import {
   addDays,
   bookingEvents,
   bookingRows,
+  cancellationRows,
   cleanup,
+  guestA,
   israelToday,
   nights,
   owner,
@@ -401,4 +403,82 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
   expect((await api.availability()).blocked).not.toContain(staleNight);
   await waitFor('expired hold deleted', async () => (await bookingEvents(cfg, stale)).length === 0, 90_000, 5_000);
   expect((await api.console('overview')).bookings.some((b: any) => b.holder === stale)).toBe(false);
+});
+
+test('O13: cancelling bookings logs them, frees the nights, and emails the guest only when chosen', async ({ page }) => {
+  const start = early(3);
+  // A website booking with the guest's email, approved the usual way.
+  const r = await fixtureRequest('קונסולה ביטול', start, 2, { email: e2e.guestA.email });
+  expect(await api.decide('approve', r.id)).toMatchObject({ ok: true, result: 'approved', invited: true });
+  const booked = await waitFor('the approved booking', async () => (await bookingEvents(cfg, r.name))[0], 60_000, 3_000);
+  const o = await api.console('overview');
+  const b = o.bookings.find((x: any) => x.id === booked.iCalUID);
+  expect(b).toMatchObject({ kind: 'website', cancellable: true, confirmedAt: israelToday() });
+  // More than 14 days ahead: free when the guest cancels, and nothing when we do.
+  expect(b.cancelFees.guest).toMatchObject({ band: 'free', fee: 0 });
+  expect(b.cancelFees.us).toMatchObject({ band: 'ours', fee: 0 });
+  // Whether Google emails the guest is the owner's choice every time: leaving it out is refused.
+  expect(await api.console('cancelBooking', { id: booked.iCalUID, args: { by: 'guest' } })).toMatchObject({ ok: false, error: 'invalid' });
+
+  await openConsole(page);
+  await page.getByRole('button', { name: 'הזמנות', exact: true }).click();
+  await page.getByRole('button', { name: `ביטול ההזמנה של ${r.name}` }).click();
+  const form = page.locator('#cancel-form');
+  const confirm = form.getByRole('button', { name: 'כן, לבטל את ההזמנה' });
+  await expect(confirm).toBeDisabled();
+  await form.getByRole('button', { name: 'האורח' }).click();
+  await expect(form.locator('#cf-fee')).toContainText('ללא חיוב');
+  // Who asked is chosen, but not yet whether to email: still disabled.
+  await expect(confirm).toBeDisabled();
+  await form.getByRole('button', { name: 'כן, לשלוח' }).click();
+  await form.getByLabel(/סיבה/).fill(`${runTag} שינוי תוכניות`);
+  await confirm.click();
+  const result = page.locator('#cancel-result');
+  await expect(result).toContainText(`ההזמנה של ${r.name} בוטלה`, { timeout: 120_000 });
+  await expect(result.getByRole('link', { name: 'שליחת הודעת ביטול ב-WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\//);
+
+  expect(await bookingEvents(cfg, r.name)).toHaveLength(0);
+  expect((await api.availability()).blocked).not.toContain(start);
+  const line = (await cancellationRows(cfg)).find((x) => x.id === booked.iCalUID);
+  expect(line).toMatchObject({ ref: r.ref, name: r.name, by: 'האורח', emailed: 'נשלח', reason: `${runTag} שינוי תוכניות` });
+  expect(line!.fee).toContain('ללא חיוב');
+  const guest = guestA;
+  if (guest) {
+    await waitFor('Google\'s cancellation in the guest\'s mailbox', async () =>
+      (await guest.messages(`"${r.name}" newer_than:1d`)).find((m) => /cancel|בוטל/i.test(m.subject)), 180_000, 10_000);
+  }
+
+  // A phone booking with no email, cancelled as ours through the signed API: no email, no fee.
+  const name = guestName('קונסולה ביטול טלפון');
+  const phoneStart = addDays(start, 4);
+  const phone = await api.console('block', { args: { kind: 'phone', start: phoneStart, end: addDays(phoneStart, 1), stayType: 'couple', name, phone: randomPhone(), email: '', adults: 2, price: 1200 } });
+  expect(phone).toMatchObject({ ok: true, result: 'booked', invited: false });
+  const args = { requestId: `${runTag}-cancel`.replace(/[^\w-]/g, ''), by: 'us', notify: false, reason: '' };
+  const cancelled = await api.console('cancelBooking', { id: phone.id, args });
+  expect(cancelled).toMatchObject({ ok: true, result: 'cancelled', emailed: false, fee: { band: 'ours', fee: 0 }, start: phoneStart, nights: 1 });
+  // The same requestId returns the first answer; a new attempt finds nothing left to cancel.
+  expect(await api.console('cancelBooking', { id: phone.id, args })).toEqual(cancelled);
+  expect(await api.console('cancelBooking', { id: phone.id, args: { ...args, requestId: undefined } })).toMatchObject({ ok: false, error: 'not_found' });
+  expect((await cancellationRows(cfg)).find((x) => x.id === phone.id)).toMatchObject({ name, by: 'אנחנו', emailed: 'אין מייל' });
+
+  // Refused: closings, holds, manual events, a stay that already started, and unknown ids.
+  const refuse = { by: 'guest', notify: false };
+  const closing = await api.console('block', { args: { kind: 'block', start: addDays(start, 6), end: addDays(start, 7), reason: 'תחזוקה', note: `${runTag} ביטול` } });
+  expect(await api.console('cancelBooking', { id: closing.id, args: refuse })).toMatchObject({ ok: false, error: 'not_cancellable' });
+  const hold = await api.console('block', { args: { kind: 'hold', start: addDays(start, 7), end: addDays(start, 8), hours: 24, name: guestName('קונסולה ביטול שמירה') } });
+  expect(await api.console('cancelBooking', { id: hold.id, args: refuse })).toMatchObject({ ok: false, error: 'not_cancellable' });
+  const manual = await owner.insertEvent(cfg.calendars.bookings, { summary: `${runTag} ידני ביטול`, start: { date: addDays(start, 8) }, end: { date: addDays(start, 9) } });
+  expect(await api.console('cancelBooking', { id: manual.iCalUID, args: refuse })).toMatchObject({ ok: false, error: 'not_cancellable' });
+  const today = israelToday();
+  const started = guestName('קונסולה ביטול התחיל');
+  const startedReq = { stayType: 'couple', checkIn: addDays(today, -1), checkOut: addDays(today, 1), start: addDays(today, -1), end: addDays(today, 1), nights: 2, adults: 2, name: started, phone: randomPhone(), email: '', notes: '', estimate: 1900, ref: `SH-C${runTag.slice(-4)}S` };
+  const inProgress = await owner.insertEvent(cfg.calendars.bookings, {
+    summary: `שורשים · ${started}`,
+    start: { date: startedReq.start },
+    end: { date: startedReq.end },
+    extendedProperties: { shared: { request: JSON.stringify(startedReq), source: 'website' } },
+  });
+  expect((await api.console('overview')).bookings.find((x: any) => x.id === inProgress.iCalUID)).toMatchObject({ cancellable: false, cancelFees: null });
+  expect(await api.console('cancelBooking', { id: inProgress.iCalUID, args: refuse })).toMatchObject({ ok: false, error: 'started' });
+  expect(await api.console('cancelBooking', { id: `${runTag}-missing@google.com`, args: refuse })).toMatchObject({ ok: false, error: 'not_found' });
 });

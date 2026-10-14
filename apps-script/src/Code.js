@@ -5,7 +5,9 @@
  * - requests: website requests, holding their nights for HOLD_HOURS
  * - channels: bookings imported from OTAs
  * Two spreadsheets mirror the calendars. The admin sheet is private: tabs בקשות / הזמנות / ערוצים
- * with all details and approve/decline. The availability sheet is a separate file, viewable by
+ * with all details and approve/decline, rebuilt from the calendars, and ביטולים, a log of cancelled
+ * bookings that is only ever appended to (a cancelled booking's event is deleted, so the log is
+ * its only record). The availability sheet is a separate file, viewable by
  * anyone with the link, holding blocked dates only; the website reads it because it answers fast.
  * Keeping them apart means guest details can never be exposed through the public file.
  * CONFIG comes from Config.js, which deploy.py generates and which is never committed.
@@ -59,6 +61,9 @@ function doPost(e) {
     if (body.action === 'testResetConsoleLock' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       CacheService.getScriptCache().remove(CONSOLE_FAILS_KEY);
       return json_({ ok: true, reset: true });
+    }
+    if (body.action === 'testPruneCancellations' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
+      return json_(testPruneCancellations_(body.tag));
     }
     if (body.action === 'testSetPrices' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testSetPrices_(body.file));
@@ -207,7 +212,7 @@ function readPricesSheet_() {
 // calendars in parallel. CalendarApp's tags are the event's *shared* extended properties, and an
 // event's iCalUID is what CalendarApp's getId() returns, so both APIs see the same events.
 
-var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,start,end,extendedProperties,attendees(email),recurringEventId),nextPageToken';
+var CALENDAR_EVENTS_FIELDS = 'items(id,iCalUID,summary,created,start,end,extendedProperties,attendees(email),recurringEventId),nextPageToken';
 
 function calendarRequest_(key, method, path, query, payload) {
   var url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CONFIG.calendars[key]) + '/events' + (path || '');
@@ -615,10 +620,11 @@ function setup() {
 // Admin sheet: one tab per calendar. Pending requests are decided by choosing אישור/דחייה in
 // the פעולה column and then ticking ביצוע (the tick is the confirmation, and works on phones).
 
-var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: 'ערוצים' };
+var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: 'ערוצים', cancellations: 'ביטולים' };
 var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה'];
 var BOOKING_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות', 'מקור', 'סוג אירוח', 'אורחים', 'טלפון', 'אימייל', 'הערות', 'מספר', 'WhatsApp'];
 var CHANNEL_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות'];
+var CANCEL_COLUMNS = ['בוטלה', 'מספר', 'שם', 'טלפון', 'אימייל', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'מחיר', 'אושרה', 'ביוזמת', 'דמי ביטול לפי התנאים', 'סיבה', 'מייל ביטול לאורח', 'מזהה'];
 var ACTION_COL = 14;
 var CONFIRM_COL = 15;
 var ID_COL = 17;
@@ -636,12 +642,14 @@ function prepareAdminSheet_() {
     [ADMIN_TABS.requests, REQUEST_COLUMNS],
     [ADMIN_TABS.bookings, BOOKING_COLUMNS],
     [ADMIN_TABS.channels, CHANNEL_COLUMNS],
+    // The cancellations log is never rewritten, only appended to, so it must survive every setup.
+    [ADMIN_TABS.cancellations, CANCEL_COLUMNS],
   ].forEach(function (tab, index) {
     var sheet = adminTab_(ss, tab[0], tab[1]);
     ss.setActiveSheet(sheet);
     ss.moveActiveSheet(index + 1);
   });
-  var keep = [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels];
+  var keep = [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels, ADMIN_TABS.cancellations];
   ss.getSheets().forEach(function (sheet) {
     if (keep.indexOf(sheet.getName()) === -1) ss.deleteSheet(sheet);
   });
@@ -653,9 +661,12 @@ function prepareAdminSheet_() {
   ss.setActiveSheet(requests);
 }
 
-/** Only פעולה and ביצוע in בקשות are editable by others; everything else is rewritten from the calendars. */
+/**
+ * Only פעולה and ביצוע in בקשות are editable by others; everything else is rewritten from the
+ * calendars, or (ביטולים) is a log only the web app writes.
+ */
 function protectAdminTabs_(ss) {
-  [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels].forEach(function (name) {
+  [ADMIN_TABS.requests, ADMIN_TABS.bookings, ADMIN_TABS.channels, ADMIN_TABS.cancellations].forEach(function (name) {
     var sheet = ss.getSheetByName(name);
     sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (protection) {
       protection.remove();
@@ -809,6 +820,8 @@ function adminData_() {
     var props = eventProps_(item);
     var req = JSON.parse(props.request || '{}');
     var range = itemRange_(item);
+    var cancellable = isCancellable_(item, props) && range.start >= today;
+    var confirmed = bookingConfirmed_(item, props);
     return {
       id: item.iCalUID,
       title: item.summary || '',
@@ -826,6 +839,11 @@ function adminData_() {
       // Only console closings and holds can be reopened from the console. Bookings, and manual events
       // made in Google Calendar (which may be a guest's stay), are changed in the calendar itself.
       reopenable: isReopenable_(item, props),
+      // Website and phone bookings can be cancelled from the console until their first night has
+      // passed. cancelFees is what the terms set if the guest cancels today, and if we do.
+      cancellable: cancellable,
+      confirmedAt: confirmed,
+      cancelFees: cancellable ? cancelFees_(range.start, confirmed, today, req.estimate) : null,
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       adults: req.adults || '',
@@ -996,6 +1014,9 @@ function consoleCall_(body) {
   });
   if (body.op === 'extendHold') return consoleOnce_('extendHold', body.args && body.args.requestId, function () {
     return extendHold_(String(body.id || ''), body.args || {});
+  });
+  if (body.op === 'cancelBooking') return consoleOnce_('cancelBooking', body.args && body.args.requestId, function () {
+    return cancelBooking_(String(body.id || ''), body.args || {});
   });
   if (body.op === 'logoutAll') {
     var props = PropertiesService.getScriptProperties();
@@ -1304,7 +1325,7 @@ function refreshSnapshotQuietly_() {
 /** The bookings-calendar event with this iCalUID, or null. */
 function findBooking_(id) {
   if (!id) return null;
-  var page = calendarCall_(calendarRequest_('bookings', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(id,iCalUID,status,summary,start,end,extendedProperties,attendees(email),recurrence,recurringEventId)' }));
+  var page = calendarCall_(calendarRequest_('bookings', 'get', '', { iCalUID: id, showDeleted: 'false', fields: 'items(id,iCalUID,status,summary,created,start,end,extendedProperties,attendees(email),recurrence,recurringEventId)' }));
   return (page.items || []).filter(function (item) {
     return item.status !== 'cancelled';
   })[0] || null;
@@ -1312,12 +1333,159 @@ function findBooking_(id) {
 
 /**
  * Console closings and holds can be reopened from the console. Everything else is refused: website
- * and phone bookings are cancelled in the calendar, where Google tells the guest; a manual event made
- * in Google Calendar may be a guest's stay; and a recurring event would go as a whole series.
+ * and phone bookings are cancelled instead (cancelBooking_), which logs them and lets the owner
+ * choose whether Google tells the guest; a manual event made in Google Calendar may be a guest's
+ * stay; and a recurring event would go as a whole series.
  */
 function isReopenable_(item, props) {
   if (item.recurrence || item.recurringEventId) return false;
   return props.source === 'console' && (props.kind === 'block' || props.kind === 'hold');
+}
+
+/**
+ * Website and phone bookings can be cancelled from the console. Closings and holds are reopened
+ * instead; a manual event made in Google Calendar is changed there (it may not be a stay at all), and
+ * a recurring event would go as a whole series. Channel bookings are not in this calendar: they are
+ * cancelled on the booking site, or the next import would bring them back.
+ */
+function isCancellable_(item, props) {
+  if (item.recurrence || item.recurringEventId) return false;
+  return props.source === 'website' || (props.source === 'console' && props.kind === 'phone');
+}
+
+/** The local date a booking was confirmed: when its event was made (approval, or the phone booking). */
+function bookingConfirmed_(item, props) {
+  var at = Date.parse(props.createdAt || item.created || '');
+  return isNaN(at) ? '' : fmt_(new Date(at), 'yyyy-MM-dd');
+}
+
+/** The fee the terms set for cancelling today, by the guest and by us (shared/rules.js cancellationFee). */
+function cancelFees_(arrival, confirmed, today, price) {
+  var fee = function (by) {
+    return cancellationFee({ arrival: arrival, confirmed: confirmed, today: today, price: Number(price) || 0, by: by });
+  };
+  return { guest: fee('guest'), us: fee('us') };
+}
+
+var CANCEL_BY = { guest: 'האורח', us: 'אנחנו' };
+var FEE_BAND_LABELS = { ours: 'ללא (ביטול שלנו)', free: 'ללא חיוב', half: '50%', full: '100%', statutory: 'לפי החוק: 5% או 100 ₪, הנמוך' };
+
+/** The fee as the log and the owner read it: the band, and the amount when the price is known. */
+function feeText_(fee) {
+  return FEE_BAND_LABELS[fee.band] + (fee.fee === null ? '' : ' · ₪' + Number(fee.fee).toLocaleString('en-US'));
+}
+
+/**
+ * Cancels a website or phone booking: logs it in ביטולים, then deletes its event. args.by is 'guest'
+ * or 'us'; args.notify must be given as true or false, because the owner decides each time whether
+ * Google emails the guest a cancellation (it only can when the booking has an email). The log line
+ * is written first and removed again if the delete fails, so a cancelled booking always has its
+ * record. Stays whose first night has passed are refused; shortening one is a separate feature.
+ */
+function cancelBooking_(id, args) {
+  args = args || {};
+  if (args.by !== 'guest' && args.by !== 'us') return { ok: false, error: 'invalid', fields: { by: 'invalid' } };
+  if (typeof args.notify !== 'boolean') return { ok: false, error: 'invalid', fields: { notify: 'required' } };
+  var reason = String(args.reason || '').trim();
+  if (reason.length > NOTES_MAX) return { ok: false, error: 'invalid', fields: { reason: 'too_long' } };
+  if (!CONFIG.adminSheetId) return { ok: false, error: 'not_configured' };
+  var today = today_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  var item, req, range, fee, emailed;
+  try {
+    item = findBooking_(id);
+    if (!item) return { ok: false, error: 'not_found' };
+    var props = eventProps_(item);
+    if (!isCancellable_(item, props)) return { ok: false, error: 'not_cancellable' };
+    range = itemRange_(item);
+    if (range.start < today) return { ok: false, error: 'started' };
+    req = JSON.parse(props.request || '{}');
+    var confirmed = bookingConfirmed_(item, props);
+    fee = cancellationFee({ arrival: range.start, confirmed: confirmed, today: today, price: Number(req.estimate) || 0, by: args.by });
+    emailed = args.notify && (item.attendees || []).length > 0;
+    var log = cancellationsLog_();
+    log.appendRow([
+      text_(fmt_(new Date(), 'dd.MM.yyyy HH:mm')),
+      text_(req.ref),
+      text_(req.name || item.summary),
+      text_(req.phone),
+      text_(req.email),
+      STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
+      text_(heDate_(range.start)),
+      text_(heDate_(range.end)),
+      range.nights,
+      req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US')) : '',
+      confirmed ? text_(heDate_(confirmed)) : '',
+      CANCEL_BY[args.by],
+      text_(feeText_(fee)),
+      text_(reason),
+      emailed ? 'נשלח' : (item.attendees || []).length ? 'לא נשלח' : 'אין מייל',
+      text_(item.iCalUID),
+    ]);
+    var row = log.getLastRow();
+    try {
+      calendarCall_(calendarRequest_('bookings', 'delete', '/' + encodeURIComponent(item.id), { sendUpdates: emailed ? 'all' : 'none' }));
+    } catch (err) {
+      log.deleteRow(row);
+      throw err;
+    }
+    invalidateAvailability_();
+  } finally {
+    lock.releaseLock();
+  }
+  var snapshot = refreshSnapshotQuietly_();
+  scheduleMirrorRefresh_();
+  var name = req.name || item.summary || '';
+  var text = args.by === 'us'
+    ? 'שלום ' + name + ', לצערנו נאלצנו לבטל את ההזמנה שלך בשורשים (' + heDate_(range.start) + '–' + heDate_(range.end) + '). נשמח לתאם מועד אחר, או להחזיר את מלוא התשלום.'
+    : 'שלום ' + name + ', ההזמנה שלך בשורשים (' + heDate_(range.start) + '–' + heDate_(range.end) + ') בוטלה לבקשתך.';
+  return {
+    ok: true,
+    result: 'cancelled',
+    id: id,
+    ref: req.ref || '',
+    name: name,
+    start: range.start,
+    end: range.end,
+    nights: range.nights,
+    by: args.by,
+    emailed: emailed,
+    fee: fee,
+    feeText: feeText_(fee),
+    snapshot: snapshot,
+    whatsapp: req.phone ? waLink_(req.phone, text) : '',
+  };
+}
+
+/** The ביטולים tab, made with its header the first time it is needed (setup also makes it). */
+function cancellationsLog_() {
+  var ss = SpreadsheetApp.openById(CONFIG.adminSheetId);
+  var sheet = ss.getSheetByName(ADMIN_TABS.cancellations);
+  if (sheet) return sheet;
+  sheet = adminTab_(ss, ADMIN_TABS.cancellations, CANCEL_COLUMNS);
+  var protection = sheet.protect().setDescription('יומן ביטולים. נכתב אוטומטית מהמסוף.');
+  protection.removeEditors(protection.getEditors());
+  if (protection.canDomainEdit()) protection.setDomainEdit(false);
+  return sheet;
+}
+
+/** Staging only (CONFIG.testHooks): removes the suite's lines (names carrying `tag`) from ביטולים. */
+function testPruneCancellations_(tag) {
+  tag = String(tag || '');
+  if (tag.length < 4 || !CONFIG.adminSheetId) return { ok: true, removed: 0 };
+  var sheet = SpreadsheetApp.openById(CONFIG.adminSheetId).getSheetByName(ADMIN_TABS.cancellations);
+  if (!sheet || sheet.getLastRow() < 2) return { ok: true, removed: 0 };
+  var names = sheet.getRange(2, 3, sheet.getLastRow() - 1, 1).getValues();
+  var removed = 0;
+  // Bottom up, so the rows still to check keep their numbers.
+  for (var i = names.length - 1; i >= 0; i--) {
+    if (String(names[i][0]).indexOf(tag) !== -1) {
+      sheet.deleteRow(i + 2);
+      removed++;
+    }
+  }
+  return { ok: true, removed: removed };
 }
 
 /** Reopens a console closing or hold by deleting its event. */

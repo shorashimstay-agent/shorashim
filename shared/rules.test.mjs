@@ -10,6 +10,7 @@ import vm from 'node:vm';
 import {
   PRICE_KEYS,
   blockedNights,
+  cancellationFee,
   checkPrices,
   conflictingNights,
   estimatePrice,
@@ -18,6 +19,7 @@ import {
   pricesFromRows,
   pricesVersionOf,
   stayRange,
+  workingDaysBetween,
   validateBlock,
   validateRequest,
   whatsappNumber,
@@ -239,6 +241,41 @@ test('a phone booking needs the guest details a website request needs', () => {
   assert.deepEqual(Object.keys(bad.errors).sort(), ['adults', 'email', 'name', 'phone', 'price', 'stayType']);
 });
 
+test('working days between two dates leave out both ends and Saturdays', () => {
+  // 2026-10-17 is a Saturday.
+  assert.equal(workingDaysBetween('2026-10-14', '2026-10-15'), 0);
+  assert.equal(workingDaysBetween('2026-10-14', '2026-10-21'), 5, '15, 16, 18, 19, 20');
+  assert.equal(workingDaysBetween('2026-10-14', '2026-10-14'), 0);
+});
+
+test('the cancellation fee follows the bands in the terms', () => {
+  // Confirmed long ago, so the statutory right does not apply.
+  const fee = (today, by = 'guest', price = 2000) => cancellationFee({ arrival: '2026-11-20', confirmed: '2026-09-01', today, price, by });
+  assert.deepEqual(fee('2026-11-06'), { band: 'free', percent: 0, fee: 0, daysBefore: 14, statutory: false }, 'exactly 14 days is free');
+  assert.deepEqual(fee('2026-11-07'), { band: 'half', percent: 50, fee: 1000, daysBefore: 13, statutory: false });
+  assert.deepEqual(fee('2026-11-13'), { band: 'half', percent: 50, fee: 1000, daysBefore: 7, statutory: false }, 'exactly 7 days is half');
+  assert.deepEqual(fee('2026-11-14'), { band: 'full', percent: 100, fee: 2000, daysBefore: 6, statutory: false });
+  assert.deepEqual(fee('2026-11-20'), { band: 'full', percent: 100, fee: 2000, daysBefore: 0, statutory: false });
+  assert.equal(fee('2026-11-14', 'guest', 0).fee, null, 'no price, no amount');
+  assert.deepEqual(fee('2026-11-19', 'us'), { band: 'ours', percent: 0, fee: 0, daysBefore: 1, statutory: false }, 'no fee when we cancel');
+});
+
+test('the statutory right caps the fee at 5% or ₪100 within 14 days of the confirmation', () => {
+  const fee = (today, confirmed, price = 2000) => cancellationFee({ arrival: '2026-11-20', confirmed, today, price, by: 'guest' });
+  // 10 days before arrival, 50% band; confirmed 14 days earlier (the last day of the window).
+  assert.deepEqual(fee('2026-11-10', '2026-10-27'), { band: 'statutory', percent: null, fee: 100, daysBefore: 10, statutory: true });
+  assert.equal(fee('2026-11-10', '2026-10-27', 1000).fee, 50, '5% when it is below ₪100');
+  assert.equal(fee('2026-11-10', '2026-10-27', 0).fee, null);
+  assert.equal(fee('2026-11-10', '2026-10-26').band, 'half', 'day 15 after the confirmation is outside the window');
+  assert.equal(fee('2026-11-10', '').band, 'half', 'an unknown confirmation date does not assume the right');
+  // Free stays free even inside the window.
+  assert.deepEqual(fee('2026-11-01', '2026-10-30'), { band: 'free', percent: 0, fee: 0, daysBefore: 19, statutory: true });
+  // 2026-11-12 → 2026-11-20 (8 days, the 50% band) leaves 13–19 between them: 7 days, one a Saturday (14th), so 6.
+  assert.equal(fee('2026-11-12', '2026-11-10').band, 'half', 'fewer than 7 non-rest days left');
+  // 2026-11-11 leaves 12–19: 8 days, 7 of them not Saturdays; 9 days before arrival is the 50% band.
+  assert.equal(fee('2026-11-11', '2026-11-10').band, 'statutory');
+});
+
 test('the Apps Script form of the module is plain globals that behave the same', () => {
   const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'rules.js'), 'utf8');
   // The same transform deploy.py applies on upload.
@@ -251,7 +288,7 @@ test('the Apps Script form of the module is plain globals that behave the same',
   const globals = vm.createContext({});
   vm.runInContext(stripped, globals);
   assert.equal(globals.PRICES, undefined, 'no prices in the code');
-  for (const name of ['STAY_TYPES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf', 'validateBlock', 'BLOCK_REASONS', 'HOLD_MAX_HOURS']) {
+  for (const name of ['STAY_TYPES', 'HOLD_HOURS', 'MAX_NIGHTS', 'HORIZON_DAYS', 'blockedNights', 'validateRequest', 'stayRange', 'isHoldActive', 'whatsappNumber', 'checkPrices', 'pricesFromRows', 'pricesVersionOf', 'validateBlock', 'BLOCK_REASONS', 'HOLD_MAX_HOURS', 'cancellationFee']) {
     assert.ok(globals[name] !== undefined, `Code.js calls ${name}, so it must be a global`);
   }
   assert.equal(globals.estimatePrice('couple', 2, 3, PRICES, '2026-10-09'), estimatePrice('couple', 2, 3, PRICES, '2026-10-09'));
