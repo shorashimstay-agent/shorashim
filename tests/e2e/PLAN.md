@@ -170,6 +170,13 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   extended by 24 hours (a retried extension adds nothing) and turns into a phone booking
   (`replaceId`); a hold whose `expiresAt` passed cannot be extended, stops blocking, and the next
   availability rebuild deletes it.
+- O13: cancelling bookings. A website booking with a guest email is cancelled in the console as
+  the guest's request with the email chosen: the event is deleted with updates, the guest gets
+  Google's cancellation, the nights are free on the site, and a ביטולים line records it. A phone
+  booking without an email is cancelled through the signed API as ours, with no email. Refusals:
+  `notify` left out, a stay that started yesterday (`started`), a closing, a hold and a manual event
+  (`not_cancellable`), an unknown id (`not_found`); a retried `requestId` returns the first answer.
+  The staging-only `testPruneCancellations` hook removes the run's ביטולים lines in cleanup.
 
 **C — Cleanup** (runs even when tests fail)
 - Delete every `E2E-` event from the staging calendars. Bookings are deleted with `sendUpdates=all`,
@@ -180,6 +187,7 @@ are inserted straight into the בקשות calendar, as in G7, so no reCAPTCHA is
   wait for one per deleted booking and guest (up to 3 minutes) and trash it too. Then search every
   mailbox again and log anything tagged that is still there as LEFT OVER.
 - Prune the run's references from the recent-decisions list, then refresh the sheets.
+- Remove the run's lines from the admin sheet's ביטולים tab (staging-only `testPruneCancellations`).
 
 ## 5. Production smoke (read-only, after every production deploy)
 - The site returns 200 on the apex, `www` and `http`, all ending up at `https://shorashimstay.com/`,

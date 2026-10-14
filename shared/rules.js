@@ -389,3 +389,56 @@ export function validateBlock(input, today) {
   if (Object.keys(errors).length) return { ok: false, errors: errors };
   return { ok: true, value: value };
 }
+
+// Cancelling a booking from the owner console. The terms (src/legal/content.ts, "ביטול ושינוי
+// הזמנה") set the fee as a share of the booking price, by how many days are left before the stay:
+// - 14 days or more: free; 7 to 13 days: 50%; under 7 days (or not arriving): 100%
+// - the statutory right: cancelled within 14 days of the confirmation, with at least 7 days that are
+//   not rest days left before arrival, the fee is 5% or ₪100, whichever is lower, and it prevails
+// - when we cancel, there is no fee: the guest chooses a full refund or new dates
+// Nothing is charged by the system (payment is at the start of the stay); the console only shows it.
+
+export var CANCEL_FREE_DAYS = 14;
+export var CANCEL_HALF_DAYS = 7;
+export var STATUTORY_WINDOW_DAYS = 14;
+export var STATUTORY_MIN_DAYS = 7;
+export var STATUTORY_RATE = 5;
+export var STATUTORY_CAP = 100;
+
+/**
+ * Days strictly between `from` and `to` that are not rest days. Only Saturdays are counted as rest
+ * days; holidays are not known here, so near a holiday this may count a day too many.
+ * @param {string} from @param {string} to @returns {number}
+ */
+export function workingDaysBetween(from, to) {
+  var count = 0;
+  for (var n = toDayNumber(from) + 1; n < toDayNumber(to); n++) {
+    if (new Date(n * 86400000).getUTCDay() !== 6) count++;
+  }
+  return count;
+}
+
+/**
+ * The fee the terms set for cancelling on `today`. `arrival` is the first night of the stay,
+ * `confirmed` the date the booking was confirmed ('' when unknown: the statutory right is then not
+ * assumed), `price` the booking price in shekels (0 when unknown: the fee has no amount), and `by`
+ * 'guest' or 'us'. Returns the band (ours, free, half, full or statutory), the percentage the band
+ * names (null for the statutory fee, which is capped), and the fee in shekels (null without a price).
+ * @param {{ arrival: string, confirmed: string, today: string, price: number, by: 'guest' | 'us' }} o
+ * @returns {{ band: string, percent: number | null, fee: number | null, daysBefore: number, statutory: boolean }}
+ */
+export function cancellationFee(o) {
+  var price = Number(o.price) > 0 ? Number(o.price) : 0;
+  var daysBefore = daysBetween(o.today, o.arrival);
+  if (o.by === 'us') return { band: 'ours', percent: 0, fee: price ? 0 : null, daysBefore: daysBefore, statutory: false };
+  var percent = daysBefore >= CANCEL_FREE_DAYS ? 0 : daysBefore >= CANCEL_HALF_DAYS ? 50 : 100;
+  var band = percent === 0 ? 'free' : percent === 50 ? 'half' : 'full';
+  var sinceConfirmed = o.confirmed ? daysBetween(o.confirmed, o.today) : NaN;
+  var statutory = sinceConfirmed >= 0 && sinceConfirmed <= STATUTORY_WINDOW_DAYS && workingDaysBetween(o.today, o.arrival) >= STATUTORY_MIN_DAYS;
+  // The statutory fee (at most 5%) is always below the 50% and 100% bands, so where it applies it wins.
+  if (statutory && percent > 0) {
+    var legal = price ? Math.min(Math.round((price * STATUTORY_RATE) / 100), STATUTORY_CAP) : null;
+    return { band: 'statutory', percent: null, fee: legal, daysBefore: daysBefore, statutory: true };
+  }
+  return { band: band, percent: percent, fee: price ? Math.round((price * percent) / 100) : null, daysBefore: daysBefore, statutory: statutory };
+}

@@ -61,6 +61,11 @@ export const webApp = (cfg: BackendConfig) => ({
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testSetPrices', file, t, sig: sign(cfg, 'test:' + t) } }, (j) => j.ok === false || 'version' in j || 'cleared' in j);
   },
+  /** Staging only: removes the ביטולים lines whose guest name carries `tag`. */
+  pruneCancellations: (tag: string) => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testPruneCancellations', tag, t, sig: sign(cfg, 'test:' + t) } }, (j) => 'removed' in j);
+  },
   pruneDecisions: (refs: string[]) => {
     const t = String(Date.now());
     return call(cfg, { body: { action: 'pruneDecisions', refs, t, sig: sign(cfg, 'prune:' + t) } }, (j) => 'removed' in j);
@@ -145,6 +150,21 @@ export async function requestRows(cfg: BackendConfig): Promise<{ row: number; re
   }));
 }
 
+/** The admin sheet's ביטולים tab (the cancellations log) as objects. */
+export async function cancellationRows(cfg: BackendConfig): Promise<{ ref: string; name: string; start: string; by: string; fee: string; reason: string; emailed: string; id: string }[]> {
+  const values = await owner.values(cfg.adminSheetId, 'ביטולים!A2:P500');
+  return values.map((v) => ({
+    ref: String(v[1] ?? ''),
+    name: String(v[2] ?? ''),
+    start: String(v[6] ?? ''),
+    by: String(v[11] ?? ''),
+    fee: String(v[12] ?? ''),
+    reason: String(v[13] ?? ''),
+    emailed: String(v[14] ?? ''),
+    id: String(v[15] ?? ''),
+  }));
+}
+
 export async function bookingRows(cfg: BackendConfig): Promise<{ title: string; start: string; end: string; ref: string }[]> {
   const values = await owner.values(cfg.adminSheetId, 'הזמנות!A2:L200');
   return values.map((v) => ({ title: String(v[0] ?? ''), start: String(v[1] ?? ''), end: String(v[2] ?? ''), ref: String(v[10] ?? '') }));
@@ -205,6 +225,9 @@ export async function cleanup(cfg: BackendConfig, tag = RUN_PREFIX, waitMs = 180
     const pruned = await webApp(cfg).pruneDecisions([...refs]);
     log.push(`pruned ${pruned.removed} decision(s)`);
   }
+  // Cancelled test bookings have no event left; their only trace is a ביטולים line.
+  const cancelled = await webApp(cfg).pruneCancellations(tag);
+  if (cancelled.removed) log.push(`removed ${cancelled.removed} cancellation line(s)`);
   for (const [label, guest, conf] of guests) {
     if (!guest || !conf.calendar) continue;
     for (const ev of await guest.events('primary', { q: tag, timeMin: from })) {
