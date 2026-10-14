@@ -72,7 +72,7 @@ export const BRIDE_PACKAGES: BridePackage[] = [
     description: 'כניסה לאחר האירוע | יציאה מאוחרת ב־13:00 למחרת. זוגי בלבד.',
     recommendedFor: 'זוגות טריים שרוצים לסיים את יום החתונה במרחב פרטי, שקט ואיכותי',
     highlights: [
-      'נרות דולקים, אווירה חמה ורומנטית שממתינה לכם בלילה',
+      'שובר לארוחת בוקר זכרונית',
       'מקלחת מרווחת ומפנקת עם חלוקי רחצה רכים וסבונים טבעיים',
       'יציאה מאוחרת ב־13:00 שמאפשרת לישון עד מאוחר ולקום בנחת',
       'בוקר רגוע בחצר ההיסטורית של זכרון יעקב',
@@ -88,6 +88,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
   { id: 'bathroom', title: 'חדר הרחצה', category: 'house', categoryLabel: 'הבית', image: IMAGES.rain_shower, description: 'מקלחון גשם עם דלתות זכוכית ואור שמש' },
   { id: 'bride', title: 'כלה בשורשים', category: 'bride', categoryLabel: 'התארגנות כלה', image: IMAGES.bride_dress, description: 'שמלת כלה בחדר השינה' },
   { id: '1', title: 'עץ הפיקוס הוותיק', category: 'courtyard', categoryLabel: 'חצר הבית', image: IMAGES.ficus_trunk, description: 'גזע הפיקוס העתיק וקיר האבן בחצר' },
+  { id: 'ficus-window', title: 'הפיקוס מבעד לחלון', category: 'details', categoryLabel: 'פרטים', image: IMAGES.ficus_window, description: 'עץ הפיקוס נשקף מבעד לחלון, לצד עציץ על אדן החלון' },
   { id: '3', title: 'יין וגבינות מקומיים', category: 'details', categoryLabel: 'תמונת אווירה', image: IMAGES.wine_cheese, description: 'בקבוק יין מקומי, כוסות ומגש גבינות' },
   { id: '6', title: 'העבר על הקיר. החיים ממשיכים לפרוח.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.flowers_wall, description: 'פרחים לבנים מול קיר תמונות המשפחה' },
   { id: '7', title: 'חומרים מתקופות שונות. סיפור אחד.', category: 'details', categoryLabel: 'פרטים', image: IMAGES.corridor_shutter, description: 'מסדרון עם קיר אבן, תמונות משפחה ותריס ירוק' },

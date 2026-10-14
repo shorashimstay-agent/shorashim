@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { MessageCircle, Check, Phone, Send, Loader2 } from 'lucide-react';
 import { BRAND_DATA } from '../data/shorashimData';
 import { STAY_PACKAGES, PRICE_NOTE } from '../data/booking';
@@ -17,6 +18,7 @@ interface BookingSectionProps {
 const errorClass = 'field-error';
 
 export default function BookingSection({ stayType, onStayTypeChange }: BookingSectionProps) {
+  const contactPanel = useRef<HTMLDetailsElement>(null);
   const form = useBookingForm(stayType);
   const { ids, errors, submission, wedding, nights, adultsCount } = form;
   const pkg = STAY_PACKAGES[form.stayType];
@@ -28,14 +30,16 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
 
   return (
     <section id="booking" tabIndex={-1} className="py-12 sm:py-24 bg-[#F4F0E8]" dir="rtl" lang="he">
-      <div className="max-w-5xl mx-auto px-6 sm:px-10">
-        <p className="section-eyebrow">הצעד הבא — בירור אישי עם המארחים</p>
-        <h2 className="font-serif text-3xl sm:text-5xl mb-4">בקשת אירוח בשורשים</h2>
-        <p className="mb-8 max-w-2xl">
+      <div className="max-w-7xl mx-auto px-6 sm:px-10">
+        
+        <h2 className="sr-only">בקשת אירוח בשורשים</h2>
+        <p className="sr-only">
           בחרו מסלול ותאריכים ושלחו לנו בקשה. נבדוק את הזמינות ונחזור אליכם; זו עדיין אינה הזמנה מאושרת.
         </p>
 
-        <div className="booking-form space-y-6">
+        <div className="booking-form compact-booking">
+          <div className="booking-bar">
+          <details className="booking-bar-field"><summary><span>סוג האירוח</span><strong>{pkg.title}</strong></summary><div className="booking-bar-popover">
           <fieldset>
             <legend id={ids.stayType}>סוג האירוח</legend>
             <div className="grid sm:grid-cols-2 gap-2">
@@ -52,9 +56,9 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 </button>
               ))}
             </div>
-          </fieldset>
+          </fieldset></div></details>
 
-          <div>
+          <details className="booking-bar-field booking-bar-dates" open={errors.dates ? true : undefined}><summary><span>{wedding ? 'תאריך החתונה' : 'כניסה ויציאה'}</span><strong>{form.datesText || 'בחירת תאריכים'}</strong></summary><div className="booking-bar-popover">
             <div className="flex items-center justify-between gap-4">
               <span id={ids.datesLabel} className="block font-medium mb-2">
                 {wedding ? 'תאריך החתונה' : 'תאריכי כניסה ויציאה'}
@@ -110,8 +114,9 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               </p>
             )}
             <FieldError id={`${ids.datesLabel}-error`} message={errors.dates} className={errorClass} />
-          </div>
+          </div></details>
 
+          <details className="booking-bar-field"><summary><span>אורחים</span><strong>{adultsCount} אורחי לינה{form.hasDayParticipants && <> · {form.participants} משתתפי יום</>}</strong></summary><div className="booking-bar-popover">
           <fieldset>
             <legend id={ids.adultsLabel}>אורחי לינה — מבוגרים בלבד</legend>
             <div className="flex flex-wrap gap-3 items-center">
@@ -152,6 +157,10 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             </div>
           )}
 
+          </div></details>
+          <button type="button" className="primary-action booking-bar-continue" onClick={() => { if (contactPanel.current) { contactPanel.current.open = true; contactPanel.current.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); } }}>המשך לבקשת אירוח</button>
+          </div>
+          <details ref={contactPanel} className="booking-contact-panel"><summary className="sr-only">סיכום הבקשה ופרטי יצירת קשר</summary><div className="contact-editorial space-y-6 mt-5"><div className="contact-editorial-heading"><h3 className="font-serif">נשמח לשמוע מכם</h3><p>השאירו פרטים ונחזור אליכם לאישור הזמינות ולתיאום האירוח.</p></div>
           <div className="booking-summary" role="group" aria-label="סיכום הבקשה">
             <h3 className="font-serif text-2xl mb-3">הבקשה שלכם במבט אחד</h3>
             <p className="font-medium">{pkg.title}</p>
@@ -331,6 +340,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               <span>ניסינו לפתוח WhatsApp עם פרטי הבקשה. ההודעה עדיין דורשת שליחה שם.</span>
             </p>
           )}
+          </div></details>
         </div>
       </div>
     </section>

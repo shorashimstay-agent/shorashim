@@ -48,16 +48,16 @@ export default function App() {
       {/* Main Narrative Flow */}
       <main id="main" tabIndex={-1} className="outline-none">
         {/* 01 | Arrival & Hero — Cinematic, unboxed, pure desire */}
-        <Hero onOpenBooking={scrollToBooking} />
+        <Hero />
+        <BookingSection stayType={selectedStayType} onStayTypeChange={setSelectedStayType} />
         <AtAGlance onSelectCouple={() => { setSelectedStayType('couple'); scrollToBooking(); }} />
 
         <StayPaths onSelectCouple={() => { setSelectedStayType('couple'); scrollToBooking(); }} />
         <HouseSection onOpenBooking={scrollToBooking} />
         <BrideSection onSelectPackage={handleSelectPackage} />
-        <BookingSection stayType={selectedStayType} onStayTypeChange={setSelectedStayType} />
         <StorySection />
-        <ZichronGuide />
         <GallerySection />
+        <ZichronGuide />
         <FaqSection />
       </main>
 

@@ -34,6 +34,7 @@ export default function BrideSection({ onSelectPackage }: { onSelectPackage?: (i
           return <article key={id} className="bride-package">
             <div><p className="route-label">{routeLabels[id]}</p><h4 className="font-serif text-2xl mb-4">{pkg.title}</h4>
               <dl className="package-facts"><div><dt>הגעה</dt><dd>{schedule.arrival}</dd></div><div><dt>יציאה</dt><dd>{schedule.departure}</dd></div></dl>
+              {id === 'bride_day' && <p className="mt-4 font-medium text-[#40362f]">המסלול כולל ארוחת בוקר לעד 5 אנשים</p>}
               <div className="package-price"><span>מחיר המסלול</span><strong>{price === null ? 'מחיר בתיאום אישי' : price.toLocaleString('he-IL') + ' ₪'}</strong></div>
               <details className="mt-3"><summary>לינה, אורחים ומה כלול</summary><p className="mt-2">{schedule.sleep} · {pkg.capacity}</p><ul className="space-y-2 mt-2">{base.highlights.map(item => <li key={item}>✓ {item}</li>)}</ul></details>
             </div>
