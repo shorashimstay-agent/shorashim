@@ -251,6 +251,11 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                   <h3 id="booking-gate-heading" className="font-serif text-2xl">המועד שבחרת אינו פנוי.</h3>
                   <p id="booking-gate-text">פני אלינו לבדיקת אפשרויות נוספות.</p>
                 </>
+              ) : form.stayType !== 'couple' ? (
+                <>
+                  <h3 id="booking-gate-heading" className="font-serif text-2xl">התאריכים שבחרתם אינם פנויים.</h3>
+                  <p id="booking-gate-text">פנו אלינו לבדיקת אפשרויות נוספות.</p>
+                </>
               ) : gate.alternatives.length ? (
                 <>
                   <h3 id="booking-gate-heading" className="font-serif text-2xl">התאריכים שבחרתם תפוסים.</h3>

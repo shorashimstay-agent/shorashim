@@ -144,6 +144,7 @@ function checker({ events = [] } = {}) {
         get: (k) => store[k] ?? null,
         getAll: (keys) => Object.fromEntries(keys.filter((k) => k in store).map((k) => [k, store[k]])),
         put: (k, v) => (store[k] = v),
+        remove: (k) => delete store[k],
         removeAll: (keys) => keys.forEach((k) => delete store[k]),
       }),
     },
@@ -189,6 +190,23 @@ test('a check that read before a booking change does not store its copy', () => 
   ctx.checkDates_('2026-11-10', '2026-11-12');
   ctx.checkDates_('2026-11-10', '2026-11-12');
   assert.equal(asked.length, 2, 'the next read is cached as usual');
+});
+
+test('a check that misses the cache while another reads answers from the last copy, unless a booking changed since', () => {
+  const { ctx, asked, store } = checker({ events: [{ allDay: true, start: '2026-11-11', end: '2026-11-12' }] });
+  ctx.checkDates_('2026-11-10', '2026-11-12');
+  assert.equal(asked.length, 1);
+  // The 30-second copy has expired and another execution is reading right now.
+  delete store['check:v1'];
+  store['check:reading'] = '1';
+  assert.deepEqual([...ctx.checkDates_('2026-11-10', '2026-11-12').conflicts], ['2026-11-11'], 'answered from the last copy');
+  assert.equal(asked.length, 1, 'without a second read');
+  // After a booking change the last copy is not good enough: read again.
+  ctx.invalidateAvailability_();
+  store['check:reading'] = '1';
+  ctx.checkDates_('2026-11-10', '2026-11-12');
+  assert.equal(asked.length, 2);
+  assert.equal(store['check:reading'], undefined, 'the reader clears its marker');
 });
 
 test('a failing calendar read answers server_error and is not retried for a few seconds', () => {
