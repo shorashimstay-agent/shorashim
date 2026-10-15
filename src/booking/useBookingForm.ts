@@ -176,6 +176,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   // A result belongs to the stay type and dates it was given for; any change drops it, and a check
   // still running for the old dates is ignored when it answers.
   const chosenKey = useRef('');
+  const runningCheck = useRef('');
   chosenKey.current = gateKey(stayType, checkIn, checkOut);
   useEffect(() => {
     if (gate.key !== undefined && gate.key !== gateKey(stayType, checkIn, checkOut)) setGate({ state: 'idle' });
@@ -225,6 +226,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     }
     if (opts.takenNights) showGate({ state: 'checking', key });
     else setGate({ state: 'checking', key });
+    runningCheck.current = key;
     setAnnouncement('בודקים זמינות...');
     const range = stayRange(stayType, from, to);
     let result: Awaited<ReturnType<typeof checkDates>> | null = null;
@@ -233,31 +235,33 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     } catch {
       result = null;
     }
-    setAnnouncement('');
+    // The busy announcement belongs to the latest check; an older one must not clear it.
+    if (runningCheck.current === key) setAnnouncement('');
     // A newer choice replaced these dates while the check ran.
     if (chosenKey.current !== key) return 'idle';
-    if (!result) {
+    const taken = opts.takenNights ?? [];
+    if (!result && !taken.length) {
       showGate({ state: 'failed', key });
       return 'failed';
     }
-    const fresh = result.availability;
-    // What the server refused is taken, even if the check's copy has not caught up yet.
-    const taken = opts.takenNights ?? [];
+    // The server refused these nights: they are taken even if the check got no answer, or its copy
+    // has not caught up yet. Without an answer there is no window to look for nearby dates in.
+    const fresh: Availability = result?.availability ?? { from: '', to: '', blocked: new Set<string>() };
     taken.forEach((d) => fresh.blocked.add(d));
     // The calendar shows what the check found for its window.
     setAvailability((prev) => {
       if (!prev) return prev;
-      const blocked = new Set([...prev.blocked].filter((d) => d < fresh.from || d >= fresh.to));
+      const blocked = new Set([...prev.blocked].filter((d) => !fresh.from || d < fresh.from || d >= fresh.to));
       fresh.blocked.forEach((d) => blocked.add(d));
       return { ...prev, blocked };
     });
-    if (result.free && !taken.length) {
+    if (result?.free && !taken.length) {
       if (opts.beforeSend) setGate({ state: 'free', key, verified: true });
       else showGate({ state: 'free', key, verified: true });
       return 'free';
     }
     // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
-    const alternatives = stayType === 'couple' ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
+    const alternatives = stayType === 'couple' && fresh.from ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
     showGate({ state: 'taken', key, alternatives });
     return 'taken';
   };

@@ -150,7 +150,10 @@ function calendar_(key) {
 }
 
 function invalidateAvailability_() {
-  CacheService.getScriptCache().removeAll([AVAILABILITY_CACHE_KEY, CHECK_CACHE_KEY]);
+  var cache = CacheService.getScriptCache();
+  cache.removeAll([AVAILABILITY_CACHE_KEY, CHECK_CACHE_KEY]);
+  // A check that started reading before this change must not store what it read (liveBlocked_).
+  cache.put(CHECK_GENERATION_KEY, String(Date.now()) + Math.random(), 21600);
 }
 
 /**
@@ -417,6 +420,10 @@ function getAvailability_() {
 // requests show at once; an edit made directly in Google Calendar shows within the period.
 var CHECK_CACHE_KEY = 'check:v1';
 var CHECK_CACHE_SECONDS = 30;
+var CHECK_GENERATION_KEY = 'check:generation';
+// After a failed calendar read, checks answer server_error for this long without reading again.
+var CHECK_FAILED_KEY = 'check:failed';
+var CHECK_FAILED_SECONDS = 10;
 
 function checkDates_(start, end) {
   start = String(start || '');
@@ -430,7 +437,9 @@ function checkDates_(start, end) {
   var windowDays = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
   var from = addDays(start, -windowDays) < today ? today : addDays(start, -windowDays);
   var to = addDays(end, windowDays) > horizonEnd ? horizonEnd : addDays(end, windowDays);
-  var blocked = liveBlocked_(today, horizonEnd).filter(function (d) {
+  var all = liveBlocked_(today, horizonEnd);
+  if (!all) return { ok: false, error: 'server_error' };
+  var blocked = all.filter(function (d) {
     return d >= from && d < to;
   });
   var conflicts = conflictingNights(blocked, start, end);
@@ -438,16 +447,31 @@ function checkDates_(start, end) {
   return { ok: true, free: !conflicts.length, conflicts: conflicts, from: from, to: to, blocked: blocked };
 }
 
-/** Taken nights in [from, to), read-only, from a copy at most CHECK_CACHE_SECONDS old. */
+/**
+ * Taken nights in [from, to), read-only, from a copy at most CHECK_CACHE_SECONDS old; null while the
+ * calendars cannot be read (remembered for CHECK_FAILED_SECONDS, so a failing API is not hammered).
+ * A copy is stored only if no booking change happened while it was read (CHECK_GENERATION_KEY).
+ */
 function liveBlocked_(from, to) {
   var cache = CacheService.getScriptCache();
-  var hit = cache.get(CHECK_CACHE_KEY);
-  if (hit) {
-    var copy = JSON.parse(hit);
+  var hits = cache.getAll([CHECK_CACHE_KEY, CHECK_GENERATION_KEY, CHECK_FAILED_KEY]);
+  if (hits[CHECK_FAILED_KEY]) return null;
+  if (hits[CHECK_CACHE_KEY]) {
+    var copy = JSON.parse(hits[CHECK_CACHE_KEY]);
     if (copy.from === from && copy.to === to) return copy.blocked;
   }
-  var blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
-  cache.put(CHECK_CACHE_KEY, JSON.stringify({ from: from, to: to, blocked: blocked }), CHECK_CACHE_SECONDS);
+  var blocked;
+  try {
+    blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
+  } catch (err) {
+    console.warn('live check: calendars unreadable', err);
+    cache.put(CHECK_FAILED_KEY, '1', CHECK_FAILED_SECONDS);
+    logEvent_('error', { where: 'checkDates_', message: logMessage_(err) });
+    return null;
+  }
+  if ((cache.get(CHECK_GENERATION_KEY) || '') === (hits[CHECK_GENERATION_KEY] || '')) {
+    cache.put(CHECK_CACHE_KEY, JSON.stringify({ from: from, to: to, blocked: blocked }), CHECK_CACHE_SECONDS);
+  }
   return blocked;
 }
 

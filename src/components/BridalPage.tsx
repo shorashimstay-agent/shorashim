@@ -14,7 +14,7 @@ export default function BridalPage({ stayType, onStayTypeChange }: { stayType: S
 
     <section className="bridal-photo-story"><figure><Picture image={IMAGES.bridal_kitchen} alt="אי המטבח ופינות הישיבה בשורשים לקפה ולהתכנסות בזמן ההתארגנות" className="w-full h-auto" sizes="(max-width: 767px) 100vw, 55vw" /><figcaption>קפה קטן. נשימה עמוקה. האנשים שלך.</figcaption></figure><div><p className="section-eyebrow">היופי נמצא גם בין הרגעים</p><h2 className="font-serif">להרגיש בבית,<br />גם ביום הכי מיוחד.</h2><p>יש את רגע לבישת השמלה, ויש את כל מה שסביבו. שיחה ליד האי במטבח, מבט במראה, תמונה בחצר וחיבוק לפני היציאה. הבית של שורשים נותן מקום גם לרגעים האלה.</p><p>במסלול יום ההתארגנות כלולה ארוחת בוקר לעד 5 אנשים.</p></div></section>
 
-    <section className="bridal-route-intro"><p className="section-eyebrow">לפי היום שאת מתכננת</p><h2 className="font-serif">איך תרצי להתחיל את היום שלך?</h2><p>יום התארגנות בלבד, או לילה לפני כדי להתעורר כאן בבוקר החתונה. בחרי מסלול ותאריך, והשאירי פרטים לתיאום אישי.</p></section>
+    <section className="bridal-route-intro"><p className="section-eyebrow">לפי היום שאת מתכננת</p><h2 className="font-serif">איך תרצי להתחיל את היום שלך?</h2><p>יום התארגנות בלבד, לילה לפני כדי להתעורר כאן בבוקר החתונה, או גם חזרה ללינה אחרי החתונה. בחרי מסלול ותאריך, והשאירי פרטים לתיאום אישי.</p></section>
     <BookingSection stayType={stayType === 'couple' ? 'bride_day' : stayType} onStayTypeChange={onStayTypeChange} />
 
     <section className="bridal-editorial-section bridal-practical"><h2 className="font-serif">כמה דברים שכדאי לדעת מראש</h2><div>

@@ -142,6 +142,7 @@ function checker({ events = [] } = {}) {
     CacheService: {
       getScriptCache: () => ({
         get: (k) => store[k] ?? null,
+        getAll: (keys) => Object.fromEntries(keys.filter((k) => k in store).map((k) => [k, store[k]])),
         put: (k, v) => (store[k] = v),
         removeAll: (keys) => keys.forEach((k) => delete store[k]),
       }),
@@ -154,6 +155,7 @@ function checker({ events = [] } = {}) {
     return events;
   };
   ctx.countLogNoise_ = () => {};
+  ctx.logEvent_ = () => {};
   return { ctx, asked, store };
 }
 
@@ -172,6 +174,51 @@ test('checks share one calendar read per 30 seconds, and a booking change clears
   ctx.invalidateAvailability_();
   ctx.checkDates_('2026-11-10', '2026-11-12');
   assert.equal(asked.length, 2, 'after a new request, the next check reads afresh');
+});
+
+test('a check that read before a booking change does not store its copy', () => {
+  const { ctx, asked, store } = checker();
+  ctx.blockingEvents_ = (from, to, opts) => {
+    asked.push([from, to]);
+    // A request is created while this check reads the calendars.
+    if (asked.length === 1) ctx.invalidateAvailability_();
+    return [];
+  };
+  ctx.checkDates_('2026-11-10', '2026-11-12');
+  assert.equal(store['check:v1'], undefined, 'the pre-change copy is not cached');
+  ctx.checkDates_('2026-11-10', '2026-11-12');
+  ctx.checkDates_('2026-11-10', '2026-11-12');
+  assert.equal(asked.length, 2, 'the next read is cached as usual');
+});
+
+test('a failing calendar read answers server_error and is not retried for a few seconds', () => {
+  const { ctx, asked } = checker();
+  ctx.blockingEvents_ = () => {
+    asked.push(1);
+    throw new Error('Calendar API 503');
+  };
+  for (let i = 0; i < 5; i++) assert.deepEqual(JSON.parse(JSON.stringify(ctx.checkDates_('2026-11-10', '2026-11-12'))), { ok: false, error: 'server_error' });
+  assert.equal(asked.length, 1);
+});
+
+test('cancelling a prep day + wedding night booking counts from 15:00 the day before the wedding', () => {
+  const ctx = load({ LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) } });
+  // Wedding on 2026-10-15: the stay holds the 14th and the 15th and starts on the 14th at 15:00.
+  ctx.findBooking_ = () => ({
+    id: 'ev1',
+    iCalUID: 'uid1',
+    start: { date: '2026-10-14' },
+    end: { date: '2026-10-16' },
+    extendedProperties: { shared: { source: 'console', kind: 'phone', request: JSON.stringify({ stayType: 'bride_day_wedding_night', name: 'דנה', checkIn: '2026-10-15' }) } },
+  });
+  ctx.cancellationsLog_ = () => assert.fail('a refused cancellation writes nothing');
+  ctx.fmt_ = () => '2026-10-14T15:00';
+  assert.equal(ctx.cancelBooking_('uid1', { by: 'guest', notify: false }).error, 'started');
+  ctx.fmt_ = () => '2026-10-14T14:59';
+  ctx.cancellationsLog_ = () => {
+    throw new Error('reached the log');
+  };
+  assert.throws(() => ctx.cancelBooking_('uid1', { by: 'guest', notify: false }), /reached the log/, 'before arrival it goes ahead');
 });
 
 test('the live check refuses bad ranges', () => {
