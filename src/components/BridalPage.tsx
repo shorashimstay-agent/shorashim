@@ -4,10 +4,9 @@ import BookingSection from './BookingSection';
 import type { StayType } from '../data/booking';
 
 export default function BridalPage({ stayType, onStayTypeChange }: { stayType: StayType; onStayTypeChange: (type: StayType) => void }) {
-  const toBooking = () => document.getElementById('booking')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
   return <>
     <section id="bride" className="bridal-page-hero">
-      <div className="bridal-hero-copy"><a className="bridal-back" href="/">שורשים · חזרה לחופשה בשורשים ←</a><p className="section-eyebrow">כלה בשורשים · זכרון יעקב</p><h1 className="font-serif">לפני שהכול מתחיל,<br /><em>רגע שהוא שלך.</em></h1><p className="bridal-lead">בוקר החתונה שלך, בבית עם אור, אופי ומקום לאנשים הקרובים אלייך.</p><p>בין קירות עם סיפור, חצר ירוקה ופינות שמצטלמות יפה, שורשים מזמין אותך להתחיל את היום בקצב שלך. להתארגן, להתרגש, לשתות קפה ולהיות יחד, לפני שיוצאים לחגוג.</p><button className="primary-action" type="button" onClick={toBooking}>למסלולים ולבירור מועד</button><span className="bridal-small">עד 5 משתתפים בסך הכול, כולל הכלה, המלוות ואנשי המקצוע</span></div>
+      <div className="bridal-hero-copy"><a className="bridal-back" href="/">שורשים · חזרה לחופשה בשורשים ←</a><p className="section-eyebrow">כלה בשורשים · זכרון יעקב</p><h1 className="font-serif">לפני שהכול מתחיל,<br /><em>רגע שהוא שלך.</em></h1><p className="bridal-lead">בוקר החתונה שלך, בבית עם אור, אופי ומקום לאנשים הקרובים אלייך.</p><p>בין קירות עם סיפור, חצר ירוקה ופינות שמצטלמות יפה, שורשים מזמין אותך להתחיל את היום בקצב שלך. להתארגן, להתרגש, לשתות קפה ולהיות יחד, לפני שיוצאים לחגוג.</p></div>
       <div className="bridal-hero-photo"><Picture image={IMAGES.bride_dress} alt="שמלת כלה תלויה בחדר השינה המואר בשורשים" className="w-full h-full object-cover" priority sizes="(max-width: 767px) 100vw, 50vw" /></div>
     </section>
 
