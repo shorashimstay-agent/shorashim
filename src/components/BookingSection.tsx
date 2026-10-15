@@ -239,6 +239,10 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                   <dd>{nights}</dd>
                 </div>
               )}
+              <div className="quote-total">
+                <dt>מחיר</dt>
+                <dd>{form.estimate === null ? 'מחיר בתיאום אישי' : <span dir="ltr">₪{form.estimate.toLocaleString('he-IL')}</span>}</dd>
+              </div>
             </dl>
             {form.stayType === 'bride_night_day' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">לילה אחד ויום התארגנות. הגעה ב־15:00 ביום שלפני החתונה ויציאה ב־15:30 ביום החתונה.</p>}
             <p className="text-sm mt-3">{PRICE_NOTE}</p>
