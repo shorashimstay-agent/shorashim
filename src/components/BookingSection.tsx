@@ -4,7 +4,7 @@ import { BRAND_DATA } from '../data/shorashimData';
 import { STAY_PACKAGES, PRICE_NOTE } from '../data/booking';
 import { useBookingForm } from '../booking/useBookingForm';
 import { Announcer, DatePicker, FieldError, Honeypot, SendConsent, SentHeading, described } from '../booking/parts';
-import { NOTES_MAX, type StayType } from '../lib/stay';
+import { NOTES_MAX, addDays, formatHebrewDate, type StayType } from '../lib/stay';
 import PolicyDetails from './PolicyDetails';
 import PriceStatus from './PriceStatus';
 
@@ -219,7 +219,9 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             <dl className="request-facts">
               <div>
                 <dt>תאריכים</dt>
-                <dd>{form.datesText || 'טרם נבחרו'}</dd>
+                <dd>{form.stayType === 'bride_night_day' && form.checkIn
+                  ? <>{formatHebrewDate(addDays(form.checkIn, -1))} – {formatHebrewDate(form.checkIn)}</>
+                  : form.datesText || 'טרם נבחרו'}</dd>
               </div>
               <div>
                 <dt>{form.stayType === 'bride_day' ? 'לינה' : 'אורחי לינה'}</dt>
@@ -237,11 +239,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                   <dd>{nights}</dd>
                 </div>
               )}
-              <div className="quote-total">
-                <dt>הערכת עלות</dt>
-                <dd>{form.estimate === null ? 'מחיר בתיאום אישי' : <span dir="ltr">₪{form.estimate.toLocaleString('he-IL')}</span>}</dd>
-              </div>
             </dl>
+            {form.stayType === 'bride_night_day' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">לילה אחד ויום התארגנות. הגעה ב־15:00 ביום שלפני החתונה ויציאה ב־15:30 ביום החתונה.</p>}
             <p className="text-sm mt-3">{PRICE_NOTE}</p>
             <PriceStatus />
           </div>
