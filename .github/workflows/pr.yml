@@ -1,0 +1,52 @@
+name: Pull request checks
+
+# The `checks` status the main ruleset requires, for pull requests from any branch. The designer's
+# pushes get it from design.yml; this gives the agent's own pull requests the same checks, so they
+# merge with a code-owner approval and auto-merge instead of the admin bypass.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Push protection is the first net; this stops a key that slipped past it from going live.
+      - name: Scan the pull request's commits for secrets
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --no-banner --redact --log-opts "origin/main..HEAD" .
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache optimized images
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/assets/images/optimized
+            public/og-image.jpg
+          key: images-${{ hashFiles('src/assets/images/*.jpg', 'scripts/optimize-images.mjs') }}
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npx playwright install --with-deps chromium
+      - name: Check the page, the booking form and accessibility
+        run: npx playwright test -c playwright.ci.config.ts
+      - name: Check the design contract and prices
+        run: node scripts/design-contract.mjs .ci-dist
