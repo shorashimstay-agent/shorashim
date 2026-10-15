@@ -150,7 +150,7 @@ function calendar_(key) {
 }
 
 function invalidateAvailability_() {
-  CacheService.getScriptCache().remove(AVAILABILITY_CACHE_KEY);
+  CacheService.getScriptCache().removeAll([AVAILABILITY_CACHE_KEY, CHECK_CACHE_KEY]);
 }
 
 /**
@@ -407,13 +407,16 @@ function getAvailability_() {
   return result;
 }
 
-// The live check the website runs before it opens the request details: the nights [start, end)
-// straight from the calendars (no cache, no snapshot), and the taken nights in a window around them,
-// so the page can offer nearby dates without asking again. Read-only: nothing expires or is deleted
-// here, since anyone can call it. Above CHECKS_PER_HOUR in an hour it answers from getAvailability_
-// (at most two minutes old) instead, so a flood of checks cannot exhaust the Calendar quota.
-var CHECKS_PER_HOUR = 600;
-var CHECK_WINDOW_DAYS = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
+// The live check the website runs before it opens or sends a request: are the nights [start, end)
+// free, and which nights are taken in a window around them (for nearby dates). It reads the calendars
+// directly, not the snapshot, and writes nothing: nothing expires or is deleted here, since anyone can
+// call it. The whole booking window is read at most once per CHECK_CACHE_SECONDS, whatever the
+// traffic, so a flood of checks costs at most 3 UrlFetch calls (one per calendar) per period, about
+// 8,600 a day: well inside the account's 20,000 a day, with room for everything else. Every booking
+// change this backend makes clears it (invalidateAvailability_), so the guest's own and other guests'
+// requests show at once; an edit made directly in Google Calendar shows within the period.
+var CHECK_CACHE_KEY = 'check:v1';
+var CHECK_CACHE_SECONDS = 30;
 
 function checkDates_(start, end) {
   start = String(start || '');
@@ -424,28 +427,28 @@ function checkDates_(start, end) {
   if (!DATE_RE.test(start) || !DATE_RE.test(end) || isNaN(nights) || nights < 1 || nights > MAX_NIGHTS || start < today || end > horizonEnd) {
     return { ok: false, error: 'invalid' };
   }
-  var from = addDays(start, -CHECK_WINDOW_DAYS) < today ? today : addDays(start, -CHECK_WINDOW_DAYS);
-  var to = addDays(end, CHECK_WINDOW_DAYS) > horizonEnd ? horizonEnd : addDays(end, CHECK_WINDOW_DAYS);
-  var blocked;
-  if (withinCheckLimit_()) {
-    blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
-  } else {
-    blocked = getAvailability_().blocked.filter(function (d) {
-      return d >= from && d < to;
-    });
-  }
+  var windowDays = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
+  var from = addDays(start, -windowDays) < today ? today : addDays(start, -windowDays);
+  var to = addDays(end, windowDays) > horizonEnd ? horizonEnd : addDays(end, windowDays);
+  var blocked = liveBlocked_(today, horizonEnd).filter(function (d) {
+    return d >= from && d < to;
+  });
   var conflicts = conflictingNights(blocked, start, end);
   countLogNoise_(conflicts.length ? 'availability.taken' : 'availability.free');
   return { ok: true, free: !conflicts.length, conflicts: conflicts, from: from, to: to, blocked: blocked };
 }
 
-function withinCheckLimit_() {
+/** Taken nights in [from, to), read-only, from a copy at most CHECK_CACHE_SECONDS old. */
+function liveBlocked_(from, to) {
   var cache = CacheService.getScriptCache();
-  var key = 'rl:check:' + fmt_(new Date(), 'yyyyMMddHH');
-  var count = Number(cache.get(key) || 0);
-  if (count >= CHECKS_PER_HOUR) return false;
-  cache.put(key, String(count + 1), 7200);
-  return true;
+  var hit = cache.get(CHECK_CACHE_KEY);
+  if (hit) {
+    var copy = JSON.parse(hit);
+    if (copy.from === from && copy.to === to) return copy.blocked;
+  }
+  var blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
+  cache.put(CHECK_CACHE_KEY, JSON.stringify({ from: from, to: to, blocked: blocked }), CHECK_CACHE_SECONDS);
+  return blocked;
 }
 
 // ---------------------------------------------------------------------------
@@ -1866,6 +1869,9 @@ function waLink_(phone, text) {
 }
 
 function stayDatesShort_(req) {
+  if (req.stayType === 'bride_day_wedding_night') {
+    return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(addDays(req.checkIn, -1)) + ' 15:00 · יציאה ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT;
+  }
   if (STAY_TYPES[req.stayType].wedding) return 'חתונה ' + heDate_(req.checkIn);
   return heDate_(req.checkIn) + '–' + heDate_(req.checkOut);
 }

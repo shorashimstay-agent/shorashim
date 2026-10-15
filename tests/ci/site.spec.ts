@@ -2,7 +2,8 @@
 // the designer by her Codex agent, so each assertion says in plain words what broke.
 import { expect, test, type Page } from '@playwright/test';
 import { FAKE_API } from '../../playwright.ci.config';
-import { addDays } from '../../shared/rules.js';
+import fs from 'node:fs';
+import { addDays, estimatePrice } from '../../shared/rules.js';
 import { openBooking, submitBooking } from '../e2e/lib/site';
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
@@ -16,8 +17,12 @@ interface Sent {
 interface FakeOptions {
   /** Nights the live check reports as taken (the snapshot still shows them free, as when it is stale). */
   taken?: string[];
-  /** The live check gets no usable answer. */
-  checkFails?: boolean;
+  /** The live check gets no usable answer (`true`), or none for its first N calls. */
+  checkFails?: boolean | number;
+  /** The live check answers this late. */
+  checkDelayMs?: number;
+  /** What the request (POST) answers, instead of success. */
+  postAnswer?: Record<string, unknown>;
 }
 
 /** Answers the booking API and reCAPTCHA the way the real ones do; records the request the form sends. */
@@ -37,7 +42,9 @@ async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent>
       if (url.searchParams.get('action') === 'check') {
         const [start, end] = [url.searchParams.get('start')!, url.searchParams.get('end')!];
         sent.checks.push(`${start}..${end}`);
-        if (options.checkFails) return route.fulfill({ status: 500, body: '<html>error</html>' });
+        const failing = options.checkFails === true || (typeof options.checkFails === 'number' && sent.checks.length <= options.checkFails * 4);
+        if (failing) return route.fulfill({ status: 500, body: '<html>error</html>' });
+        if (options.checkDelayMs) await new Promise((r) => setTimeout(r, options.checkDelayMs));
         const taken = options.taken ?? [];
         const conflicts = taken.filter((d) => d >= start && d < end);
         return route.fulfill({ json: { ok: true, free: !conflicts.length, conflicts, from, to: addDays(from, 366), blocked: taken } });
@@ -45,7 +52,7 @@ async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent>
       return route.fulfill({ json: { ok: true, from, to: addDays(from, 365), blocked: [] } });
     }
     sent.body = JSON.parse(req.postData() ?? 'null');
-    return route.fulfill({ json: { ok: true, ref: 'SH-CI000', holdHours: 24 } });
+    return route.fulfill({ json: options.postAnswer ?? { ok: true, ref: 'SH-CI000', holdHours: 24 } });
   });
   return sent;
 }
@@ -124,6 +131,8 @@ test('the legal pages are built in both languages', async ({ request }) => {
   }
 });
 
+const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8')).prices as Record<string, number>;
+
 /** The home page with the booking bar as a visitor sees it (not the #booking direct link). */
 async function openBar(page: Page) {
   await page.goto('/');
@@ -195,6 +204,12 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       // Two nights, the closest free start: two days later.
       const first = addDays(checkIn, 2);
       await expect(options.first()).toHaveAttribute('data-alternative', first);
+      // Each is priced for its own nights, weekend nights included.
+      for (let i = 0; i < 3; i++) {
+        const altIn = (await options.nth(i).getAttribute('data-alternative'))!;
+        const price = estimatePrice('couple', 2, 2, testPrices, altIn)!;
+        await expect(options.nth(i)).toContainText(price.toLocaleString('he-IL'));
+      }
       await options.first().click();
       const details = page.locator('.booking-request-screen');
       await expect(details.getByText('התאריכים שבחרתם פנויים')).toBeVisible();
@@ -268,4 +283,75 @@ test('the date notice and the nearby dates pass the accessibility scan', async (
   await booking.locator('.booking-bar-continue').click();
   await expect(page.locator('[data-alternative]').first()).toBeVisible();
   expect(await scan(), 'the nearby dates break accessibility rules').toEqual([]);
+});
+
+test('retry after a failed check runs it again, and opens the details when it answers', async ({ page }) => {
+  const sent = await fakeBackend(page, { checkFails: 1 });
+  const booking = await openBar(page);
+  const checkIn = addDays(israelToday(), 40);
+  await pickDates(page, [checkIn, addDays(checkIn, 1)]);
+  await booking.locator('.booking-bar-continue').click();
+  const gate = page.getByRole('alertdialog', { name: 'לא הצלחנו לבדוק זמינות כרגע' });
+  await expect(gate).toBeVisible({ timeout: 40_000 });
+  await gate.getByRole('button', { name: 'לנסות שוב' }).click();
+  await expect(page.locator('.booking-request-screen').getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+  expect(sent.checks.length).toBeGreaterThan(1);
+});
+
+test('a check overtaken by new dates is dropped: nothing opens for the old dates', async ({ page }) => {
+  await fakeBackend(page, { checkDelayMs: 2500 });
+  const booking = await openBar(page);
+  const checkIn = addDays(israelToday(), 40);
+  await pickDates(page, [checkIn, addDays(checkIn, 1)]);
+  await booking.locator('.booking-bar-continue').click();
+  await expect(booking.locator('.booking-bar-continue')).toHaveAttribute('aria-busy', 'true');
+  await pickDates(page, [addDays(checkIn, 5), addDays(checkIn, 7)]);
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.booking-request-screen'), 'the old dates\' answer must not open the details').not.toBeVisible();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(booking.locator('.booking-bar-continue')).toHaveText('להזמנה');
+});
+
+test('the #booking direct link sends nothing until a check finds the dates free', async ({ page }) => {
+  const checkIn = addDays(israelToday(), 40);
+  const sent = await fakeBackend(page, { taken: [addDays(checkIn, 1)] });
+  await openBooking(page);
+  const booking = page.locator('#booking');
+  await booking.locator('[data-stay-type="couple"]').click();
+  await pickDates(page, [checkIn, addDays(checkIn, 2)]);
+  await booking.locator('input[name="guest-name"]').fill('בדיקה אוטומטית');
+  await booking.locator('input[name="phone"]').fill('0501234567');
+  await page.locator('#submit-booking-request').click();
+  const gate = page.getByRole('alertdialog', { name: 'התאריכים שבחרתם תפוסים.' });
+  await expect(gate, 'taken dates must stop the request before it is sent').toBeVisible();
+  expect(sent.body, 'a request was sent without a confirmed check').toBeNull();
+  // A nearby stay is checked, and the guest sends it from the same form.
+  await gate.locator('[data-alternative]').first().click();
+  await expect(gate).not.toBeVisible();
+  await page.locator('#submit-booking-request').click();
+  await expect(booking.getByText('מספר הבקשה:')).toBeVisible();
+  expect(sent.body).toMatchObject({ action: 'request', name: 'בדיקה אוטומטית' });
+});
+
+test('a request the server finds taken shows the taken dates at once, with nearby ones', async ({ page }) => {
+  const checkIn = addDays(israelToday(), 40);
+  // The check's copy has not caught up (free), but the server refuses the request.
+  const sent = await fakeBackend(page, { postAnswer: { ok: false, error: 'unavailable', nights: [checkIn] } });
+  const booking = await openBar(page);
+  await pickDates(page, [checkIn, addDays(checkIn, 2)]);
+  await booking.locator('.booking-bar-continue').click();
+  const details = page.locator('.booking-request-screen');
+  await details.locator('input[name="guest-name"]').fill('בדיקה אוטומטית');
+  await details.locator('input[name="phone"]').fill('0501234567');
+  await page.locator('#submit-booking-request').click();
+  const gate = page.getByRole('alertdialog', { name: 'התאריכים שבחרתם תפוסים.' });
+  await expect(gate, 'a refused request must say the dates are taken').toBeVisible();
+  await expect(details).not.toBeVisible();
+  await expect(gate.locator('[data-alternative]').first()).toBeVisible();
+  expect(sent.body).toMatchObject({ action: 'request' });
+  // The refused nights are never offered back.
+  for (const alt of await gate.locator('[data-alternative]').all()) {
+    const from = (await alt.getAttribute('data-alternative'))!;
+    expect([from, addDays(from, 1)]).not.toContain(checkIn);
+  }
 });
