@@ -55,7 +55,7 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
   };
 
   // Day-only bridal preparation highlights the chosen day, rather than the surrounding hold nights.
-  const range = checkIn ? (stayType === 'bride_day' ? { start: checkIn, end: checkIn } : stayRange(stayType, checkIn, checkOut || checkIn)) : null;
+  const range = checkIn ? (stayType === 'bride_day' ? { start: checkIn, end: checkIn } : stayType === 'bride_night_day' ? { start: addDays(checkIn, -1), end: checkIn } : stayRange(stayType, checkIn, checkOut || checkIn)) : null;
   const inRange = (date: Date, part: 'start' | 'middle' | 'end') => {
     if (!range) return false;
     const d = toISODate(date);
@@ -80,8 +80,9 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
         labelDayButton: (date: Date, modifiers: Modifiers) => {
           const d = toISODate(date);
           const text = date.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-          if (range && d === range.start) return `${text}, ${wedding ? 'תאריך החתונה שנבחר' : 'תאריך ההגעה שנבחר'}`;
-          if (range && !wedding && d === range.end) return `${text}, תאריך העזיבה שנבחר`;
+          if (wedding && d === checkIn) return `${text}, תאריך החתונה שנבחר`;
+          if (range && d === range.start) return `${text}, תאריך ההגעה שנבחר`;
+          if (range && d === range.end) return `${text}, תאריך העזיבה שנבחר`;
           if (blocked.has(d)) return `${text}, תפוס`;
           if (modifiers.disabled) return `${text}, לא זמין לבחירה`;
           return text;
