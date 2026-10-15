@@ -239,7 +239,12 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
           
           
           <dialog ref={gatePanel} className="booking-gate" role="alertdialog" aria-labelledby="booking-gate-heading" aria-describedby="booking-gate-text">
-            {gate.state === 'taken' ? (
+            {gate.state === 'checking' ? (
+              <>
+                <h3 id="booking-gate-heading" className="font-serif text-2xl">בודקים זמינות…</h3>
+                <p id="booking-gate-text" role="status">רגע, בודקים מול היומן אילו מועדים פנויים.</p>
+              </>
+            ) : gate.state === 'taken' ? (
               brideStay ? (
                 <>
                   <h3 id="booking-gate-heading" className="font-serif text-2xl">המועד שבחרת אינו פנוי.</h3>
@@ -273,16 +278,16 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             ) : gate.state === 'failed' ? (
               <>
                 <h3 id="booking-gate-heading" className="font-serif text-2xl">לא הצלחנו לבדוק זמינות כרגע</h3>
-                <p id="booking-gate-text">אפשר לנסות שוב בעוד רגע, או לכתוב לנו ב־WhatsApp ונבדוק עבורכם.</p>
+                <p id="booking-gate-text">{brideStay ? 'אפשר לנסות שוב בעוד רגע, או לכתוב לנו ב־WhatsApp ונבדוק עבורך.' : 'אפשר לנסות שוב בעוד רגע, או לכתוב לנו ב־WhatsApp ונבדוק עבורכם.'}</p>
               </>
             ) : (
               <>
                 <h3 id="booking-gate-heading" className="font-serif text-2xl">יש לבחור תאריכים פנויים לפני שממשיכים</h3>
-                <p id="booking-gate-text">{gate.state === 'dates' && gate.reason ? gate.reason : form.wedding ? 'בחרו את תאריך החתונה ביומן.' : 'בחרו תאריך כניסה ותאריך יציאה ביומן.'}</p>
+                <p id="booking-gate-text">{gate.state === 'dates' && gate.reason ? gate.reason : form.wedding ? 'בחרי את תאריך החתונה ביומן.' : 'בחרו תאריך כניסה ותאריך יציאה ביומן.'}</p>
               </>
             )}
             <div className="booking-gate-actions">
-              {gate.state === 'failed' ? (
+              {gate.state === 'checking' ? null : gate.state === 'failed' ? (
                 <button type="button" className="primary-action" autoFocus onClick={() => { gatePanel.current?.close(); void form.continueToDetails(); }}>לנסות שוב</button>
               ) : (
                 <button type="button" className={gate.state === 'taken' && !brideStay && gate.alternatives.length ? 'secondary-action' : 'primary-action'} autoFocus onClick={backToDates}>לבחירת תאריכים</button>
@@ -291,7 +296,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 <>
                   <button type="button" className="secondary-action gap-2" onClick={() => form.openWhatsApp()}>
                     <MessageCircle className="w-4 h-4" />
-                    <span>כתבו לנו ב־WhatsApp</span>
+                    <span>{brideStay ? 'כתבי לנו ב־WhatsApp' : 'כתבו לנו ב־WhatsApp'}</span>
                   </button>
                   <a className="text-action gap-2" href={`tel:${BRAND_DATA.phone}`}>
                     <Phone className="w-4 h-4" />

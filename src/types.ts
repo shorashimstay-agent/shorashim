@@ -61,7 +61,7 @@ export interface FaqItem {
 }
 
 export interface BookingFormState {
-  stayType: 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night';
+  stayType: 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
   checkInDate: string;
   checkOutDate: string;
   guestsCount: number;

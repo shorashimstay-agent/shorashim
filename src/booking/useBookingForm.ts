@@ -202,10 +202,14 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
 
   /**
    * "להזמנה": checks the dates, then asks the web app whether they are free right now. The layout
-   * opens the details on `free` and the gate dialog on anything else. `dates` overrides the chosen
-   * ones, for an alternative picked in the same click.
+   * opens the details on `free` and the gate dialog on anything else. Returns the result's state.
+   * - `dates` overrides the chosen ones, for an alternative picked in the same click.
+   * - `beforeSend`: run by submit when the dates have no `free` result yet (the #booking direct link
+   *   shows the details without "להזמנה"); a free answer then changes nothing on screen.
+   * - `takenNights`: the server refused the request because these nights were taken. The gate opens
+   *   at once (checking), and the answer is "taken" whatever the check says.
    */
-  const continueToDetails = async (dates?: Alternative) => {
+  const continueToDetails = async (dates?: Alternative, opts: { beforeSend?: boolean; takenNights?: string[] } = {}): Promise<Gate['state']> => {
     const from = dates?.checkIn ?? checkIn;
     const to = dates?.checkOut ?? checkOut;
     const key = gateKey(stayType, from, to);
@@ -213,13 +217,14 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     const reason = missing ? (from ? 'בחרו גם תאריך עזיבה.' : '') : datesReason(from, to);
     if (missing || reason) {
       showGate({ state: 'dates', key, reason });
-      return;
+      return 'dates';
     }
     if (!bookingApiEnabled) {
-      showGate({ state: 'free', key, verified: false });
-      return;
+      if (!opts.beforeSend) showGate({ state: 'free', key, verified: false });
+      return 'free';
     }
-    setGate({ state: 'checking', key });
+    if (opts.takenNights) showGate({ state: 'checking', key });
+    else setGate({ state: 'checking', key });
     setAnnouncement('בודקים זמינות...');
     const range = stayRange(stayType, from, to);
     let result: Awaited<ReturnType<typeof checkDates>> | null = null;
@@ -228,14 +233,17 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     } catch {
       result = null;
     }
-    // A newer choice replaced these dates while the check ran.
-    if (chosenKey.current !== key) return;
     setAnnouncement('');
+    // A newer choice replaced these dates while the check ran.
+    if (chosenKey.current !== key) return 'idle';
     if (!result) {
       showGate({ state: 'failed', key });
-      return;
+      return 'failed';
     }
     const fresh = result.availability;
+    // What the server refused is taken, even if the check's copy has not caught up yet.
+    const taken = opts.takenNights ?? [];
+    taken.forEach((d) => fresh.blocked.add(d));
     // The calendar shows what the check found for its window.
     setAvailability((prev) => {
       if (!prev) return prev;
@@ -243,13 +251,15 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       fresh.blocked.forEach((d) => blocked.add(d));
       return { ...prev, blocked };
     });
-    if (result.free) {
-      showGate({ state: 'free', key, verified: true });
-      return;
+    if (result.free && !taken.length) {
+      if (opts.beforeSend) setGate({ state: 'free', key, verified: true });
+      else showGate({ state: 'free', key, verified: true });
+      return 'free';
     }
     // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
     const alternatives = stayType === 'couple' ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
     showGate({ state: 'taken', key, alternatives });
+    return 'taken';
   };
 
   /** Switches to a nearby stay offered for taken dates, and checks it afresh. */
@@ -310,6 +320,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       ref ? `שלום שורשים, שלחתי בקשת הזמנה באתר (מספר ${ref}):` : `שלום שורשים, אשמח לבדוק זמינות ולהזמין:`,
       `• סוג האירוח: ${stayTypeName}`,
       checkIn ? (wedding ? `• תאריך החתונה: ${formatHebrewDate(checkIn)}` : `• תאריך הגעה: ${formatHebrewDate(checkIn)}`) : '',
+      checkIn && stayType === 'bride_day_wedding_night' ? `• הגעה: ${formatHebrewDate(addDays(checkIn, -1))} ב־15:00 · יציאה: ${formatHebrewDate(addDays(checkIn, 1))} עד 13:00` : '',
       checkOut && !wedding ? `• תאריך עזיבה: ${formatHebrewDate(checkOut)} (${nights} לילות)` : '',
       `• מספר אורחים (מבוגרים): ${adultsCount}`,
       hasDayParticipants ? `• משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): ${participants}` : '',
@@ -354,6 +365,12 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     }
 
     setSubmission({ state: 'sending' });
+    // No request without a confirmed check: the #booking direct link reaches here without "להזמנה".
+    const confirmed = gate.state === 'free' && gate.verified && gate.key === chosenKey.current;
+    if (bookingApiEnabled && !confirmed && (await continueToDetails(undefined, { beforeSend: true })) !== 'free') {
+      setSubmission({ state: 'idle' });
+      return;
+    }
     setAnnouncement('שולחים את הבקשה...');
     let token = '';
     try {
@@ -387,10 +404,12 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       return;
     }
     if (result.error === 'unavailable') {
-      // Taken since the check: the gate dialog says so, with nearby dates for a holiday.
+      // Taken since the check: the gate dialog says so at once, with nearby dates for a holiday.
       setErrors({ dates: 'חלק מהתאריכים נתפסו בינתיים. בחרו תאריכים אחרים.' });
       setSubmission({ state: 'idle' });
-      void continueToDetails();
+      loadAvailability();
+      const held = stayRange(stayType, checkIn, checkOut);
+      void continueToDetails(undefined, { takenNights: result.nights?.length ? result.nights : nightsOf(held.start, held.end) });
       return;
     }
     if (result.error === 'invalid' && result.fields) {
