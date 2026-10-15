@@ -54,7 +54,8 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
     else onChange(checkIn, d);
   };
 
-  const range = checkIn ? stayRange(stayType, checkIn, checkOut || checkIn) : null;
+  // Day-only bridal preparation highlights the chosen day, rather than the surrounding hold nights.
+  const range = checkIn ? (stayType === 'bride_day' ? { start: checkIn, end: checkIn } : stayRange(stayType, checkIn, checkOut || checkIn)) : null;
   const inRange = (date: Date, part: 'start' | 'middle' | 'end') => {
     if (!range) return false;
     const d = toISODate(date);

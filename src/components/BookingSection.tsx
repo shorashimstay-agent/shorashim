@@ -18,16 +18,54 @@ interface BookingSectionProps {
 const errorClass = 'field-error';
 
 export default function BookingSection({ stayType, onStayTypeChange }: BookingSectionProps) {
-  const contactPanel = useRef<HTMLDetailsElement>(null);
+  const contactPanel = useRef<HTMLDialogElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const datesPanel = useRef<HTMLDetailsElement>(null);
   const [expanded, setExpanded] = useState(() => window.location.hash === '#booking');
   useEffect(() => {
     const open = () => setExpanded(true);
     window.addEventListener('shorashim:open-booking', open);
     return () => window.removeEventListener('shorashim:open-booking', open);
   }, []);
+  useEffect(() => { if (expanded) contactPanel.current?.show(); }, [expanded]);
   const form = useBookingForm(stayType);
   const { ids, errors, submission, wedding, nights, adultsCount } = form;
   const pkg = STAY_PACKAGES[form.stayType];
+
+  const closeField = (element: HTMLElement) => {
+    if (expanded) return;
+    const panel = element.closest('details');
+    if (panel?.classList.contains('booking-bride-entry') && form.stayType !== 'couple') return;
+    if (panel) {
+      panel.open = false;
+      panel.querySelector('summary')?.focus();
+    }
+  };
+
+  useEffect(() => {
+    if (expanded || !form.checkIn) return;
+    if (datesPanel.current?.open) {
+      datesPanel.current.open = false;
+      datesPanel.current.querySelector('summary')?.focus();
+    }
+  }, [form.checkIn, form.checkOut, wedding, expanded]);
+
+  useEffect(() => {
+    if (expanded) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!bar.current?.contains(event.target as Node)) {
+        bar.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(panel => { if (!panel.classList.contains('booking-bride-entry')) panel.open = false; });
+      }
+    };
+    const closeOthers = (event: Event) => {
+      const opened = event.target as HTMLDetailsElement;
+      if (opened.open) bar.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(panel => { if (panel !== opened && !panel.classList.contains('booking-bride-entry')) panel.open = false; });
+    };
+    const currentBar = bar.current;
+    currentBar?.addEventListener('toggle', closeOthers, true);
+    document.addEventListener('pointerdown', closeOutside);
+    return () => { document.removeEventListener('pointerdown', closeOutside); currentBar?.removeEventListener('toggle', closeOthers, true); };
+  }, [expanded]);
 
   const chooseStayType = (type: StayType) => {
     form.setStayType(type);
@@ -44,27 +82,33 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
         </p>
 
         <div className={`booking-form compact-booking ${expanded ? 'booking-expanded' : ''}`}>
-          <div className="booking-bar">
-          <details className="booking-bar-field" open={expanded || undefined}><summary><span>סוג האירוח</span><strong>{pkg.title}</strong></summary><div className="booking-bar-popover">
+          <div ref={bar} className="booking-bar">
+          <details className="booking-bar-field booking-bride-entry" open={expanded || form.stayType !== 'couple' || undefined}><summary><strong>כלה בשורשים</strong><span>לחצי כאן לבחירת מסלול</span></summary><div className="booking-bar-popover">
           <fieldset>
-            <legend id={ids.stayType}>סוג האירוח</legend>
+            <legend id={ids.stayType}>{form.stayType === 'couple' ? 'סוג האירוח' : '1. בחרי את המסלול שמתאים לך'}</legend>
             <div className="grid sm:grid-cols-2 gap-2">
-              {Object.values(STAY_PACKAGES).map((p) => (
+              {Object.values(STAY_PACKAGES).filter(p => form.stayType === 'couple' || p.id === 'bride_day' || p.id === 'bride_night_day').map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   data-stay-type={p.id}
                   aria-pressed={form.stayType === p.id}
-                  onClick={() => chooseStayType(p.id)}
+                  onClick={event => { chooseStayType(p.id); closeField(event.currentTarget); }}
                   className={`choice text-right ${form.stayType === p.id ? 'selected' : ''}`}
                 >
-                  {p.title}
+                  <span>
+                    <span className="block">{p.title}</span>
+                    {p.id === 'bride_day' && <span className="block text-sm mt-1">ללא לינה · עד 5 משתתפים בסך הכול, כולל הכלה, המלוות ואנשי המקצוע</span>}
+                    {p.id === 'bride_night_day' && <span className="block text-sm mt-1">עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול ביום ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע</span>}
+                    {p.id === 'wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה אחרי האירוע בתיאום · יציאה ב־13:00 · שובר לארוחת בוקר זכרונית</span>}
+                  </span>
                 </button>
               ))}
+              {form.stayType !== 'couple' && <div className="choice text-right border-dashed"><span><span className="block">יום התארגנות + ליל כלולות</span><span className="block text-sm mt-1">עד 5 משתתפים בסך הכול בהתארגנות, כולל הכלה, המלוות ואנשי המקצוע. חזרה ללינה אחרי החתונה.</span><span className="block text-sm mt-2 font-medium">לבירור אישי עם המארחים · אינו זמין להזמנה דרך האתר</span></span></div>}
             </div>
           </fieldset></div></details>
 
-          <details className="booking-bar-field booking-bar-dates" open={expanded || errors.dates ? true : undefined}><summary><span>{wedding ? 'תאריך החתונה' : 'כניסה ויציאה'}</span><strong>{form.datesText || 'בחירת תאריכים'}</strong></summary><div className="booking-bar-popover">
+          <details ref={datesPanel} className="booking-bar-field booking-bar-dates" open={expanded || errors.dates ? true : undefined}><summary className="booking-date-pair">{wedding ? <span className="date-pair-cell"><span>תאריך החתונה</span><strong>{form.checkIn ? new Date(form.checkIn + 'T12:00').toLocaleDateString('he-IL') : 'בחירת יום'}</strong></span> : <><span className="date-pair-cell"><span>כניסה</span><strong>{form.checkIn ? new Date(form.checkIn + 'T12:00').toLocaleDateString('he-IL') : 'בחירת תאריך'}</strong></span><span className="date-pair-cell"><span>יציאה</span><strong>{form.checkOut ? new Date(form.checkOut + 'T12:00').toLocaleDateString('he-IL') : 'בחירת תאריך'}</strong></span></>}</summary><div className="booking-bar-popover">
             <div className="flex items-center justify-between gap-4">
               <span id={ids.datesLabel} className="block font-medium mb-2">
                 {wedding ? 'תאריך החתונה' : 'תאריכי כניסה ויציאה'}
@@ -114,7 +158,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               {pkg.hours}
               {form.stayType === 'wedding_night' && ' · נא לציין שעת הגעה משוערת בהערות; הגעה אחרי חצות תתואם אישית.'}
             </p>
-            {wedding && (
+            {wedding && form.stayType !== 'bride_day' && (
               <p className="mt-1 text-sm text-[#5E574D]">
                 כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
               </p>
@@ -122,9 +166,9 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             <FieldError id={`${ids.datesLabel}-error`} message={errors.dates} className={errorClass} />
           </div></details>
 
-          <details className="booking-bar-field" open={expanded || undefined}><summary><span>אורחים</span><strong>{adultsCount} אורחי לינה{form.hasDayParticipants && <> · {form.participants} משתתפי יום</>}</strong></summary><div className="booking-bar-popover">
-          <fieldset>
-            <legend id={ids.adultsLabel}>אורחי לינה — מבוגרים בלבד</legend>
+          <div className="booking-guests-inline">
+          {form.stayType !== 'bride_day' && (<fieldset>
+            <legend id={ids.adultsLabel}>אורחים</legend>
             <div className="flex flex-wrap gap-3 items-center">
               {[1, 2, 3].map((num) => (
                 <button
@@ -133,7 +177,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                   data-adults={num}
                   aria-pressed={adultsCount === num}
                   aria-label={num === 1 ? 'מבוגר אחד' : `${num} מבוגרים`}
-                  onClick={() => form.setAdultsCount(num)}
+                  onClick={event => { form.setAdultsCount(num); if (!form.hasDayParticipants) closeField(event.currentTarget); }}
                   className={`choice min-w-12 justify-center ${adultsCount === num ? 'selected' : ''}`}
                 >
                   <bdi>{num}</bdi>
@@ -143,7 +187,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 לזוגות ועד <bdi>3</bdi> אורחים (אורח שלישי על ספה נפתחת)
               </span>
             </div>
-          </fieldset>
+          </fieldset>)}
 
           {form.hasDayParticipants && (
             <div>
@@ -152,7 +196,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 id={ids.participants}
                 name="participants"
                 value={form.participants}
-                onChange={(e) => form.setParticipants(Number(e.target.value))}
+                onChange={(e) => { form.setParticipants(Number(e.target.value)); closeField(e.currentTarget); }}
               >
                 {Array.from({ length: form.maxDayParticipants }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
@@ -163,12 +207,14 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             </div>
           )}
 
-          </div></details>
-          <button type="button" className="primary-action booking-bar-continue" onClick={() => { if (contactPanel.current) { contactPanel.current.open = true; contactPanel.current.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); } }}>המשך לבקשת אירוח</button>
           </div>
-          <details ref={contactPanel} className="booking-contact-panel" open={expanded || undefined}><summary className="sr-only">סיכום הבקשה ופרטי יצירת קשר</summary><div className="contact-editorial space-y-6 mt-5"><div className="contact-editorial-heading"><h3 className="font-serif">נשמח לשמוע מכם</h3><p>השאירו פרטים ונחזור אליכם לאישור הזמינות ולתיאום האירוח.</p></div>
+          <button type="button" className="primary-action booking-bar-continue" onClick={() => { if (contactPanel.current) { contactPanel.current.showModal(); } }}>להזמנה</button>
+          </div>
+          
+          
+          <dialog ref={contactPanel} className="booking-request-screen" aria-labelledby="request-screen-heading"><div className="request-screen-top"><span>שורשים · בקשת אירוח</span><button type="button" className="text-action" onClick={() => contactPanel.current?.close()} autoFocus>חזרה לבחירת האירוח ←</button></div><div className="contact-editorial space-y-6 mt-5"><div className="contact-editorial-heading"><h3 id="request-screen-heading" className="font-serif">רגע לפני שנפגשים</h3><p>השאירו פרטים ונחזור אליכם לאישור המועד ולתיאום האירוח.</p></div>
           <div className="booking-summary" role="group" aria-label="סיכום הבקשה">
-            <h3 className="font-serif text-2xl mb-3">הבקשה שלכם במבט אחד</h3>
+            <h3 className="font-serif text-2xl mb-3">פרטי האירוח שבחרתם</h3>
             <p className="font-medium">{pkg.title}</p>
             <dl className="request-facts">
               <div>
@@ -176,8 +222,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 <dd>{form.datesText || 'טרם נבחרו'}</dd>
               </div>
               <div>
-                <dt>אורחי לינה</dt>
-                <dd>{adultsCount}</dd>
+                <dt>{form.stayType === 'bride_day' ? 'לינה' : 'אורחי לינה'}</dt>
+                <dd>{form.stayType === 'bride_day' ? 'ללא לינה' : adultsCount}</dd>
               </div>
               {form.hasDayParticipants && (
                 <div>
@@ -346,7 +392,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               <span>ניסינו לפתוח WhatsApp עם פרטי הבקשה. ההודעה עדיין דורשת שליחה שם.</span>
             </p>
           )}
-          </div></details>
+          </div></dialog>
         </div>
       </div>
     </section>

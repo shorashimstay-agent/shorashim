@@ -95,6 +95,8 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 ];
 
 export const LOCAL_PLACES: LocalPlace[] = [
+  { id: 'zygo', name: 'קפה זיגו', category: 'coffee', categoryLabel: 'קפה ובוקר', description: 'קפה, מאפייה ומטבח מקומי בגבעת זמארין.', recommendationBy: 'שרי', tip: '', distance: '' },
+  { id: 'zamarina', name: 'זמארינה', category: 'coffee', categoryLabel: 'קפה ובוקר', description: 'קפה ומאפים של הנדלר בחצר זיגו בגבעת זמארין.', recommendationBy: 'שרי', tip: '', distance: '' },
   {
     "id": "manuella",
     "name": "מנואלה",

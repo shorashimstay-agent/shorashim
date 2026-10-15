@@ -517,3 +517,216 @@ dialog#faq { padding: 0; }
 .booking-expanded .booking-bar-field { border-inline-end: 0; border-bottom: 1px solid #ded5c8; }
 .booking-expanded .booking-bar-popover { position: static; width: 100%; max-width: none; box-shadow: none; border: 0; padding: 12px; }
 .booking-expanded .booking-bar-continue { display: none; }
+
+/* Home booking study: direct guest choices, paired dates and a separate bridal entry on the left. */
+.booking-bar { grid-template-columns: 2fr 1fr 1.1fr 1.05fr; gap: 10px; align-items: center; }
+.booking-bar-dates { order: 1; }
+.booking-guests-inline { order: 2; padding-inline: 10px; border-inline-end: 1px solid #ded5c8; }
+.booking-bar-continue { order: 3; margin: 0; }
+.booking-bride-entry { order: 4; border: 1px solid #c8beaf; border-radius: 5px; background: #eee7dc; }
+.booking-bride-entry > summary { padding: 9px 12px; text-align: center; min-height: 58px; }
+.booking-bride-entry > summary::after { content: none; }
+.booking-bride-entry > summary strong { padding: 0; color: #57432f; font-size: 17px; }
+.booking-bride-entry > summary span { font-size: 12px; }
+.booking-bride-entry .booking-bar-popover { right: auto; left: 0; }
+.booking-bar-dates > summary.booking-date-pair { display: flex; flex-direction: row; padding: 0; gap: 0; }
+.booking-bar-dates > summary.booking-date-pair::after { content: none; }
+.date-pair-cell { display: flex; flex: 1; flex-direction: column; gap: 4px; padding: 8px 16px; }
+.date-pair-cell + .date-pair-cell { border-inline-start: 1px solid #ded5c8; }
+.booking-guests-inline legend { font-size: 12px; color: #665548; margin-bottom: 4px; }
+.booking-guests-inline .flex { gap: 5px; }
+.booking-guests-inline .choice { min-width: 36px; min-height: 40px; padding: 5px; border: 1px solid #d6ccbc; font-size: 15px; }
+.booking-guests-inline fieldset .flex > span { display: none; }
+.booking-guests-inline select { padding: 4px; min-height: 40px; }
+.booking-guests-inline label { font-size: 12px; }
+.booking-expanded .booking-bride-entry, .booking-expanded .booking-guests-inline { order: initial; }
+@media(max-width:767px) {
+  .booking-bar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+  .booking-bar-dates { grid-column: 1/-1; }
+  .booking-guests-inline { padding: 0 8px; }
+  .booking-bride-entry { grid-column: 1/-1; }
+  .booking-bar-dates .booking-bar-popover { left: 0; right: 0; width: 100%; max-width: none; }
+}
+
+
+.availability-preview { margin-top: 24px; border: 1px solid #d6ccbc; border-radius: 8px; overflow: hidden; }
+.availability-demo-controls { background: #eae3d8; padding: 12px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; font-size: 12px; color: #51483e; }
+.availability-demo-controls > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.availability-demo-controls button { min-height: 40px; padding: 6px 12px; border: 1px solid #b9aa97; border-radius: 5px; }
+.availability-demo-controls button[aria-pressed=true] { background: #665548; color: #fff; }
+.availability-result { padding: 28px 24px; background: #faf8f3; text-align: center; }
+.availability-result > svg { margin: 0 auto 12px; color: #526144; }
+.availability-result h3 { font-size: 28px; margin-bottom: 10px; }
+.availability-result p { font-size: 16px; }
+.availability-result .availability-demo-note { font-size: 13px; color: #665548; margin-top: 16px; }
+.availability-alternatives { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 22px; }
+.availability-alternatives button { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px; border: 1px solid #c8beaf; border-radius: 6px; background: #f4f0e8; }
+.availability-alternatives button:hover { background: #eae3d8; border-color: #796047; }
+.availability-alternatives small { font-size: 12px; color: #665548; }
+@media(max-width:639px) { .availability-alternatives { grid-template-columns: 1fr; } .availability-result { padding: 24px 16px; } }
+
+/* Two audiences, one home: each visitor sees the relevant experience. */
+.audience-switch { display: flex; justify-content: center; gap: 0; padding: 22px 24px 4px; background: #f4f0e8; }
+.audience-switch button { min-width: 240px; padding: 12px 24px 16px; border-bottom: 2px solid #d6ccbc; color: #665548; text-align: center; }
+.audience-switch strong, .audience-switch span { display: block; }
+.audience-switch strong { font-family: var(--font-serif); font-size: 25px; font-weight: 400; }
+.audience-switch span { font-size: 13px; margin-top: 4px; }
+.audience-switch button[aria-pressed=true] { border-color: #665548; color: #241e1a; background: #eae3d870; }
+.audience-holiday .booking-bride-entry { display: none; }
+.audience-holiday .booking-bar { grid-template-columns: 2fr 1fr 1.1fr; }
+.audience-bride .booking-bar { grid-template-columns: 2fr 1fr 1.1fr 1.05fr; }
+.audience-bride .booking-bride-entry { display: block; }
+.booking-expanded .booking-bar { grid-template-columns: 1fr; }
+@media(max-width:767px) {
+  .audience-switch { padding: 16px 24px 0; }
+  .audience-switch button { min-width: 0; flex: 1; padding: 10px 8px 14px; }
+  .audience-switch strong { font-size: 21px; }
+  .audience-switch span { font-size: 12px; }
+  .audience-holiday .booking-bar, .audience-bride .booking-bar { grid-template-columns: 1fr 1fr; }
+}
+
+/* Bridal booking: visible routes first, then date and participants. */
+.audience-bride .booking-bar { grid-template-columns: 1.2fr 1.4fr 1fr; gap: 18px; padding: 22px; }
+.audience-bride .booking-bride-entry { grid-column: 1/-1; order: 0; border: 0; background: transparent; }
+.audience-bride .booking-bride-entry > summary { display: none; }
+.audience-bride .booking-bride-entry .booking-bar-popover { position: static; padding: 0; width: 100%; max-width: none; border: 0; background: transparent; box-shadow: none; }
+.audience-bride .booking-bride-entry legend { font-size: 17px; margin-bottom: 14px; color: #40362f; }
+.audience-bride .booking-bride-entry .grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.audience-bride .booking-bride-entry .choice { align-items: flex-start; min-height: 150px; padding: 16px; border: 1px solid #c8beaf; background: #f4f0e8; border-radius: 6px; }
+.audience-bride .booking-bride-entry .choice.selected { border: 2px solid #665548; padding: 15px; background: #e8dfd2; color: #241e1a; }
+.audience-bride .booking-bride-entry .choice > span > span:first-child { font-size: 19px; font-family: var(--font-serif); margin-bottom: 8px; }
+.audience-bride .booking-bride-entry .choice > span > .text-sm { font-size: 14px; line-height: 1.65; }
+.audience-bride .booking-bride-entry .choice.border-dashed { border-style: dashed; background: #f6f2ec; color: #665548; }
+.audience-bride .booking-bar-dates { border: 1px solid #c8beaf; border-radius: 5px; align-self: start; }
+.audience-bride .booking-guests-inline { border: 0; padding: 0; }
+.audience-bride .booking-guests-inline label { font-size: 14px; margin-bottom: 8px; }
+.audience-bride .booking-guests-inline select { background: #faf7f2; min-height: 44px; border-radius: 5px; }
+.audience-bride .booking-bar-continue { align-self: end; }
+@media(max-width:767px) {
+  .audience-bride .booking-bar { grid-template-columns: 1fr 1fr; padding: 14px; gap: 16px; }
+  .audience-bride .booking-bride-entry .grid { grid-template-columns: 1fr; gap: 8px; }
+  .audience-bride .booking-bride-entry .choice { min-height: 0; padding: 12px 14px; }
+  .audience-bride .booking-bride-entry .choice.selected { padding: 11px 13px; }
+  .audience-bride .booking-bride-entry .choice > span > span:first-child { font-size: 18px; margin-bottom: 4px; }
+  .audience-bride .booking-bar-dates { grid-column: 1/-1; }
+}
+
+/* A transparent bridal invitation over the opening photograph. */
+.hero-bride-text { position: absolute; left: max(32px, calc((100vw - 1200px)/2)); bottom: 48px; z-index: 20; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 4px; background: transparent; border: 0; color: #fff8ec; text-shadow: 0 2px 12px #000, 0 1px 3px #000; text-align: right; }
+.hero-bride-text > span:first-child { font-family: var(--font-serif); font-size: 48px; line-height: 1.1; }
+.hero-bride-text > span:last-child { font-size: 20px; border-bottom: 1px solid #fff8ec; padding-bottom: 4px; }
+.hero-bride-text:hover > span:last-child { border-bottom-width: 2px; }
+@media(max-width:767px) { .hero-bride-text { left: 24px; bottom: 20px; } .hero-bride-text > span:first-child { font-size: 35px; } .hero-bride-text > span:last-child { font-size: 17px; } #home > .relative { padding-bottom: 122px; } }
+
+/* Refined opening composition: one right edge and a secondary bridal invitation. */
+#home > .relative { padding-bottom: 88px; }
+#home > .relative > div { margin-right: 0; }
+#home > .relative > div > .mb-5 { margin-bottom: 22px; }
+#home > .relative > div > .pr-1, #home > .relative > div > .pr-2 { padding-right: 0; }
+#home > .relative > div > .pr-1 > div { font-size: clamp(23px,2vw,26px); font-weight: 400; letter-spacing: 0; }
+#home > .relative > div > .pr-2 { margin-top: 22px; }
+#home .hero-descriptor { font-size: 16px; font-weight: 400; line-height: 1.7; text-shadow: 0 1px 5px #0009; }
+#home .hero-bride-text { bottom: 108px; align-items: flex-start; gap: 10px; border-top: 1px solid #f4efe5aa; padding-top: 16px; text-shadow: 0 1px 6px #000a; }
+#home .hero-bride-text > span:first-child { font-family: var(--font-sans); font-size: 24px; font-weight: 400; line-height: 1.4; }
+#home .hero-bride-text > span:last-child { font-size: 15px; border: 0; padding-bottom: 4px; }
+#home .hero-bride-text:hover > span:last-child { text-decoration: underline; text-underline-offset: 6px; }
+@media(max-width:767px) {
+  #home > .relative { padding-bottom: 155px; }
+  #home .hero-bride-text { left: 24px; right: 24px; bottom: 24px; align-items: flex-start; padding-top: 12px; gap: 5px; }
+  #home .hero-bride-text > span:first-child { font-size: 20px; }
+  #home .hero-bride-text > span:last-child { font-size: 14px; }
+  #home .hero-descriptor { font-size: 16px; }
+}
+
+/* Dedicated bridal page, local design proposal. */
+.bridal-page-hero { display: grid; grid-template-columns: 1fr 1fr; min-height: 720px; padding-top: 94px; background: #eee7dc; }
+.bridal-hero-copy { max-width: 650px; padding: 52px 60px; align-self: center; }
+.bridal-back { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 28px; font-size: 13px; color: #665548; text-decoration: underline; text-underline-offset: 4px; }
+.bridal-hero-copy h1 { font-size: clamp(42px,4.4vw,66px); line-height: 1.15; font-weight: 400; margin-bottom: 24px; }
+.bridal-hero-copy h1 em { font-style: normal; color: #796047; }
+.bridal-hero-copy p { max-width: 44ch; color: #51483e; }
+.bridal-hero-copy .bridal-lead { font-size: 21px; margin-bottom: 16px; }
+.bridal-hero-copy .primary-action { margin-top: 26px; }
+.bridal-small { display: block; font-size: 13px; line-height: 1.6; color: #665548; margin-top: 16px; }
+.bridal-hero-photo { min-height: 620px; }
+.bridal-hero-photo img { object-position: 50% 48%; }
+.bridal-editorial-section { max-width: 1200px; margin-inline: auto; padding: 70px 40px; }
+.bridal-editorial-heading { max-width: 700px; margin-bottom: 40px; }
+.bridal-editorial-section h2, .bridal-photo-story h2, .bridal-route-intro h2 { font-size: clamp(30px,3vw,42px); line-height: 1.25; font-weight: 400; margin-bottom: 20px; }
+.bridal-benefits { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 36px; }
+.bridal-benefits article { border-top: 1px solid #c8beaf; padding-top: 18px; }
+.bridal-benefits article > span { font-size: 13px; color: #796047; }
+.bridal-benefits h3 { font-family: var(--font-serif); font-size: 25px; margin: 12px 0; }
+.bridal-benefits p { color: #51483e; font-size: 16px; }
+.bridal-photo-story { display: grid; grid-template-columns: 1.15fr 1fr; max-width: 1200px; margin: auto; padding: 20px 40px 64px; gap: 60px; align-items: center; }
+.bridal-photo-story figcaption { margin-top: 12px; font-size: 14px; color: #665548; }
+.bridal-photo-story > div p + p { margin-top: 20px; }
+.bridal-route-intro { max-width: 1200px; margin-inline: auto; padding: 40px 40px 10px; border-top: 1px solid #d6ccbc; }
+.bridal-route-intro > p:last-child { max-width: 65ch; }
+.bridal-practical { max-width: 900px; }
+.bridal-practical details { padding-block: 8px; border-bottom: 1px solid #d6ccbc; }
+.bridal-practical summary { font-size: 18px; color: #40362f; }
+.bridal-practical details p { padding-block: 8px 16px; color: #51483e; }
+@media(max-width:767px) {
+  .bridal-page-hero { grid-template-columns: 1fr; padding-top: 64px; min-height: 0; }
+  .bridal-hero-copy { padding: 26px 24px 36px; }
+  .bridal-back { margin-bottom: 12px; }
+  .bridal-hero-copy h1 { font-size: 43px; }
+  .bridal-hero-copy .bridal-lead { font-size: 19px; }
+  .bridal-hero-photo { min-height: 0; height: 420px; }
+  .bridal-editorial-section { padding: 42px 24px; }
+  .bridal-benefits { grid-template-columns: 1fr; gap: 24px; }
+  .bridal-photo-story { grid-template-columns: 1fr; padding: 0 24px 36px; gap: 26px; }
+  .bridal-route-intro { padding: 32px 24px 12px; }
+}
+
+.date-notice-preview { max-width: 1120px; margin: 8px auto 0; font-size: 13px; color: #665548; }
+.date-notice-dialog { margin: auto; width: min(440px,calc(100vw - 32px)); border: 1px solid #d6ccbc; border-radius: 8px; background: #faf7f2; color: #40362f; padding: 32px 24px; text-align: center; }
+.date-notice-dialog::backdrop { background: #241e1a80; }
+.date-notice-dialog h3 { font-size: 28px; margin-bottom: 12px; }
+.date-notice-dialog .primary-action { margin-top: 24px; min-width: 140px; }
+.date-notice-demo { font-size: 12px; color: #665548; margin-bottom: 16px; }
+
+/* Compact request card, proportionate to the booking bar. */
+.booking-contact-panel { max-width: 640px; }
+.contact-editorial { padding: 28px 32px; background: #faf7f2; border: 1px solid #d6ccbc; border-radius: 10px; box-shadow: 0 6px 24px #241e1a08; }
+.contact-editorial-heading { margin-bottom: 18px; }
+.contact-editorial-heading h3 { font-size: 29px; margin-bottom: 8px; }
+.contact-editorial-heading p { font-size: 15px; line-height: 1.65; }
+.contact-editorial.space-y-6 > :not(:last-child) { margin-block-end: 18px; }
+.contact-editorial .booking-summary { padding: 10px 0 16px; }
+.contact-editorial .booking-summary h3 { font-size: 21px; margin-bottom: 8px; }
+.contact-editorial .request-facts { font-size: 14px; gap: 0 18px; }
+.contact-editorial .request-facts > div { padding-block: 5px; }
+.contact-editorial > .grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.contact-editorial label { font-size: 14px; }
+.booking-form .contact-editorial input:not([type='radio']) { min-height: 42px; padding-block: 7px; }
+.booking-form .contact-editorial textarea { min-height: 60px; }
+.contact-editorial .policy-details { font-size: 14px; }
+@media(max-width:639px) { .contact-editorial { padding: 24px 18px; border-radius: 8px; } .contact-editorial-heading h3 { font-size: 27px; } .contact-editorial > .grid { grid-template-columns: 1fr; gap: 16px; } }
+
+/* A separate full-screen request view preserves the selected stay and form fields. */
+.booking-request-screen { position: fixed; inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; border: 0; padding: 0 24px 48px; background: #f4f0e8; color: #241e1a; overflow-y: auto; }
+.booking-request-screen::backdrop { background: #f4f0e8; }
+.request-screen-top { display: flex; align-items: center; justify-content: space-between; max-width: 1000px; margin: 0 auto 32px; padding: 18px 0; border-bottom: 1px solid #d6ccbc; gap: 20px; }
+.request-screen-top > span { font-family: var(--font-serif); font-size: 22px; }
+.request-screen-top button { font-size: 14px; }
+.booking-request-screen .contact-editorial { max-width: 640px; margin-inline: auto; }
+@media(max-width:639px) { .booking-request-screen { padding-inline: 16px; } .request-screen-top { margin-bottom: 20px; padding-block: 12px; } .request-screen-top > span { font-size: 18px; } .request-screen-top button { font-size: 13px; } }
+
+.booking-expanded .booking-request-screen[open] { position: static; width: 100%; height: auto; padding: 20px 0; overflow: visible; background: transparent; }
+.booking-expanded .request-screen-top { display: none; }
+.audience-holiday .booking-expanded .booking-bride-entry { display: block; }
+
+/* Modest recommendation cards with a compact editorial heading. */
+#zichron { padding-block: 32px; }
+#zichron > div > .mb-6 { padding-bottom: 16px; margin-bottom: 18px; }
+#zichron h2 { font-size: clamp(25px,2.6vw,32px); margin-bottom: 8px; }
+#zichron .local-cards { gap: 12px; }
+#zichron .local-card { padding: 16px 18px; min-height: 125px; border-radius: 4px; }
+#zichron .local-card h3 { font-size: 21px; margin-bottom: 7px; }
+#zichron .local-card p { font-size: 14px; line-height: 1.6; }
+#zichron .places-carousel-controls { margin-top: 14px; gap: 10px; }
+#zichron .gallery-carousel-controls button { width: 40px; height: 40px; min-height: 44px; }
+.audience-bride #main-header #desktop-navigation a { color: #51483e; }
+@media(max-width:767px) { #zichron .local-card { min-height: 112px; padding: 14px 16px; } }
