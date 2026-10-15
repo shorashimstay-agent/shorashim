@@ -132,6 +132,10 @@ console (O9); emails sent before that open this page, so it stays covered.
 - G10: the web app reads the staging prices sheet: with the pin cleared, `diag` reports the sheet's
   version; after the suite edits a price in the sheet, `diag` reports the new version within about
   a minute, with no deploy. The edit is undone afterwards.
+- G11: `bride_day_wedding_night` on day D holds D-1 → D+1, carries 3 overnight guests and 5 day
+  participants, is priced at its own test price, and its owner text gives the 13:00 departure. The
+  live check sees the hold at once and frees it after the decline.
+- G12: the live check (`?action=check`) answers free for open nights and refuses past or empty ranges.
 
 **O — Owner console** (`console.spec.ts`). The staging build serves `/admin`, pointed at the staging
 web app, and the tests log in with the staging console password, as the owner does. Fixture requests

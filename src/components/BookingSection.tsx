@@ -4,7 +4,7 @@ import { BRAND_DATA } from '../data/shorashimData';
 import { STAY_PACKAGES, PRICE_NOTE } from '../data/booking';
 import { useBookingForm } from '../booking/useBookingForm';
 import { Announcer, DatePicker, FieldError, Honeypot, SendConsent, SentHeading, described } from '../booking/parts';
-import { NOTES_MAX, addDays, formatHebrewDate, type StayType } from '../lib/stay';
+import { NOTES_MAX, addDays, daysBetween, estimatePrice, formatHebrewDate, type StayType } from '../lib/stay';
 import PolicyDetails from './PolicyDetails';
 import PriceStatus from './PriceStatus';
 
@@ -19,6 +19,7 @@ const errorClass = 'field-error';
 
 export default function BookingSection({ stayType, onStayTypeChange }: BookingSectionProps) {
   const contactPanel = useRef<HTMLDialogElement>(null);
+  const gatePanel = useRef<HTMLDialogElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const datesPanel = useRef<HTMLDetailsElement>(null);
   const [expanded, setExpanded] = useState(() => window.location.hash === '#booking');
@@ -67,6 +68,31 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
     return () => { document.removeEventListener('pointerdown', closeOutside); currentBar?.removeEventListener('toggle', closeOthers, true); };
   }, [expanded]);
 
+  // Each result of "להזמנה" (form.continueToDetails) opens the details when the dates are free, and
+  // the gate dialog otherwise.
+  useEffect(() => {
+    if (!form.gateShown) return;
+    if (form.gate.state === 'free') {
+      gatePanel.current?.close();
+      if (!expanded && !contactPanel.current?.open) contactPanel.current?.showModal();
+      return;
+    }
+    if (!expanded && contactPanel.current?.open) contactPanel.current.close();
+    if (!gatePanel.current?.open) gatePanel.current?.showModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.gateShown]);
+
+  /** Back to the calendar from the gate dialog: opens the dates panel and focuses a day in it. */
+  const backToDates = () => {
+    gatePanel.current?.close();
+    if (datesPanel.current) datesPanel.current.open = true;
+    setTimeout(() => datesPanel.current?.querySelector<HTMLElement>('.shorashim-calendar button[tabindex="0"], .shorashim-calendar .rdp-day_button:not([disabled])')?.focus(), 0);
+  };
+
+  const gate = form.gate;
+  const checking = gate.state === 'checking';
+  const brideStay = form.stayType !== 'couple';
+
   const chooseStayType = (type: StayType) => {
     form.setStayType(type);
     onStayTypeChange(type);
@@ -87,7 +113,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
           <fieldset>
             <legend id={ids.stayType}>{form.stayType === 'couple' ? 'סוג האירוח' : '1. בחרי את המסלול שמתאים לך'}</legend>
             <div className="grid sm:grid-cols-2 gap-2">
-              {Object.values(STAY_PACKAGES).filter(p => form.stayType === 'couple' || p.id === 'bride_day' || p.id === 'bride_night_day').map((p) => (
+              {Object.values(STAY_PACKAGES).filter(p => form.stayType === 'couple' || p.id === 'bride_day' || p.id === 'bride_night_day' || p.id === 'bride_day_wedding_night').map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -101,10 +127,10 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                     {p.id === 'bride_day' && <span className="block text-sm mt-1">ללא לינה · עד 5 משתתפים בסך הכול, כולל הכלה, המלוות ואנשי המקצוע</span>}
                     {p.id === 'bride_night_day' && <span className="block text-sm mt-1">עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול ביום ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע</span>}
                     {p.id === 'wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה אחרי האירוע בתיאום · יציאה ב־13:00 · שובר לארוחת בוקר זכרונית</span>}
+                    {p.id === 'bride_day_wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה ב־15:00 ביום שלפני החתונה · עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול בהתארגנות, כולל הכלה, המלוות ואנשי המקצוע · חזרה ללינה אחרי החתונה ויציאה עד 13:00 למחרת</span>}
                   </span>
                 </button>
               ))}
-              {form.stayType !== 'couple' && <div className="choice text-right border-dashed"><span><span className="block">יום התארגנות + ליל כלולות</span><span className="block text-sm mt-1">עד 5 משתתפים בסך הכול בהתארגנות, כולל הכלה, המלוות ואנשי המקצוע. חזרה ללינה אחרי החתונה.</span><span className="block text-sm mt-2 font-medium">לבירור אישי עם המארחים · אינו זמין להזמנה דרך האתר</span></span></div>}
             </div>
           </fieldset></div></details>
 
@@ -208,11 +234,76 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
           )}
 
           </div>
-          <button type="button" className="primary-action booking-bar-continue" onClick={() => { if (contactPanel.current) { contactPanel.current.showModal(); } }}>להזמנה</button>
+          <button type="button" className="primary-action booking-bar-continue" aria-haspopup="dialog" aria-busy={checking || undefined} aria-disabled={checking || undefined} onClick={() => { if (!checking) void form.continueToDetails(); }}>{checking ? <><Loader2 className="w-4 h-4 motion-safe:animate-spin" /> בודקים זמינות…</> : 'להזמנה'}</button>
           </div>
           
           
-          <dialog ref={contactPanel} className="booking-request-screen" aria-labelledby="request-screen-heading"><div className="request-screen-top"><span>שורשים · בקשת אירוח</span><button type="button" className="text-action" onClick={() => contactPanel.current?.close()} autoFocus>חזרה לבחירת האירוח ←</button></div><div className="contact-editorial space-y-6 mt-5"><div className="contact-editorial-heading"><h3 id="request-screen-heading" className="font-serif">רגע לפני שנפגשים</h3><p>השאירו פרטים ונחזור אליכם לאישור המועד ולתיאום האירוח.</p></div>
+          <dialog ref={gatePanel} className="booking-gate" role="alertdialog" aria-labelledby="booking-gate-heading" aria-describedby="booking-gate-text">
+            {gate.state === 'taken' ? (
+              brideStay ? (
+                <>
+                  <h3 id="booking-gate-heading" className="font-serif text-2xl">המועד שבחרת אינו פנוי.</h3>
+                  <p id="booking-gate-text">פני אלינו לבדיקת אפשרויות נוספות.</p>
+                </>
+              ) : gate.alternatives.length ? (
+                <>
+                  <h3 id="booking-gate-heading" className="font-serif text-2xl">התאריכים שבחרתם תפוסים.</h3>
+                  <p id="booking-gate-text">מצאנו לכם מועדים קרובים:</p>
+                  <ul className="booking-alternatives">
+                    {gate.alternatives.map((alt) => {
+                      const altNights = daysBetween(alt.checkIn, alt.checkOut);
+                      const price = estimatePrice(form.stayType, altNights, adultsCount, alt.checkIn);
+                      return (
+                        <li key={alt.checkIn}>
+                          <button type="button" className="choice text-right w-full" data-alternative={alt.checkIn} onClick={() => { gatePanel.current?.close(); form.chooseAlternative(alt); }}>
+                            <span className="block font-medium">{formatHebrewDate(alt.checkIn)} – {formatHebrewDate(alt.checkOut)}</span>
+                            <span className="block text-sm">{altNights === 1 ? 'לילה אחד' : `${altNights} לילות`}{price !== null && <> · <span dir="ltr">₪{price.toLocaleString('he-IL')}</span></>}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <h3 id="booking-gate-heading" className="font-serif text-2xl">התאריכים שבחרתם אינם פנויים</h3>
+                  <p id="booking-gate-text">לא מצאנו מועד קרוב באותו מספר לילות. אפשר לבחור תאריכים אחרים או לפנות אלינו.</p>
+                </>
+              )
+            ) : gate.state === 'failed' ? (
+              <>
+                <h3 id="booking-gate-heading" className="font-serif text-2xl">לא הצלחנו לבדוק זמינות כרגע</h3>
+                <p id="booking-gate-text">אפשר לנסות שוב בעוד רגע, או לכתוב לנו ב־WhatsApp ונבדוק עבורכם.</p>
+              </>
+            ) : (
+              <>
+                <h3 id="booking-gate-heading" className="font-serif text-2xl">יש לבחור תאריכים פנויים לפני שממשיכים</h3>
+                <p id="booking-gate-text">{gate.state === 'dates' && gate.reason ? gate.reason : form.wedding ? 'בחרו את תאריך החתונה ביומן.' : 'בחרו תאריך כניסה ותאריך יציאה ביומן.'}</p>
+              </>
+            )}
+            <div className="booking-gate-actions">
+              {gate.state === 'failed' ? (
+                <button type="button" className="primary-action" autoFocus onClick={() => { gatePanel.current?.close(); void form.continueToDetails(); }}>לנסות שוב</button>
+              ) : (
+                <button type="button" className={gate.state === 'taken' && !brideStay && gate.alternatives.length ? 'secondary-action' : 'primary-action'} autoFocus onClick={backToDates}>לבחירת תאריכים</button>
+              )}
+              {(gate.state === 'taken' || gate.state === 'failed') && (
+                <>
+                  <button type="button" className="secondary-action gap-2" onClick={() => form.openWhatsApp()}>
+                    <MessageCircle className="w-4 h-4" />
+                    <span>כתבו לנו ב־WhatsApp</span>
+                  </button>
+                  <a className="text-action gap-2" href={`tel:${BRAND_DATA.phone}`}>
+                    <Phone className="w-4 h-4" />
+                    <span>שיחה טלפונית</span>
+                  </a>
+                </>
+              )}
+              <button type="button" className="text-action" onClick={() => gatePanel.current?.close()}>סגירה</button>
+            </div>
+          </dialog>
+
+          <dialog ref={contactPanel} className="booking-request-screen" aria-labelledby="request-screen-heading"><div className="request-screen-top"><span>שורשים · בקשת אירוח</span><button type="button" className="text-action" onClick={() => contactPanel.current?.close()} autoFocus>חזרה לבחירת האירוח ←</button></div><div className="contact-editorial space-y-6 mt-5"><div className="contact-editorial-heading"><h3 id="request-screen-heading" className="font-serif">רגע לפני שנפגשים</h3>{gate.state === 'free' && gate.verified && <p className="booking-dates-free" role="status">התאריכים שבחרתם פנויים</p>}<p>השאירו פרטים ונחזור אליכם לאישור סופי ולתיאום האירוח.</p></div>
           <div className="booking-summary" role="group" aria-label="סיכום הבקשה">
             <h3 className="font-serif text-2xl mb-3">פרטי האירוח שבחרתם</h3>
             <p className="font-medium">{pkg.title}</p>
@@ -221,6 +312,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 <dt>תאריכים</dt>
                 <dd>{form.stayType === 'bride_night_day' && form.checkIn
                   ? <>{formatHebrewDate(addDays(form.checkIn, -1))} – {formatHebrewDate(form.checkIn)}</>
+                  : form.stayType === 'bride_day_wedding_night' && form.checkIn
+                  ? <>{formatHebrewDate(addDays(form.checkIn, -1))} – {formatHebrewDate(addDays(form.checkIn, 1))}</>
                   : form.datesText || 'טרם נבחרו'}</dd>
               </div>
               <div>
@@ -245,6 +338,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               </div>
             </dl>
             {form.stayType === 'bride_night_day' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">לילה אחד ויום התארגנות. הגעה ב־15:00 ביום שלפני החתונה ויציאה ב־15:30 ביום החתונה.</p>}
+            {form.stayType === 'bride_day_wedding_night' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">תאריך החתונה: {formatHebrewDate(form.checkIn)}. שני לילות: הגעה ב־15:00 ביום שלפני החתונה, יום ההתארגנות, וחזרה ללינה אחרי החתונה. יציאה עד 13:00 למחרת החתונה.</p>}
             <p className="text-sm mt-3">{PRICE_NOTE}</p>
             <PriceStatus />
           </div>

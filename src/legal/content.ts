@@ -36,10 +36,10 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
         {
           heading: 'מחירים ותשלום',
           body: [
-            'המחיר המוצג באתר הוא הערכה בלבד. המחיר הסופי והזמינות יאושרו אישית לפי המועד והמסלול.',
+            'המחיר המוצג באתר הוא עבור האירוח שבחרתם, בהתאם לתאריכים ולמספר האורחים. ההזמנה כפופה לאישור זמינות, והיא נקבעת רק לאחר אישור מפורש כמתואר למעלה.',
             'אין צורך במקדמה; התשלום הוא בתחילת האירוח. ללא מקדמה אין פירושו פטור מדמי ביטול.',
             'האתר אינו גובה תשלום ואינו מבקש פרטי כרטיס אשראי.',
-            'מסלולי הכלה (יום כלה, לילה לפני + יום כלה, ליל כלולות) מתומחרים בנפרד, בהתאם לשעות ולצרכים של יום החתונה.',
+            'מסלולי הכלה (יום כלה, לילה לפני + יום כלה, ליל כלולות, יום התארגנות + ליל כלולות) מתומחרים בנפרד, בהתאם לשעות ולצרכים של יום החתונה.',
           ],
         },
         {
@@ -51,7 +51,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'ביטול כשנותרו לפחות 7 ימים ופחות מ-14 ימים – 50% ממחיר ההזמנה.',
               'ביטול פחות מ-7 ימים מראש, או אי-הגעה – 100% ממחיר ההזמנה.',
             ],
-            'המועדים נספרים לפי שעת תחילת האירוח שסוכמה, בשעון ישראל; בחבילה עם לילה לפני – מתחילת הלינה.',
+            'המועדים נספרים לפי שעת תחילת האירוח שסוכמה, בשעון ישראל; בחבילות עם לילה לפני – מתחילת הלינה.',
             'אם התאריך הוזמן מחדש באותו מחיר, יוחזרו דמי הביטול שנגבו.',
             'זכות הביטול לפי חוק הגנת הצרכן: אם תבטלו תוך 14 ימים מיום אישור ההזמנה, ובתנאי שנותרו לפחות 7 ימים שאינם ימי מנוחה עד יום ההגעה, דמי הביטול יהיו 5% ממחיר ההזמנה או 100 ₪, הנמוך מביניהם. במקרה של סתירה, הזכות לפי החוק גוברת על האמור בסעיף זה.',
             'שינוי מועד: פעם אחת וללא דמי שינוי, בהודעה של לפחות 14 ימים לפני תחילת האירוח, בכפוף לזמינות ולהפרש מחיר.',
@@ -67,7 +67,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'האירוח מיועד למבוגרים בלבד.',
               'עד שלושה מבוגרים. האורח השלישי לן על ספה נפתחת בסלון.',
               "צ'ק-אין החל מהשעה 15:00, וצ'ק-אאוט עד השעה 11:00. שינוי בשעות אפשרי בתיאום מראש.",
-              'יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג.',
+              'יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג. יום התארגנות + ליל כלולות: הגעה ב-15:00 ביום שלפני החתונה, התארגנות ביום החתונה וחזרה ללינה אחרי האירוע, יציאה ב-13:00 למחרת החתונה, עד 3 אורחי לינה.',
               'במסלולי יום הכלה משתתפים עד 5 אנשים, כולל הכלה, המלוות ואנשי המקצוע.',
               'האירוח הוא ללא בעלי חיים.',
               'העישון מותר בחצר ובמרפסת הגג בלבד, ואסור בתוך החלל הסגור.',
@@ -119,10 +119,10 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
         {
           heading: 'Prices and payment',
           body: [
-            'Prices shown on the site are estimates. The final price and availability are confirmed personally for your date and package.',
+            'The price shown on the site is for the stay you chose, according to the dates and the number of guests. Bookings are subject to availability, and a booking is made only after the explicit confirmation described above.',
             'No deposit is needed; payment is made at the start of your stay. No deposit does not mean no cancellation fee.',
             'The site does not take payments and never asks for credit card details.',
-            'The bride packages (bride day, night before + bride day, wedding night) are priced separately, according to the hours and needs of the wedding day.',
+            'The bride packages (bride day, night before + bride day, wedding night, preparation day + wedding night) are priced separately, according to the hours and needs of the wedding day.',
           ],
         },
         {
@@ -134,7 +134,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Cancel with at least 7 but fewer than 14 days to go – 50% of the booking price.',
               'Cancel fewer than 7 days ahead, or not arriving – 100% of the booking price.',
             ],
-            'Days are counted from the agreed start time of the stay, Israel time; for the night-before package, from the start of the night.',
+            'Days are counted from the agreed start time of the stay, Israel time; for the packages with the night before, from the start of the night.',
             'If your date is rebooked at the same price, any cancellation fee you paid is refunded.',
             'Your statutory right under the Israeli Consumer Protection Law: if you cancel within 14 days of the booking confirmation, and at least 7 days that are not rest days remain before arrival, the fee is 5% of the booking price or ILS 100, whichever is lower. Where they differ, this statutory right prevails over the terms above.',
             'Changing dates: once, without a change fee, with at least 14 days notice before the stay begins, subject to availability and any price difference.',
@@ -150,7 +150,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Adults only.',
               'Up to three adults. The third guest sleeps on a sofa bed in the living room.',
               'Check-in from 15:00, check-out by 11:00. Other times can be arranged in advance.',
-              'Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple.',
+              'Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple. Preparation day + wedding night: arrive 15:00 the day before the wedding, get ready on the wedding day and come back for the night after the event, leave 13:00 the day after the wedding, up to 3 overnight guests.',
               'Bride-day packages host up to 5 people during the day, including the bride, her companions and the professionals.',
               'No pets.',
               'Smoking is allowed only in the courtyard and on the roof terrace, never indoors.',

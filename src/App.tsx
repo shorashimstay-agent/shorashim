@@ -31,7 +31,7 @@ export default function App() {
     return () => window.removeEventListener('shorashim:show-bride', showBride);
   }, []);
   const [selectedStayType, setSelectedStayType] = useState<
-    'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night'
+    'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night'
   >(() => window.location.hash === '#bride' ? 'bride_day' : 'couple');
 
   const scrollToBooking = () => {
@@ -42,7 +42,8 @@ export default function App() {
     if (
       packageId === 'bride_day' ||
       packageId === 'bride_night_day' ||
-      packageId === 'wedding_night'
+      packageId === 'wedding_night' ||
+      packageId === 'bride_day_wedding_night'
     ) {
       setSelectedStayType(packageId);
       scrollToBooking();

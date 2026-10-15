@@ -51,6 +51,20 @@ test('the prices sheet is public, and the production web app prices from the sam
   if (!live.ok) throw new Error(`the prices sheet fails the checks: ${live.error}`);
   // Passing the version, as a page does, makes the web app re-read the sheet if its copy is older.
   expect((await api.diag(live.version)).pricesVersion).toBe(live.version);
+  expect(typeof live.prices.bride_day_wedding_night, 'the prep day + wedding night row is missing from the prices sheet').toBe('number');
+});
+
+test('the live availability check answers, and "להזמנה" without dates asks for them', async ({ page }) => {
+  const start = new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10);
+  const end = new Date(Date.now() + 201 * 86400000).toISOString().slice(0, 10);
+  const res = await api.check(start, end);
+  expect(res).toMatchObject({ ok: true });
+  expect(typeof res.free).toBe('boolean');
+  await page.goto('/');
+  await page.locator('#booking').evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+  await page.locator('#booking .booking-bar-continue').click();
+  await expect(page.getByRole('alertdialog', { name: 'יש לבחור תאריכים פנויים לפני שממשיכים' })).toBeVisible();
+  await expect(page.locator('.booking-request-screen')).not.toBeVisible();
 });
 
 test('the owner console at /admin is live and its backend refuses calls without a login', async ({ request }) => {
