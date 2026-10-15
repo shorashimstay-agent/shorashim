@@ -2,7 +2,7 @@ import { BRAND_DATA, IMAGES } from '../data/shorashimData';
 import ShorashimWordmark from './ShorashimWordmark';
 import Picture from './Picture';
 
-export default function Hero() {
+export default function Hero({ audience = 'holiday' }: { audience?: 'holiday' | 'bride' }) {
 
 
   return (
@@ -94,13 +94,16 @@ export default function Hero() {
           */}
           <div className="pr-2 sm:pr-8 mt-4 sm:mt-7">
             <div className="font-sans text-[13px] sm:text-[14px] lg:text-[15px] hero-descriptor tracking-[0.16em] text-[#DED5C8]/70 font-light select-none">
-              סוויטה בלב המושבה בזכרון יעקב<br />לחופשה זוגית ולהתארגנות כלה
+              סוויטה בלב המושבה בזכרון יעקב<br />{audience === 'bride' ? 'להתארגנות כלה ולרגעים של יום החתונה' : 'לחופשה זוגית באווירה שקטה ואינטימית'}
             </div>
           </div>
 
 
         </div>
       </div>
+      <button type="button" className="hero-bride-text" onClick={() => {
+        window.location.assign('/#bride-page');
+      }}><span>מתארגנת לחתונה?</span><span>גלי את מסלולי הכלה בשורשים <span aria-hidden="true">←</span></span></button>
     </section>
   );
 }

@@ -7,7 +7,7 @@ interface HeaderProps {
   isHomepage?: boolean;
 }
 
-export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
+export default function Header({ isHomepage }: HeaderProps) {
   // 1. Determine if we are on the homepage:
   // Check prop if provided, else check window.location.pathname.
   const [pathname, setPathname] = useState(
@@ -173,19 +173,6 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
           Balances: BRAND LOGO CONTAINER (fixed width)  ←  NAVIGATION  →  BOOKING (fixed width)
         */}
         <div className="flex items-center gap-2 sm:gap-4 shrink-0 justify-end">
-          <button
-            type="button"
-            id="header-check-availability-btn"
-            onClick={onOpenBooking}
-            className={`text-[14px] leading-[1.15] md:text-[13.5px] md:leading-normal tracking-wide font-normal px-3.5 py-1 md:px-5 md:py-1.5 border border-[0.75px] transition-all duration-300 cursor-pointer rounded-[6px] text-center border-[#665548]/35 text-[#665548] hover:border-[#665548]/60 hover:bg-[#665548]/5 ${
-              isSolid
-                ? 'md:border-[#665548]/30 md:text-[#665548] md:hover:border-[#665548]/50 md:hover:bg-[#665548]/5'
-                : 'md:border-[#F4EFE5]/40 md:text-[#F4EFE5] md:hover:border-[#F4EFE5]/65 md:hover:bg-white/5'
-            }`}
-          >
-            <span className="block md:inline">בירור</span>{' '}
-            <span className="block md:inline">זמינות</span>
-          </button>
 
           {/* Minimal Mobile Menu Toggle */}
           <button
@@ -217,19 +204,6 @@ export default function Header({ onOpenBooking, isHomepage }: HeaderProps) {
                 {link.label}
               </a>
             ))}
-
-            <div className="pt-4 border-t border-[#E5DFD3]">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenBooking();
-                }}
-                className="w-full text-center py-2.5 bg-[#40362F] text-sm tracking-wide text-[#F3EFE7] hover:bg-[#665548] transition-colors rounded-[6px]"
-              >
-                בירור זמינות
-              </button>
-            </div>
           </div>
         </nav>
       )}
