@@ -8,12 +8,14 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import {
+  MAX_ALTERNATIVES,
   PRICE_KEYS,
   blockedNights,
   cancellationFee,
   checkPrices,
   conflictingNights,
   estimatePrice,
+  findAlternatives,
   isHoldActive,
   isWeekendNight,
   pricesFromRows,
@@ -27,7 +29,7 @@ import {
 } from './rules.js';
 
 // Test prices only; the site's prices are in the owner's prices sheet.
-const PRICES = { perNight: 850, weekendPerNight: 1050, thirdGuestPerNight: 150, bride_day: 1850, bride_night_day: 2650, wedding_night: 1150 };
+const PRICES = { perNight: 850, weekendPerNight: 1050, thirdGuestPerNight: 150, bride_day: 1850, bride_night_day: 2650, wedding_night: 1150, bride_day_wedding_night: 2750 };
 
 const allDay = (start, end) => ({ allDay: true, start, end });
 const timed = (start, end) => ({ allDay: false, start, end });
@@ -109,16 +111,25 @@ test('the prices spreadsheet rows become a checked prices file', () => {
     ['bride_day', 'יום כלה', 1850],
     ['bride_night_day', 'לילה לפני', 2650],
     ['wedding_night', 'ליל כלולות', 1150],
+    ['bride_day_wedding_night', 'יום התארגנות + ליל כלולות', '2,750'],
     ['', '', ''],
   ];
   const res = pricesFromRows(rows);
-  assert.deepEqual(res, { ok: true, version: 'sheet-850-1050-150-1850-2650-1150', prices: PRICES });
+  assert.deepEqual(res, { ok: true, version: 'sheet-850-1050-150-1850-2650-1150-2750', prices: PRICES });
   assert.equal(pricesFromRows(rows.slice().reverse()).version, res.version, 'row order does not matter');
   assert.equal(pricesFromRows(rows.map((r) => (r[0] === 'bride_day' ? [r[0], r[1], ''] : r))).ok, false, 'an empty price is refused');
   assert.equal(pricesFromRows(rows.map((r) => (r[0] === 'bride_day' ? [r[0], r[1], 18.5] : r))).ok, false, 'not whole shekels');
   assert.equal(pricesFromRows(rows.filter((r) => r[0] !== 'perNight')).ok, false, 'a missing row is refused');
   assert.equal(pricesFromRows(rows.filter((r) => r[0] !== 'weekendPerNight')).prices.weekendPerNight, 850, 'weekend falls back to the weeknight price');
   assert.equal(pricesFromRows([]).ok, false);
+  // A sheet without the newest package's row keeps every other price; that package has no estimate.
+  const older = pricesFromRows(rows.filter((r) => r[0] !== 'bride_day_wedding_night'));
+  assert.equal(older.ok, true, 'a missing optional row is not a broken sheet');
+  assert.equal(older.prices.bride_day_wedding_night, undefined);
+  assert.equal(older.prices.bride_day, 1850);
+  assert.equal(older.version, 'sheet-850-1050-150-1850-2650-1150-');
+  assert.equal(estimatePrice('bride_day_wedding_night', 2, 2, older.prices), null);
+  assert.equal(pricesFromRows(rows.map((r) => (r[0] === 'bride_day_wedding_night' ? [r[0], r[1], 5] : r))).ok, false, 'an optional row that is there must still be a valid price');
   assert.equal(pricesVersionOf(PRICES), res.version);
   assert.ok(checkPrices({ version: res.version, prices: PRICES }).ok, 'the version passes the version check');
   assert.equal(PRICE_KEYS.length, Object.keys(PRICES).length);
@@ -175,6 +186,42 @@ test('wedding requests derive their range from the wedding date', () => {
   assert.deepEqual([res.value.start, res.value.end, res.value.checkOut], ['2026-10-09', '2026-10-11', '2026-10-11']);
   // The wedding must be tomorrow at the earliest, since the night before is held too.
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
+});
+
+test('the prep day + wedding night package holds the night before and the wedding night, from 15:00 the day before', () => {
+  const res = validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', checkOut: '', adults: 3, participants: 5 }, '2026-09-15', PRICES);
+  assert.equal(res.ok, true);
+  assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-09', '2026-10-11', '2026-10-11', 2]);
+  assert.equal(res.value.adults, 3, 'up to three overnight guests');
+  assert.equal(res.value.participants, 5);
+  assert.equal(res.value.estimate, 2750, 'a flat package price, whatever the nights or guests');
+  assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', adults: 4 }, '2026-09-15').errors.adults, 'invalid');
+  assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
+  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-09T15:00');
+  // The existing packages keep their rules.
+  assert.equal(estimatePrice('bride_night_day', 2, 2, PRICES), 2650);
+  assert.deepEqual(stayRange('bride_night_day', '2026-10-10', ''), { start: '2026-10-09', end: '2026-10-11' });
+});
+
+test('alternatives keep the number of nights, closest first, inside the covered window', () => {
+  // Two nights from the 11th; the nights of the 10th to the 12th are taken. Starts are tried a day
+  // later, a day earlier, two later, two earlier, ...: 12 and 10 clash, 13 fits, 9 clashes (the 10th),
+  // 14 and 8 fit.
+  const blocked = ['2026-11-10', '2026-11-11', '2026-11-12'];
+  assert.deepEqual(findAlternatives(blocked, '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01'), [
+    { checkIn: '2026-11-13', checkOut: '2026-11-15' },
+    { checkIn: '2026-11-14', checkOut: '2026-11-16' },
+    { checkIn: '2026-11-08', checkOut: '2026-11-10' },
+  ]);
+  assert.equal(MAX_ALTERNATIVES, 3);
+  assert.equal(findAlternatives(blocked, '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01', 1).length, 1);
+  // Never before today, never past the window's end.
+  const late = findAlternatives([], '2026-11-02', 3, '2026-11-01', '2026-11-06', '2026-11-02');
+  assert.deepEqual(late, [{ checkIn: '2026-11-03', checkOut: '2026-11-06' }]);
+  // Everything taken: none.
+  const all = Array.from({ length: 90 }, (_, i) => new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10));
+  assert.deepEqual(findAlternatives(all, '2026-11-11', 2, '2026-11-01', '2027-01-30', '2026-11-01'), []);
+  assert.deepEqual(findAlternatives(blocked, 'nope', 2, '2026-11-01', '2026-12-01', '2026-11-01'), []);
 });
 
 test('bride-day packages carry an optional count of day participants, 1 to 5', () => {

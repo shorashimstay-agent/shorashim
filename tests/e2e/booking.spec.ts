@@ -381,6 +381,34 @@ test('G8: a bride-day request holds the night before and the wedding night, with
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
 });
 
+test('G11: the prep day + wedding night package holds the night before and the wedding night, at its own price', async ({ page }) => {
+  const name = guestName('התארגנות וליל כלולות');
+  const wedding = addDays(slot(11), 1);
+  await openBooking(page);
+  const ref = await submitBooking(page, { stayType: 'bride_day_wedding_night', checkIn: wedding, adults: 3, participants: 5, name, phone: randomPhone() });
+  const ev = await onlyRequestEvent(name);
+  expect([ev.start.date, ev.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
+  expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({
+    ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), adults: 3, participants: 5,
+    estimate: pricesFile.prices.bride_day_wedding_night,
+  });
+  expect(ev.description).toContain('עד 13:00 (למחרת החתונה)');
+  expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
+  // The live check sees the hold at once, with no snapshot in between.
+  expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: false, conflicts: [addDays(wedding, -1), wedding] });
+  expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+  expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
+});
+
+test('G12: the live check answers from the calendars and refuses bad ranges', async () => {
+  const start = slot(12);
+  const res = await api.check(start, addDays(start, 2));
+  expect(res).toMatchObject({ ok: true, free: true, conflicts: [] });
+  expect(res.from <= start && res.to > addDays(start, 2)).toBe(true);
+  expect(await api.check(addDays(israelToday(), -2), israelToday())).toMatchObject({ ok: false, error: 'invalid' });
+  expect(await api.check(start, start)).toMatchObject({ ok: false, error: 'invalid' });
+});
+
 test('G10: the web app reads its prices from the prices sheet, and picks up an edit', async () => {
   test.skip(!cfg.pricesSheetId, 'staging has no pricesSheetId');
   const range = 'מחירים!A1:C20';

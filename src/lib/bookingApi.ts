@@ -26,6 +26,9 @@ interface RetryPolicy {
 // the connection. Short per-attempt timeouts recover quickly; retries are safe because the server
 // answers in_progress or the stored result for a request it has already seen.
 const READ_POLICY: RetryPolicy = { attempts: 5, timeoutMs: 10_000, deadlineMs: 45_000, delayMs: (a) => 500 * a };
+// The live check runs while the guest waits on the button, so it gives up sooner; a failed check
+// never reads as available (useBookingForm).
+const CHECK_POLICY: RetryPolicy = { attempts: 3, timeoutMs: 8_000, deadlineMs: 15_000, delayMs: (a) => 500 * a };
 const WRITE_POLICY: RetryPolicy = { attempts: 15, timeoutMs: 10_000, deadlineMs: 90_000, delayMs: (a) => Math.min(1000 * a, 3000) };
 
 async function fetchWithTimeout(url: string, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
@@ -93,6 +96,29 @@ export async function fetchAvailability(): Promise<Availability> {
   const data = await callApi((d) => (d?.ok === true && Array.isArray(d.blocked)) || d?.ok === false, READ_POLICY, undefined, '?action=availability');
   if (!data.ok) throw new Error(data.error);
   return { from: data.from, to: data.to, blocked: new Set<string>(data.blocked) };
+}
+
+export interface DatesCheck {
+  free: boolean;
+  /** Taken nights within the requested range. */
+  conflicts: string[];
+  /** The window the answer covers, with every taken night in it (for nearby alternatives). */
+  availability: Availability;
+}
+
+/**
+ * Asks the web app whether the nights [start, end) are free right now, from the calendars rather
+ * than the snapshot. Throws when there is no answer.
+ */
+export async function checkDates(start: string, end: string): Promise<DatesCheck> {
+  const data = await callApi(
+    (d) => (d?.ok === true && typeof d.free === 'boolean' && Array.isArray(d.blocked)) || (d?.ok === false && typeof d.error === 'string'),
+    CHECK_POLICY,
+    undefined,
+    `?action=check&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+  );
+  if (!data.ok) throw new Error(data.error);
+  return { free: data.free, conflicts: data.conflicts ?? [], availability: { from: data.from, to: data.to, blocked: new Set<string>(data.blocked) } };
 }
 
 export interface BookingRequest {

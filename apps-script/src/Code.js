@@ -31,6 +31,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (p.action === 'availability') return json_(getAvailability_());
+    if (p.action === 'check') return json_(checkDates_(p.start, p.end));
     // The signed decision page. Owner emails sent before they linked to the console still open it.
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
     if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
@@ -404,6 +405,47 @@ function getAvailability_() {
   PropertiesService.getScriptProperties().setProperty(NEXT_EXPIRY_KEY, holdEnds.length ? String(Math.min.apply(null, holdEnds)) : '');
   cache.put(AVAILABILITY_CACHE_KEY, JSON.stringify(result), 120);
   return result;
+}
+
+// The live check the website runs before it opens the request details: the nights [start, end)
+// straight from the calendars (no cache, no snapshot), and the taken nights in a window around them,
+// so the page can offer nearby dates without asking again. Read-only: nothing expires or is deleted
+// here, since anyone can call it. Above CHECKS_PER_HOUR in an hour it answers from getAvailability_
+// (at most two minutes old) instead, so a flood of checks cannot exhaust the Calendar quota.
+var CHECKS_PER_HOUR = 600;
+var CHECK_WINDOW_DAYS = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
+
+function checkDates_(start, end) {
+  start = String(start || '');
+  end = String(end || '');
+  var today = today_();
+  var horizonEnd = addDays(today, HORIZON_DAYS + 1);
+  var nights = daysBetween(start, end);
+  if (!DATE_RE.test(start) || !DATE_RE.test(end) || isNaN(nights) || nights < 1 || nights > MAX_NIGHTS || start < today || end > horizonEnd) {
+    return { ok: false, error: 'invalid' };
+  }
+  var from = addDays(start, -CHECK_WINDOW_DAYS) < today ? today : addDays(start, -CHECK_WINDOW_DAYS);
+  var to = addDays(end, CHECK_WINDOW_DAYS) > horizonEnd ? horizonEnd : addDays(end, CHECK_WINDOW_DAYS);
+  var blocked;
+  if (withinCheckLimit_()) {
+    blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
+  } else {
+    blocked = getAvailability_().blocked.filter(function (d) {
+      return d >= from && d < to;
+    });
+  }
+  var conflicts = conflictingNights(blocked, start, end);
+  countLogNoise_(conflicts.length ? 'availability.taken' : 'availability.free');
+  return { ok: true, free: !conflicts.length, conflicts: conflicts, from: from, to: to, blocked: blocked };
+}
+
+function withinCheckLimit_() {
+  var cache = CacheService.getScriptCache();
+  var key = 'rl:check:' + fmt_(new Date(), 'yyyyMMddHH');
+  var count = Number(cache.get(key) || 0);
+  if (count >= CHECKS_PER_HOUR) return false;
+  cache.put(key, String(count + 1), 7200);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1782,7 +1824,11 @@ function withinRateLimit_(phone) {
 
 function stayLines_(req) {
   var lines = ['סוג האירוח: ' + STAY_TYPES[req.stayType].label];
-  if (STAY_TYPES[req.stayType].wedding) {
+  if (req.stayType === 'bride_day_wedding_night') {
+    lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
+    lines.push('הגעה: ' + heDate_(req.start) + ' מ-15:00 (יום לפני החתונה)');
+    lines.push('עזיבה: ' + heDate_(req.end) + ' עד ' + WEDDING_NIGHT_CHECK_OUT + ' (למחרת החתונה)');
+  } else if (STAY_TYPES[req.stayType].wedding) {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
   } else {
     var nights = daysBetween(req.checkIn, req.checkOut);

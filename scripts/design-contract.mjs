@@ -37,6 +37,11 @@ function contractProblems() {
     ['<SentHeading', 'must keep the SentHeading focus target'],
     ['id="submit-booking-request"', 'must keep the send button id'],
     ['form.submit', 'the send button must call form.submit'],
+    // "להזמנה" opens the details only for checked, free dates; taken ones offer nearby dates.
+    ['form.continueToDetails', 'the "להזמנה" button must call form.continueToDetails'],
+    ['form.gateShown', 'the date notice must open on form.gateShown'],
+    ['form.chooseAlternative', 'the nearby dates must call form.chooseAlternative'],
+    ['role="alertdialog"', 'the date notice must be an alertdialog'],
     // The tests find the controls by these, not by their wording.
     ['data-stay-type={', 'stay-type buttons must carry data-stay-type'],
     ['data-adults={', 'guest-count buttons must carry data-adults'],

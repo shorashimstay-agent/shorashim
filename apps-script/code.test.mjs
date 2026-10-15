@@ -134,3 +134,53 @@ test('a cancellation needs an explicit email choice and refuses a stay that has 
   };
   assert.throws(() => ctx.cancelBooking_('uid1', { by: 'guest', notify: false }), /reached the log/, 'before check-in it goes ahead');
 });
+
+/** checkDates_ with today fixed, the calendars stubbed and a cache that counts the hourly checks. */
+function checker({ events = [], cached = null, checksSoFar = 0 } = {}) {
+  const store = { [`rl:check:2026101509`]: String(checksSoFar) };
+  const ctx = load({ CacheService: { getScriptCache: () => ({ get: (k) => store[k] ?? null, put: (k, v) => (store[k] = v) }) } });
+  ctx.today_ = () => '2026-10-15';
+  ctx.fmt_ = () => '2026101509';
+  const asked = [];
+  ctx.blockingEvents_ = (from, to, opts) => {
+    asked.push([from, to, JSON.stringify(opts)]);
+    return events;
+  };
+  ctx.getAvailability_ = () => cached;
+  ctx.countLogNoise_ = () => {};
+  return { ctx, asked, store };
+}
+
+test('the live check reads the calendars for the nights asked, and the taken nights around them', () => {
+  const { ctx, asked, store } = checker({ events: [{ allDay: true, start: '2026-11-11', end: '2026-11-13' }] });
+  const taken = JSON.parse(JSON.stringify(ctx.checkDates_('2026-11-10', '2026-11-12')));
+  assert.deepEqual(taken, { ok: true, free: false, conflicts: ['2026-11-11'], from: '2026-10-15', to: '2026-12-26', blocked: ['2026-11-11', '2026-11-12'] });
+  assert.deepEqual(asked, [['2026-10-15', '2026-12-26', '{}']], 'read-only: nothing is expired or deleted');
+  assert.equal(store['rl:check:2026101509'], '1');
+  assert.equal(ctx.checkDates_('2026-11-13', '2026-11-15').free, true);
+});
+
+test('the live check refuses bad ranges and falls back to the cached availability past its hourly limit', () => {
+  const { ctx } = checker();
+  for (const [start, end] of [['', ''], ['2026-10-14', '2026-10-16'], ['2026-11-10', '2026-11-10'], ['2026-11-10', '2026-11-30'], ['2027-10-16', '2027-10-18'], ['x', '2026-11-12']]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(ctx.checkDates_(start, end))), { ok: false, error: 'invalid' }, `${start}..${end}`);
+  }
+  const busy = checker({ checksSoFar: 600, cached: { blocked: ['2026-10-20', '2026-11-11', '2027-03-01'] } });
+  const res = busy.ctx.checkDates_('2026-11-10', '2026-11-12');
+  assert.deepEqual(busy.asked, [], 'past the limit the calendars are not read');
+  assert.deepEqual([res.free, [...res.conflicts], [...res.blocked]], [false, ['2026-11-11'], ['2026-10-20', '2026-11-11']]);
+});
+
+test('messages for the prep day + wedding night package give the arrival and the 13:00 departure', () => {
+  const ctx = load();
+  ctx.heDate_ = (d) => d;
+  const lines = ctx.stayLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-19', end: '2026-11-21', adults: 3, participants: 5 });
+  assert.deepEqual([...lines], [
+    'סוג האירוח: יום התארגנות + ליל כלולות',
+    'תאריך החתונה: 2026-11-20',
+    'הגעה: 2026-11-19 מ-15:00 (יום לפני החתונה)',
+    'עזיבה: 2026-11-21 עד 13:00 (למחרת החתונה)',
+    'מספר אורחים: 3',
+    'משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): 5',
+  ]);
+});

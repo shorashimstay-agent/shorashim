@@ -1,7 +1,7 @@
 // Drives the real website (the booking form) and the Apps Script decision page in a browser.
 import { expect, type FrameLocator, type Page } from '@playwright/test';
 
-export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night';
+export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
 
 export interface GuestForm {
   stayType: StayType;
