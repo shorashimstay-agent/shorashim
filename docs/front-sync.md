@@ -70,7 +70,8 @@ development workflow first.
 Prices are in neither repo. They live in one place, the owner's Google Sheet
 **"שורשים — מחירים (Shorashim prices)"** (`pricesSheetId` in `booking-config.json`), tab `מחירים`,
 one row per key: `perNight` (weeknights), `weekendPerNight` (Friday and Saturday nights),
-`thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`. The owner and the front
+`thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`, and `bride_day_wedding_night`
+(optional: without it that package shows "מחיר בתיאום אישי" and every other price holds). The owner and the front
 agent's account (`sarayagent@gmail.com`) edit column C; anyone with the link can view it. This
 sheet is separate from the admin and availability sheets and holds nothing else.
 

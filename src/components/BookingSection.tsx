@@ -91,7 +91,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
 
   const gate = form.gate;
   const checking = gate.state === 'checking';
-  const brideStay = form.stayType !== 'couple';
+  // The bride packages speak to the bride (feminine singular); the wedding night is the couple's.
+  const brideStay = form.wedding;
 
   const chooseStayType = (type: StayType) => {
     form.setStayType(type);
