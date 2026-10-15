@@ -247,44 +247,6 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
   });
 }
 
-test('the prep day + wedding night package is bookable, with its dates and up to 3 overnight guests', async ({ page }) => {
-  const sent = await fakeBackend(page);
-  await openBooking(page);
-  const wedding = addDays(israelToday(), 45);
-  const booking = page.locator('#booking');
-  await expect(booking.getByText('אינו זמין להזמנה דרך האתר'), 'the package is no longer inquiry-only').toHaveCount(0);
-  const ref = await submitBooking(page, {
-    stayType: 'bride_day_wedding_night',
-    checkIn: wedding,
-    adults: 3,
-    participants: 5,
-    name: 'בדיקה אוטומטית',
-    phone: '0501234567',
-  });
-  expect(ref).toBe('SH-CI000');
-  expect(sent.body).toMatchObject({ action: 'request', stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: '', adults: 3, participants: 5 });
-  const facts = booking.locator('.request-facts');
-  await expect(facts).toContainText(addDays(wedding, -1).split('-').reverse().join('.'));
-  await expect(facts).toContainText(addDays(wedding, 1).split('-').reverse().join('.'));
-  await expect(booking.getByText('יציאה עד 13:00 למחרת החתונה').first()).toBeVisible();
-});
-
-test('the date notice and the nearby dates pass the accessibility scan', async ({ page }) => {
-  const { AxeBuilder } = await import('@axe-core/playwright');
-  const checkIn = addDays(israelToday(), 40);
-  await fakeBackend(page, { taken: [checkIn] });
-  const booking = await openBar(page);
-  await booking.locator('.booking-bar-continue').click();
-  await expect(page.getByRole('alertdialog')).toBeVisible();
-  const scan = async () => (await new AxeBuilder({ page }).include('.booking-gate').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations.map((v) => `${v.help} (${v.id})`);
-  expect(await scan(), 'the date notice breaks accessibility rules').toEqual([]);
-  await page.getByRole('alertdialog').getByRole('button', { name: 'סגירה' }).click();
-  await pickDates(page, [checkIn, addDays(checkIn, 1)]);
-  await booking.locator('.booking-bar-continue').click();
-  await expect(page.locator('[data-alternative]').first()).toBeVisible();
-  expect(await scan(), 'the nearby dates break accessibility rules').toEqual([]);
-});
-
 test('retry after a failed check runs it again, and opens the details when it answers', async ({ page }) => {
   const sent = await fakeBackend(page, { checkFails: 1 });
   const booking = await openBar(page);
@@ -355,3 +317,46 @@ test('a request the server finds taken shows the taken dates at once, with nearb
     expect([from, addDays(from, 1)]).not.toContain(checkIn);
   }
 });
+
+for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 375, height: 800 }]) {
+  test.describe(`the new package and the dialog's accessibility on ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+  test('the prep day + wedding night package is bookable, with its dates and up to 3 overnight guests', async ({ page }) => {
+  const sent = await fakeBackend(page);
+  await openBooking(page);
+  const wedding = addDays(israelToday(), 45);
+  const booking = page.locator('#booking');
+  await expect(booking.getByText('אינו זמין להזמנה דרך האתר'), 'the package is no longer inquiry-only').toHaveCount(0);
+  const ref = await submitBooking(page, {
+    stayType: 'bride_day_wedding_night',
+    checkIn: wedding,
+    adults: 3,
+    participants: 5,
+    name: 'בדיקה אוטומטית',
+    phone: '0501234567',
+  });
+  expect(ref).toBe('SH-CI000');
+  expect(sent.body).toMatchObject({ action: 'request', stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: '', adults: 3, participants: 5 });
+  const facts = booking.locator('.request-facts');
+  await expect(facts).toContainText(addDays(wedding, -1).split('-').reverse().join('.'));
+  await expect(facts).toContainText(addDays(wedding, 1).split('-').reverse().join('.'));
+  await expect(booking.getByText('יציאה עד 13:00 למחרת החתונה').first()).toBeVisible();
+});
+
+  test('the date notice and the nearby dates pass the accessibility scan', async ({ page }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  const checkIn = addDays(israelToday(), 40);
+  await fakeBackend(page, { taken: [checkIn] });
+  const booking = await openBar(page);
+  await booking.locator('.booking-bar-continue').click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  const scan = async () => (await new AxeBuilder({ page }).include('.booking-gate').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations.map((v) => `${v.help} (${v.id})`);
+  expect(await scan(), 'the date notice breaks accessibility rules').toEqual([]);
+  await page.getByRole('alertdialog').getByRole('button', { name: 'סגירה' }).click();
+  await pickDates(page, [checkIn, addDays(checkIn, 1)]);
+  await booking.locator('.booking-bar-continue').click();
+  await expect(page.locator('[data-alternative]').first()).toBeVisible();
+  expect(await scan(), 'the nearby dates break accessibility rules').toEqual([]);
+});
+  });
+}

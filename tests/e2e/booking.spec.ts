@@ -381,7 +381,7 @@ test('G8: a bride-day request holds the night before and the wedding night, with
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
 });
 
-test('G11: the prep day + wedding night package holds the night before and the wedding night, at its own price', async ({ page }) => {
+test('G11: the prep day + wedding night package holds the night before and the wedding night, at its own price, through approval and cancellation', async ({ page }) => {
   const name = guestName('התארגנות וליל כלולות');
   const wedding = addDays(slot(11), 1);
   await openBooking(page);
@@ -396,7 +396,14 @@ test('G11: the prep day + wedding night package holds the night before and the w
   expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
   // The live check sees the hold at once, with no snapshot in between.
   expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: false, conflicts: [addDays(wedding, -1), wedding] });
-  expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+  // Approved, it is a booking over the same two nights; cancelled from the console, they are free.
+  expect(await api.decide('approve', ev.iCalUID)).toMatchObject({ ok: true, result: 'approved' });
+  const booked = await waitFor('the approved booking', async () => (await bookingEvents(cfg, name))[0], 60_000, 3_000);
+  expect([booked.start.date, booked.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
+  const listed = (await api.console('overview')).bookings.find((x: any) => x.id === booked.iCalUID);
+  expect(listed).toMatchObject({ cancellable: true });
+  const cancelled = await api.console('cancelBooking', { id: booked.iCalUID, args: { requestId: `${runTag}-g11`.replace(/[^\w-]/g, ''), by: 'us', notify: false, reason: '' } });
+  expect(cancelled).toMatchObject({ ok: true, result: 'cancelled', start: addDays(wedding, -1), nights: 2 });
   expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
 });
 

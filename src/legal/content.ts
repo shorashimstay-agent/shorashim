@@ -13,7 +13,7 @@ export interface LegalDoc {
   sections: { heading: string; body: (string | string[])[] }[];
 }
 
-const UPDATED = { he: 'עודכן לאחרונה: 9.10.2026', en: 'Last updated: 9 October 2026' };
+const UPDATED = { he: 'עודכן לאחרונה: 15.10.2026', en: 'Last updated: 15 October 2026' };
 const CONTACT_HE = ['טלפון ו-WhatsApp: 052-322-4220', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
 const CONTACT_EN = ['Phone and WhatsApp: +972-52-322-4220', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
 
