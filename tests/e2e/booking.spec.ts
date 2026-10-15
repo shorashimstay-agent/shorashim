@@ -409,7 +409,7 @@ test('G11: the prep day + wedding night package holds the night before and the w
   const listed = (await api.console('overview')).bookings.find((x: any) => x.id === booked.iCalUID);
   expect(listed).toMatchObject({ cancellable: true });
   const cancelled = await api.console('cancelBooking', { id: booked.iCalUID, args: { requestId: `${runTag}-g11`.replace(/[^\w-]/g, ''), by: 'us', notify: false, reason: '' } });
-  expect(cancelled).toMatchObject({ ok: true, result: 'cancelled', start: addDays(wedding, -1), nights: 2 });
+  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ ok: true, result: 'cancelled', start: addDays(wedding, -1), nights: 2 });
   expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
 });
 
@@ -438,7 +438,8 @@ test('G13: taken dates the page still shows as free are caught by the live check
     await page.goto(`/?t=${Date.now()}`);
     const booking = page.locator('#booking');
     await booking.evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
-    await expect(booking.getByText('הבחירה שלכם', { exact: true })).toBeVisible({ timeout: 60_000 });
+    // The legend appears once availability has loaded; in the bar it sits in the closed dates panel.
+    await expect(booking.getByText('הבחירה שלכם', { exact: true })).toBeAttached({ timeout: 60_000 });
     await pickInBar(page, [checkIn, checkOut]);
     await booking.locator('.booking-bar-continue').click();
     const gate = page.getByRole('alertdialog', { name: 'התאריכים שבחרתם תפוסים.' });
