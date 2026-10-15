@@ -19,10 +19,13 @@ interface FakeOptions {
   taken?: string[];
   /** The live check gets no usable answer (`true`), or none for its first N calls. */
   checkFails?: boolean | number;
+  /** The live check gets no usable answer once a request has been sent. */
+  checkFailsAfterPost?: boolean;
   /** The live check answers this late. */
   checkDelayMs?: number;
-  /** What the request (POST) answers, instead of success. */
+  /** What the request (POST) answers, instead of success: always, or only the first time (`postAnswerOnce`). */
   postAnswer?: Record<string, unknown>;
+  postAnswerOnce?: boolean;
 }
 
 /** Answers the booking API and reCAPTCHA the way the real ones do; records the request the form sends. */
@@ -42,7 +45,10 @@ async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent>
       if (url.searchParams.get('action') === 'check') {
         const [start, end] = [url.searchParams.get('start')!, url.searchParams.get('end')!];
         sent.checks.push(`${start}..${end}`);
-        const failing = options.checkFails === true || (typeof options.checkFails === 'number' && sent.checks.length <= options.checkFails * 4);
+        const failing =
+          options.checkFails === true ||
+          (typeof options.checkFails === 'number' && sent.checks.length <= options.checkFails * 4) ||
+          (options.checkFailsAfterPost && sent.body !== null);
         if (failing) return route.fulfill({ status: 500, body: '<html>error</html>' });
         if (options.checkDelayMs) await new Promise((r) => setTimeout(r, options.checkDelayMs));
         const taken = options.taken ?? [];
@@ -51,8 +57,10 @@ async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent>
       }
       return route.fulfill({ json: { ok: true, from, to: addDays(from, 365), blocked: [] } });
     }
+    const first = sent.body === null;
     sent.body = JSON.parse(req.postData() ?? 'null');
-    return route.fulfill({ json: options.postAnswer ?? { ok: true, ref: 'SH-CI000', holdHours: 24 } });
+    const answer = options.postAnswer && (first || !options.postAnswerOnce) ? options.postAnswer : { ok: true, ref: 'SH-CI000', holdHours: 24 };
+    return route.fulfill({ json: answer });
   });
   return sent;
 }
@@ -298,7 +306,7 @@ test('the #booking direct link sends nothing until a check finds the dates free'
 test('a request the server finds taken shows the taken dates at once, with nearby ones', async ({ page }) => {
   const checkIn = addDays(israelToday(), 40);
   // The check's copy has not caught up (free), but the server refuses the request.
-  const sent = await fakeBackend(page, { postAnswer: { ok: false, error: 'unavailable', nights: [checkIn] } });
+  const sent = await fakeBackend(page, { postAnswer: { ok: false, error: 'unavailable', nights: [checkIn] }, postAnswerOnce: true });
   const booking = await openBar(page);
   await pickDates(page, [checkIn, addDays(checkIn, 2)]);
   await booking.locator('.booking-bar-continue').click();
@@ -316,6 +324,29 @@ test('a request the server finds taken shows the taken dates at once, with nearb
     const from = (await alt.getAttribute('data-alternative'))!;
     expect([from, addDays(from, 1)]).not.toContain(checkIn);
   }
+  // A nearby stay reopens the details with what the guest already typed, and sends it.
+  await gate.locator('[data-alternative]').first().click();
+  await expect(details.getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+  await expect(details.locator('input[name="guest-name"]')).toHaveValue('בדיקה אוטומטית');
+  await expect(details.locator('input[name="phone"]')).toHaveValue('0501234567');
+  await page.locator('#submit-booking-request').click();
+  await expect(details.getByText('מספר הבקשה:')).toBeVisible();
+});
+
+test('a refusal whose re-check gets no answer still says the dates are taken, without claiming a search', async ({ page }) => {
+  const checkIn = addDays(israelToday(), 40);
+  await fakeBackend(page, { postAnswer: { ok: false, error: 'unavailable', nights: [checkIn] }, checkFailsAfterPost: true });
+  await openBooking(page);
+  const booking = page.locator('#booking');
+  await booking.locator('[data-stay-type="couple"]').click();
+  await pickDates(page, [checkIn, addDays(checkIn, 2)]);
+  await booking.locator('input[name="guest-name"]').fill('בדיקה אוטומטית');
+  await booking.locator('input[name="phone"]').fill('0501234567');
+  // The check before sending says free; the server refuses; the re-check gets no answer.
+  await page.locator('#submit-booking-request').click();
+  const gate = page.getByRole('alertdialog', { name: 'התאריכים שבחרתם אינם פנויים.' });
+  await expect(gate).toBeVisible({ timeout: 40_000 });
+  await expect(gate.getByText('לא מצאנו מועד קרוב')).toHaveCount(0);
 });
 
 for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 375, height: 800 }]) {

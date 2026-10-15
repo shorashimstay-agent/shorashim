@@ -48,7 +48,7 @@ export type Gate =
   | { state: 'dates'; key: string; reason: string }
   | { state: 'checking'; key: string }
   | { state: 'free'; key: string; verified: boolean }
-  | { state: 'taken'; key: string; alternatives: Alternative[] }
+  | { state: 'taken'; key: string; alternatives: Alternative[]; searched: boolean }
   | { state: 'failed'; key: string };
 
 export type Submission =
@@ -261,8 +261,9 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       return 'free';
     }
     // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
-    const alternatives = stayType === 'couple' && fresh.from ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
-    showGate({ state: 'taken', key, alternatives });
+    const searched = stayType === 'couple' && Boolean(fresh.from);
+    const alternatives = searched ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
+    showGate({ state: 'taken', key, alternatives, searched });
     return 'taken';
   };
 
