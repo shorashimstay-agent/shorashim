@@ -18,6 +18,7 @@ export function sign(cfg: BackendConfig, id: string): string {
  */
 async function call(cfg: BackendConfig, init: { query?: string; body?: unknown }, accept: (json: any) => boolean): Promise<any> {
   let last = '';
+  let polls = 0;
   for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       // Google sometimes never answers; give up on an attempt after a minute and retry.
@@ -30,6 +31,13 @@ async function call(cfg: BackendConfig, init: { query?: string; body?: unknown }
       const text = await res.text();
       last = `${res.status} ${text.slice(0, 200)}`;
       const json = JSON.parse(text);
+      // A retry that reaches a call still running (Google lost the first reply) gets in_progress; the
+      // answer comes once it finishes, as the owner console polls for it. Not an attempt of its own.
+      if (json?.ok === false && json.error === 'in_progress' && polls++ < 12) {
+        attempt--;
+        await new Promise((r) => setTimeout(r, 5000));
+        continue;
+      }
       if (accept(json)) return json;
     } catch (err) {
       last = String(err);
