@@ -54,6 +54,15 @@ async function pickDay(page: Page, date: string): Promise<void> {
   await dayCell(page, date).locator('button').click();
 }
 
+/** The booking bar as a visitor sees it (not the #booking direct link): picks days, opening the dates panel as needed. */
+export async function pickInBar(page: Page, dates: string[]): Promise<void> {
+  const panel = page.locator('#booking .booking-bar-dates');
+  for (const date of dates) {
+    if (!(await panel.evaluate((el) => (el as HTMLDetailsElement).open))) await panel.locator('summary').click();
+    await pickDay(page, date);
+  }
+}
+
 /** Fills in and submits the booking form; returns the request reference from the success screen. */
 export async function submitBooking(page: Page, g: GuestForm): Promise<string> {
   const booking = page.locator('#booking');

@@ -136,6 +136,9 @@ console (O9); emails sent before that open this page, so it stays covered.
   participants, is priced at its own test price, and its owner text gives the 13:00 departure. The
   live check sees the hold at once and frees it after the decline.
 - G12: the live check (`?action=check`) answers free for open nights and refuses past or empty ranges.
+- G13: with the page's own availability made stale (snapshot unreachable, the web app's list empty),
+  "להזמנה" on a held couple range opens the taken dialog from the live check; every nearby stay it
+  offers is free in the real calendars, and choosing one opens the details as free.
 
 **O — Owner console** (`console.spec.ts`). The staging build serves `/admin`, pointed at the staging
 web app, and the tests log in with the staging console password, as the owner does. Fixture requests

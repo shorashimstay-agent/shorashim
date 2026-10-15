@@ -28,7 +28,7 @@ interface RetryPolicy {
 const READ_POLICY: RetryPolicy = { attempts: 5, timeoutMs: 10_000, deadlineMs: 45_000, delayMs: (a) => 500 * a };
 // The live check runs while the guest waits on the button, so it gives up sooner; a failed check
 // never reads as available (useBookingForm).
-const CHECK_POLICY: RetryPolicy = { attempts: 3, timeoutMs: 8_000, deadlineMs: 15_000, delayMs: (a) => 500 * a };
+const CHECK_POLICY: RetryPolicy = { attempts: 4, timeoutMs: 10_000, deadlineMs: 25_000, delayMs: (a) => 500 * a };
 const WRITE_POLICY: RetryPolicy = { attempts: 15, timeoutMs: 10_000, deadlineMs: 90_000, delayMs: (a) => Math.min(1000 * a, 3000) };
 
 async function fetchWithTimeout(url: string, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
@@ -112,7 +112,8 @@ export interface DatesCheck {
  */
 export async function checkDates(start: string, end: string): Promise<DatesCheck> {
   const data = await callApi(
-    (d) => (d?.ok === true && typeof d.free === 'boolean' && Array.isArray(d.blocked)) || (d?.ok === false && typeof d.error === 'string'),
+    // A server_error (say, a calendar hiccup) is retried like a lost reply; 'invalid' is final.
+    (d) => (d?.ok === true && typeof d.free === 'boolean' && Array.isArray(d.blocked)) || (d?.ok === false && typeof d.error === 'string' && d.error !== 'server_error'),
     CHECK_POLICY,
     undefined,
     `?action=check&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`

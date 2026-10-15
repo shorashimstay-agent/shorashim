@@ -22,7 +22,7 @@ import {
 } from './lib/backend';
 import { e2e, runTag, staging as cfg } from './lib/env';
 import { estimatePrice, pricesFromRows, pricesVersionOf } from '../../shared/rules.js';
-import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, recaptchaToken, submitBooking } from './lib/site';
+import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, pickInBar, recaptchaToken, submitBooking } from './lib/site';
 
 const api = webApp(cfg);
 
@@ -407,6 +407,41 @@ test('G12: the live check answers from the calendars and refuses bad ranges', as
   expect(res.from <= start && res.to > addDays(start, 2)).toBe(true);
   expect(await api.check(addDays(israelToday(), -2), israelToday())).toMatchObject({ ok: false, error: 'invalid' });
   expect(await api.check(start, start)).toMatchObject({ ok: false, error: 'invalid' });
+});
+
+test('G13: taken dates the page still shows as free are caught by the live check, with real nearby dates', async ({ page }) => {
+  const name = guestName('חלופות');
+  const [checkIn, checkOut] = [slot(13), addDays(slot(13), 2)];
+  await openBooking(page);
+  expect(await postRequest(page, { stayType: 'couple', checkIn, checkOut, adults: 2, name, phone: randomPhone() })).toMatchObject({ ok: true });
+  const ev = await onlyRequestEvent(name);
+  try {
+    // The page's own availability is stale: the snapshot is unreachable and the web app's list is
+    // answered as empty. Only the live check reaches the real calendars.
+    await page.route((url) => url.hostname === 'docs.google.com' && url.searchParams.get('range') === 'A1:D2', (route) => route.abort());
+    await page.route((url) => url.searchParams.get('action') === 'availability', (route) =>
+      route.fulfill({ json: { ok: true, from: israelToday(), to: addDays(israelToday(), 366), blocked: [] } })
+    );
+    await page.goto(`/?t=${Date.now()}`);
+    const booking = page.locator('#booking');
+    await booking.evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+    await expect(booking.getByText('הבחירה שלכם', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await pickInBar(page, [checkIn, checkOut]);
+    await booking.locator('.booking-bar-continue').click();
+    const gate = page.getByRole('alertdialog', { name: 'התאריכים שבחרתם תפוסים.' });
+    await expect(gate).toBeVisible({ timeout: 60_000 });
+    const options = gate.locator('[data-alternative]');
+    await expect(options.first()).toBeVisible();
+    const offered = await options.evaluateAll((els) => els.map((el) => el.getAttribute('data-alternative')!));
+    const real = await api.availability();
+    for (const from of offered) {
+      expect(nights(from, addDays(from, 2)).some((d) => real.blocked.includes(d)), `${from} is offered but taken`).toBe(false);
+    }
+    await options.first().click();
+    await expect(page.locator('.booking-request-screen').getByText('התאריכים שבחרתם פנויים')).toBeVisible({ timeout: 60_000 });
+  } finally {
+    expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
+  }
 });
 
 test('G10: the web app reads its prices from the prices sheet, and picks up an edit', async () => {
