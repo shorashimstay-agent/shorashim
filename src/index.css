@@ -730,3 +730,11 @@ dialog#faq { padding: 0; }
 #zichron .gallery-carousel-controls button { width: 40px; height: 40px; min-height: 44px; }
 .audience-bride #main-header #desktop-navigation a { color: #51483e; }
 @media(max-width:767px) { #zichron .local-card { min-height: 112px; padding: 14px 16px; } }
+
+/* Bridal bar keeps only route, wedding date and the request action. */
+.audience-bride .booking-guests-inline { display: none; }
+.audience-bride .booking-bar { grid-template-columns: minmax(0,2fr) minmax(180px,1fr); }
+.audience-bride .booking-bride-entry { grid-column: 1/-1; }
+.audience-bride .booking-bar-dates { order: 1; }
+.audience-bride .booking-bar-continue { order: 2; align-self: stretch; }
+@media(max-width:767px) { .audience-bride .booking-bar { grid-template-columns: minmax(0,1fr) minmax(110px,.8fr); } .audience-bride .booking-bar-dates { grid-column: auto; } }
