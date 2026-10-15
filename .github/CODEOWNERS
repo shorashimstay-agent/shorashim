@@ -1,37 +1,39 @@
 # Files the designer's pushes cannot change on their own (AGENTS.md, docs/designer-pipeline.md).
+# Either owner's approval counts. am-consulting-code-agent (user decision, 2026-10-15) is the second
+# owner, so pull requests authored as shorashimstay-agent can be approved without the admin bypass.
 # A design push that touches any of them waits on a pull request until the owner approves it; every
 # other file ships as soon as the checks pass. Keep the patterns simple (a /folder/ or a /file):
 # scripts/locked-files.mjs reads this file to warn before a push.
 
 # Backend, its shared rules, and the owner's console
-/apps-script/ @shorashimstay-agent
-/shared/ @shorashimstay-agent
-/public/admin/ @shorashimstay-agent
+/apps-script/ @shorashimstay-agent @am-consulting-code-agent
+/shared/ @shorashimstay-agent @am-consulting-code-agent
+/public/admin/ @shorashimstay-agent @am-consulting-code-agent
 
 # The booking engine: behaviour, API, reCAPTCHA, prices, packages and the policy text
-/src/booking/ @shorashimstay-agent
-/src/lib/ @shorashimstay-agent
-/src/data/booking.ts @shorashimstay-agent
-/src/data/bookingConfig.ts @shorashimstay-agent
+/src/booking/ @shorashimstay-agent @am-consulting-code-agent
+/src/lib/ @shorashimstay-agent @am-consulting-code-agent
+/src/data/booking.ts @shorashimstay-agent @am-consulting-code-agent
+/src/data/bookingConfig.ts @shorashimstay-agent @am-consulting-code-agent
 
 # Legal and accessibility pages (they must follow the policy text above)
-/src/legal/ @shorashimstay-agent
-/terms/ @shorashimstay-agent
-/privacy/ @shorashimstay-agent
-/accessibility/ @shorashimstay-agent
-/en/ @shorashimstay-agent
-/src/components/AccessibilityMenu.tsx @shorashimstay-agent
+/src/legal/ @shorashimstay-agent @am-consulting-code-agent
+/terms/ @shorashimstay-agent @am-consulting-code-agent
+/privacy/ @shorashimstay-agent @am-consulting-code-agent
+/accessibility/ @shorashimstay-agent @am-consulting-code-agent
+/en/ @shorashimstay-agent @am-consulting-code-agent
+/src/components/AccessibilityMenu.tsx @shorashimstay-agent @am-consulting-code-agent
 
 # The pipeline itself: workflows, these rules, tests and build setup
-/.github/ @shorashimstay-agent
-/.githooks/ @shorashimstay-agent
-/.claude/ @shorashimstay-agent
-/tests/ @shorashimstay-agent
-/scripts/ @shorashimstay-agent
-/package.json @shorashimstay-agent
-/package-lock.json @shorashimstay-agent
-/vite.config.ts @shorashimstay-agent
-/tsconfig.json @shorashimstay-agent
-/playwright.config.ts @shorashimstay-agent
-/playwright.ci.config.ts @shorashimstay-agent
-/public/CNAME @shorashimstay-agent
+/.github/ @shorashimstay-agent @am-consulting-code-agent
+/.githooks/ @shorashimstay-agent @am-consulting-code-agent
+/.claude/ @shorashimstay-agent @am-consulting-code-agent
+/tests/ @shorashimstay-agent @am-consulting-code-agent
+/scripts/ @shorashimstay-agent @am-consulting-code-agent
+/package.json @shorashimstay-agent @am-consulting-code-agent
+/package-lock.json @shorashimstay-agent @am-consulting-code-agent
+/vite.config.ts @shorashimstay-agent @am-consulting-code-agent
+/tsconfig.json @shorashimstay-agent @am-consulting-code-agent
+/playwright.config.ts @shorashimstay-agent @am-consulting-code-agent
+/playwright.ci.config.ts @shorashimstay-agent @am-consulting-code-agent
+/public/CNAME @shorashimstay-agent @am-consulting-code-agent
