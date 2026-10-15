@@ -413,17 +413,25 @@ function getAvailability_() {
 // The live check the website runs before it opens or sends a request: are the nights [start, end)
 // free, and which nights are taken in a window around them (for nearby dates). It reads the calendars
 // directly, not the snapshot, and writes nothing: nothing expires or is deleted here, since anyone can
-// call it. The whole booking window is read at most once per CHECK_CACHE_SECONDS, whatever the
-// traffic, so a flood of checks costs at most 3 UrlFetch calls (one per calendar) per period, about
-// 8,600 a day: well inside the account's 20,000 a day, with room for everything else. Every booking
-// change this backend makes clears it (invalidateAvailability_), so the guest's own and other guests'
-// requests show at once; an edit made directly in Google Calendar shows within the period.
+// call it. The whole booking window is read once per CHECK_CACHE_SECONDS (3 UrlFetch calls, one per
+// calendar), and executions that miss the cache while a read is running answer from the last copy
+// instead of reading too. In steady traffic that is about 8,600 calls a day, inside the account's
+// 20,000; it is best effort, not a hard cap (the cache has no atomic claim, and a booking change
+// forces a new read), as for ?action=availability. Every booking change this backend makes clears the
+// copy (invalidateAvailability_), so requests show at once; a direct Google Calendar edit shows within
+// the period.
 var CHECK_CACHE_KEY = 'check:v1';
 var CHECK_CACHE_SECONDS = 30;
 var CHECK_GENERATION_KEY = 'check:generation';
 // After a failed calendar read, checks answer server_error for this long without reading again.
 var CHECK_FAILED_KEY = 'check:failed';
 var CHECK_FAILED_SECONDS = 10;
+// While one execution reads, the others answer from the last copy, as long as no booking change
+// happened since it was read (single flight, best effort: the cache has no atomic claim).
+var CHECK_READING_KEY = 'check:reading';
+var CHECK_READING_SECONDS = 15;
+var CHECK_LAST_KEY = 'check:last';
+var CHECK_LAST_SECONDS = 600;
 
 function checkDates_(start, end) {
   start = String(start || '');
@@ -454,23 +462,33 @@ function checkDates_(start, end) {
  */
 function liveBlocked_(from, to) {
   var cache = CacheService.getScriptCache();
-  var hits = cache.getAll([CHECK_CACHE_KEY, CHECK_GENERATION_KEY, CHECK_FAILED_KEY]);
+  var hits = cache.getAll([CHECK_CACHE_KEY, CHECK_GENERATION_KEY, CHECK_FAILED_KEY, CHECK_READING_KEY, CHECK_LAST_KEY]);
   if (hits[CHECK_FAILED_KEY]) return null;
+  var generation = hits[CHECK_GENERATION_KEY] || '';
   if (hits[CHECK_CACHE_KEY]) {
     var copy = JSON.parse(hits[CHECK_CACHE_KEY]);
     if (copy.from === from && copy.to === to) return copy.blocked;
   }
+  if (hits[CHECK_READING_KEY] && hits[CHECK_LAST_KEY]) {
+    var last = JSON.parse(hits[CHECK_LAST_KEY]);
+    if (last.from === from && last.to === to && last.generation === generation) return last.blocked;
+  }
+  cache.put(CHECK_READING_KEY, '1', CHECK_READING_SECONDS);
   var blocked;
   try {
     blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
   } catch (err) {
     console.warn('live check: calendars unreadable', err);
+    cache.remove(CHECK_READING_KEY);
     cache.put(CHECK_FAILED_KEY, '1', CHECK_FAILED_SECONDS);
     logEvent_('error', { where: 'checkDates_', message: logMessage_(err) });
     return null;
   }
-  if ((cache.get(CHECK_GENERATION_KEY) || '') === (hits[CHECK_GENERATION_KEY] || '')) {
-    cache.put(CHECK_CACHE_KEY, JSON.stringify({ from: from, to: to, blocked: blocked }), CHECK_CACHE_SECONDS);
+  cache.remove(CHECK_READING_KEY);
+  if ((cache.get(CHECK_GENERATION_KEY) || '') === generation) {
+    var text = JSON.stringify({ from: from, to: to, blocked: blocked });
+    cache.put(CHECK_CACHE_KEY, text, CHECK_CACHE_SECONDS);
+    cache.put(CHECK_LAST_KEY, JSON.stringify({ from: from, to: to, blocked: blocked, generation: generation }), CHECK_LAST_SECONDS);
   }
   return blocked;
 }
