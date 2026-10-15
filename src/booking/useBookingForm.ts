@@ -3,14 +3,16 @@
 // redesign of that section (docs/front-sync.md) never has to touch this file.
 import { useEffect, useId, useRef, useState } from 'react';
 import { BRAND_DATA } from '../data/shorashimData';
-import { bookingApiEnabled, fetchAvailability, submitBookingRequest, type Availability } from '../lib/bookingApi';
+import { bookingApiEnabled, checkDates, fetchAvailability, submitBookingRequest, type Availability } from '../lib/bookingApi';
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
 import {
   addDays,
   DAY_PARTICIPANT_TYPES,
   daysBetween,
   estimatePrice,
+  findAlternatives,
   MAX_DAY_PARTICIPANTS,
+  MAX_NIGHTS,
   usePrices,
   formatHebrewDate,
   isWeddingStay,
@@ -24,6 +26,30 @@ import {
 
 export type Field = 'dates' | 'name' | 'phone' | 'email' | 'notes';
 export type FieldErrors = Partial<Record<Field, string>>;
+
+/** A stay the guest can switch to when the chosen dates are taken. */
+export interface Alternative {
+  checkIn: string;
+  checkOut: string;
+}
+
+/**
+ * Where the guest stands between choosing dates and the details screen ("להזמנה"). The details open
+ * only on `free`; every other result is shown in the gate dialog. `key` names the stay type and
+ * dates a result belongs to: changing any of them drops it.
+ * - dates: no dates, half a range or an invalid one (`reason` says which)
+ * - checking: the live check is running
+ * - free: the web app says the nights are free now (`verified` false: no web app, WhatsApp only)
+ * - taken: they are not; holidays get up to 3 nearby `alternatives`, bride packages none
+ * - failed: no answer; never treated as free
+ */
+export type Gate =
+  | { state: 'idle'; key?: undefined }
+  | { state: 'dates'; key: string; reason: string }
+  | { state: 'checking'; key: string }
+  | { state: 'free'; key: string; verified: boolean }
+  | { state: 'taken'; key: string; alternatives: Alternative[] }
+  | { state: 'failed'; key: string };
 
 export type Submission =
   | { state: 'idle' }
@@ -51,6 +77,7 @@ const STAY_TYPE_NAMES: Record<StayType, string> = {
   bride_day: 'חוויית כלה: יום כלה (התארגנות ביום החתונה)',
   bride_night_day: 'חוויית כלה: לילה לפני + יום כלה',
   wedding_night: 'ליל כלולות לאחר החתונה',
+  bride_day_wedding_night: 'חוויית כלה: יום התארגנות + ליל כלולות',
 };
 
 export function useBookingForm(initialStayType: StayType = 'couple') {
@@ -84,6 +111,9 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   const [submission, setSubmission] = useState<Submission>({ state: 'idle' });
   const [whatsAppOpened, setWhatsAppOpened] = useState(false);
 
+  const [gate, setGate] = useState<Gate>({ state: 'idle' });
+  // Counts results to show, so the layout opens the details or the gate dialog once per result.
+  const [gateShown, setGateShown] = useState(0);
   const wedding = isWeddingStay(stayType);
   const hasDayParticipants = DAY_PARTICIPANT_TYPES.includes(stayType);
   const nights = !wedding && checkIn && checkOut ? daysBetween(checkIn, checkOut) : 0;
@@ -141,6 +171,92 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     if (!checkOut) return `הגעה ${formatHebrewDate(checkIn)} · בחרו תאריך עזיבה`;
     return `הגעה ${formatHebrewDate(checkIn)} · עזיבה ${formatHebrewDate(checkOut)} (${nights === 1 ? 'לילה אחד' : `${nights} לילות`})`;
   })();
+
+  const gateKey = (type: StayType, from: string, to: string) => `${type}|${from}|${to}`;
+  // A result belongs to the stay type and dates it was given for; any change drops it, and a check
+  // still running for the old dates is ignored when it answers.
+  const chosenKey = useRef('');
+  chosenKey.current = gateKey(stayType, checkIn, checkOut);
+  useEffect(() => {
+    if (gate.key !== undefined && gate.key !== gateKey(stayType, checkIn, checkOut)) setGate({ state: 'idle' });
+  }, [stayType, checkIn, checkOut, gate.key]);
+
+  /** Why the dates cannot be checked yet, or '' when they can. Same rules as the server. */
+  const datesReason = (from: string, to: string): string => {
+    if (!from) return '';
+    if (!wedding && !to) return 'בחרו גם תאריך עזיבה.';
+    const check = validateRequest({ stayType, checkIn: from, checkOut: wedding ? '' : to, adults: 1, name: 'xx', phone: '0500000000' }, israelToday());
+    if (check.ok) return '';
+    const code = check.errors.checkIn || check.errors.checkOut;
+    if (!code) return '';
+    if (code === 'past') return wedding ? 'אפשר לבחור תאריך חתונה החל ממחר.' : 'התאריך שבחרתם כבר עבר.';
+    if (code === 'too_far') return 'אפשר להזמין עד שנה מראש.';
+    if (code === 'too_long') return `אפשר להזמין עד ${MAX_NIGHTS} לילות ברצף.`;
+    return 'טווח התאריכים אינו תקין. בחרו תאריך כניסה ואחריו תאריך עזיבה.';
+  };
+
+  const showGate = (next: Gate) => {
+    setGate(next);
+    setGateShown((n) => n + 1);
+  };
+
+  /**
+   * "להזמנה": checks the dates, then asks the web app whether they are free right now. The layout
+   * opens the details on `free` and the gate dialog on anything else. `dates` overrides the chosen
+   * ones, for an alternative picked in the same click.
+   */
+  const continueToDetails = async (dates?: Alternative) => {
+    const from = dates?.checkIn ?? checkIn;
+    const to = dates?.checkOut ?? checkOut;
+    const key = gateKey(stayType, from, to);
+    const missing = !from || (!wedding && !to);
+    const reason = missing ? (from ? 'בחרו גם תאריך עזיבה.' : '') : datesReason(from, to);
+    if (missing || reason) {
+      showGate({ state: 'dates', key, reason });
+      return;
+    }
+    if (!bookingApiEnabled) {
+      showGate({ state: 'free', key, verified: false });
+      return;
+    }
+    setGate({ state: 'checking', key });
+    setAnnouncement('בודקים זמינות...');
+    const range = stayRange(stayType, from, to);
+    let result: Awaited<ReturnType<typeof checkDates>> | null = null;
+    try {
+      result = await checkDates(range.start, range.end);
+    } catch {
+      result = null;
+    }
+    // A newer choice replaced these dates while the check ran.
+    if (chosenKey.current !== key) return;
+    setAnnouncement('');
+    if (!result) {
+      showGate({ state: 'failed', key });
+      return;
+    }
+    const fresh = result.availability;
+    // The calendar shows what the check found for its window.
+    setAvailability((prev) => {
+      if (!prev) return prev;
+      const blocked = new Set([...prev.blocked].filter((d) => d < fresh.from || d >= fresh.to));
+      fresh.blocked.forEach((d) => blocked.add(d));
+      return { ...prev, blocked };
+    });
+    if (result.free) {
+      showGate({ state: 'free', key, verified: true });
+      return;
+    }
+    // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
+    const alternatives = stayType === 'couple' ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
+    showGate({ state: 'taken', key, alternatives });
+  };
+
+  /** Switches to a nearby stay offered for taken dates, and checks it afresh. */
+  const chooseAlternative = (alternative: Alternative) => {
+    changeDates(alternative.checkIn, alternative.checkOut);
+    void continueToDetails(alternative);
+  };
 
   const clearDates = () => {
     setCheckIn('');
@@ -271,11 +387,10 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       return;
     }
     if (result.error === 'unavailable') {
-      clearDates();
-      loadAvailability();
+      // Taken since the check: the gate dialog says so, with nearby dates for a holiday.
       setErrors({ dates: 'חלק מהתאריכים נתפסו בינתיים. בחרו תאריכים אחרים.' });
       setSubmission({ state: 'idle' });
-      focusFirstError({ dates: 'x' });
+      void continueToDetails();
       return;
     }
     if (result.error === 'invalid' && result.fields) {
@@ -325,6 +440,10 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
 
   return {
     apiEnabled: bookingApiEnabled,
+    gate,
+    gateShown,
+    continueToDetails,
+    chooseAlternative,
     ids,
     successHeadingRef,
     announcement,

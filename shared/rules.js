@@ -8,7 +8,7 @@
  * `export ` keyword on upload and every declaration below becomes a global there — which is why
  * they are `var` and plain function declarations rather than `const` and arrow functions.
  *
- * @typedef {'couple' | 'wedding_night' | 'bride_day' | 'bride_night_day'} StayType
+ * @typedef {'couple' | 'wedding_night' | 'bride_day' | 'bride_night_day' | 'bride_day_wedding_night'} StayType
  * @typedef {{ allDay: boolean, start: string, end: string }} CalendarEvent
  */
 
@@ -21,31 +21,38 @@ export var MAX_ADULTS = 3;
 // Bride-day packages: people present during the day, including the bride, her companions and the
 // professionals. Optional on the server (requests from before it existed carry none).
 export var MAX_DAY_PARTICIPANTS = 5;
-export var DAY_PARTICIPANT_TYPES = ['bride_day', 'bride_night_day'];
+export var DAY_PARTICIPANT_TYPES = ['bride_day', 'bride_night_day', 'bride_day_wedding_night'];
 export var NOTES_MAX = 450;
 
 // Wedding-type stays are keyed by the wedding date and block the night before and the wedding night.
+// bride_day_wedding_night is both: arrival at 15:00 the day before, the bride's preparation on the
+// day, and back for the wedding night, leaving by WEDDING_NIGHT_CHECK_OUT the morning after.
 export var STAY_TYPES = {
   couple: { label: 'אירוח זוגי בוטיק', wedding: false },
   wedding_night: { label: 'ליל כלולות זוגי', wedding: false },
   bride_day: { label: 'יום כלה (התארגנות ביום החתונה)', wedding: true },
   bride_night_day: { label: 'לילה לפני + יום כלה', wedding: true },
+  bride_day_wedding_night: { label: 'יום התארגנות + ליל כלולות', wedding: true },
 };
+export var WEDDING_NIGHT_CHECK_OUT = '13:00';
 
 // Prices are not in the code. They live in the owner's prices spreadsheet (one row per key, see
 // pricesFromRows), which the site reads as a public CSV and the web app reads directly, so a price
 // change needs no build and no deploy. Without prices there is no estimate (null): the page and the
 // request say the price will be set personally.
-export var PRICE_KEYS = ['perNight', 'weekendPerNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night'];
+export var PRICE_KEYS = ['perNight', 'weekendPerNight', 'thirdGuestPerNight', 'bride_day', 'bride_night_day', 'wedding_night', 'bride_day_wedding_night'];
 // Prices that may be missing (files from before they existed), and the price they fall back to.
 export var PRICE_DEFAULTS = { weekendPerNight: 'perNight' };
+// Prices that may be missing with no fallback: the package they price then has no estimate, and
+// every other price still holds. A new package's row can reach the sheet after the code does.
+export var OPTIONAL_PRICE_KEYS = ['bride_day_wedding_night'];
 export var PRICE_MIN = 100;
 export var PRICE_MAX = 20000;
 
 /**
  * Checks a prices file: { version, prices: { perNight, ... } }, every price a whole number of
- * shekels between PRICE_MIN and PRICE_MAX. Unknown keys are ignored; a missing optional key takes
- * the price PRICE_DEFAULTS names.
+ * shekels between PRICE_MIN and PRICE_MAX. Unknown keys are ignored; a missing key takes the price
+ * PRICE_DEFAULTS names, or is left out when OPTIONAL_PRICE_KEYS lists it.
  * @param {unknown} file
  * @returns {{ ok: true, version: string, prices: Record<string, number> } | { ok: false, error: string }}
  */
@@ -60,6 +67,7 @@ export function checkPrices(file) {
     var key = PRICE_KEYS[i];
     var value = source[key];
     if (value === undefined && PRICE_DEFAULTS[key]) value = source[PRICE_DEFAULTS[key]];
+    if (value === undefined && OPTIONAL_PRICE_KEYS.indexOf(key) >= 0) continue;
     if (typeof value !== 'number' || Math.floor(value) !== value || value < PRICE_MIN || value > PRICE_MAX) {
       return { ok: false, error: 'bad price ' + key };
     }
@@ -76,7 +84,7 @@ export function checkPrices(file) {
  */
 export function pricesVersionOf(prices) {
   return 'sheet-' + PRICE_KEYS.map(function (key) {
-    return prices[key];
+    return prices[key] === undefined ? '' : prices[key];
   }).join('-');
 }
 
@@ -203,8 +211,8 @@ export function isWeekendNight(date) {
 export function estimatePrice(stayType, nights, adults, prices, start) {
   var p = prices;
   if (!p) return null;
-  if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night') {
-    return p[stayType];
+  if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night' || stayType === 'bride_day_wedding_night') {
+    return typeof p[stayType] === 'number' ? p[stayType] : null;
   }
   var weekend = p.weekendPerNight || p.perNight;
   var total = 0;
@@ -212,6 +220,50 @@ export function estimatePrice(stayType, nights, adults, prices, start) {
     total += start && isWeekendNight(addDays(start, i)) ? weekend : p.perNight;
   }
   return total + (adults === 3 ? p.thirdGuestPerNight * nights : 0);
+}
+
+// Nearby dates offered when a holiday's dates are taken.
+export var MAX_ALTERNATIVES = 3;
+export var ALTERNATIVE_SEARCH_DAYS = 30;
+
+/**
+ * Up to `limit` free stays of the same length near a taken one, closest first (a day later, a day
+ * earlier, two days later, ...). Only nights inside the window the blocked list covers, [from, to),
+ * are considered, and none before `firstNight`; a stay never runs past `to`.
+ * @param {string[]} blocked taken nights within [from, to)
+ * @param {string} checkIn the requested check-in @param {number} nights
+ * @param {string} from @param {string} to the covered window (to exclusive)
+ * @param {string} firstNight the earliest night a stay may start (today)
+ * @param {number} [limit] at most this many, MAX_ALTERNATIVES by default
+ * @returns {{ checkIn: string, checkOut: string }[]}
+ */
+export function findAlternatives(blocked, checkIn, nights, from, to, firstNight, limit) {
+  limit = limit || MAX_ALTERNATIVES;
+  var out = [];
+  if (!(nights >= 1) || isNaN(toDayNumber(checkIn)) || isNaN(toDayNumber(from)) || isNaN(toDayNumber(to))) return out;
+  var taken = {};
+  (blocked || []).forEach(function (d) {
+    taken[d] = true;
+  });
+  var lo = Math.max(toDayNumber(from), toDayNumber(firstNight));
+  var hi = toDayNumber(to);
+  var base = toDayNumber(checkIn);
+  for (var step = 1; step <= ALTERNATIVE_SEARCH_DAYS && out.length < limit; step++) {
+    var starts = [base + step, base - step];
+    for (var i = 0; i < starts.length && out.length < limit; i++) {
+      var s = starts[i];
+      if (s < lo || s + nights > hi) continue;
+      var free = true;
+      for (var n = s; n < s + nights; n++) {
+        if (taken[fromDayNumber(n)]) {
+          free = false;
+          break;
+        }
+      }
+      if (free) out.push({ checkIn: fromDayNumber(s), checkOut: fromDayNumber(s + nights) });
+    }
+  }
+  return out;
 }
 
 /** @param {string | undefined} createdAtIso @param {number} nowMs @returns {boolean} */
@@ -412,7 +464,8 @@ export var BRIDE_DAY_START_MINUTES = 8 * 60;
 
 /**
  * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night, by the house
- * rules: check-in at 15:00 on the first night, including the package with the night before. A bride
+ * rules: check-in at 15:00 on the first night, including the packages with the night before
+ * (bride_night_day, and bride_day_wedding_night, whose guests arrive the day before too). A bride
  * day blocks the night before only to keep the suite ready; it starts at 08:00 on the wedding day.
  * A wedding night's arrival is "after the event, by arrangement", so its check-in hour, the earliest
  * it can be, stands in for it.

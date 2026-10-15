@@ -312,7 +312,7 @@
   })();
   var DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
   var MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-  var WEDDING = { bride_day: true, bride_night_day: true };
+  var WEDDING = { bride_day: true, bride_night_day: true, bride_day_wedding_night: true };
 
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -813,7 +813,7 @@
   // ---- Closing dates (backend: closeDates_ in apps-script/src/Code.js; rules: validateBlock)
 
   var KIND_TEXT = { block: ['סגירה', 'עד שאפתח'], phone: ['הזמנה טלפונית', 'אורח סגור'], hold: ['שמירה זמנית', 'נפתחת לבד'] };
-  var STAY_CHOICES = [['couple', 'חופשה זוגית'], ['wedding_night', 'ליל כלולות'], ['bride_night_day', 'לילה לפני + יום כלה'], ['bride_day', 'יום כלה']];
+  var STAY_CHOICES = [['couple', 'חופשה זוגית'], ['wedding_night', 'ליל כלולות'], ['bride_night_day', 'לילה לפני + יום כלה'], ['bride_day', 'יום כלה'], ['bride_day_wedding_night', 'יום התארגנות + ליל כלולות']];
 
   function newForm(kind, extra) {
     var f = { kind: kind, reason: (state.data.blockReasons || [])[0] || '', hours: 48, note: '', name: '', phone: '', email: '', stayType: 'couple', adults: 2, price: '', errors: {} };
@@ -825,6 +825,8 @@
   function suggestPrice(f, start, end) {
     var p = state.data.prices;
     if (!p) return 0;
+    // A package whose price row is not in the sheet yet has no suggestion, rather than a nightly one.
+    if (f.stayType === 'bride_day_wedding_night') return p[f.stayType] || 0;
     if (p[f.stayType] && f.stayType !== 'couple') return p[f.stayType];
     var total = 0, nights = 0;
     for (var n = start; n < end; n = addDays(n, 1)) {
