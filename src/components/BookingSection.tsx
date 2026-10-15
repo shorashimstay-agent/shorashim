@@ -78,7 +78,10 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
       return;
     }
     if (!expanded && contactPanel.current?.open) contactPanel.current.close();
-    if (!gatePanel.current?.open) gatePanel.current?.showModal();
+    // A new result in an open dialog (checking, then taken) re-opens it, so screen readers announce
+    // the alertdialog again with its new heading and text.
+    if (gatePanel.current?.open) gatePanel.current.close();
+    gatePanel.current?.showModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.gateShown]);
 
@@ -235,6 +238,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
           )}
 
           </div>
+          {/* The form's announcements while the details dialog (and its Announcer) is closed. */}
+          {!expanded && <p className="sr-only" role="status" aria-live="polite">{form.announcement}</p>}
           <button type="button" className="primary-action booking-bar-continue" aria-haspopup="dialog" aria-busy={checking || undefined} aria-disabled={checking || undefined} onClick={() => { if (!checking) void form.continueToDetails(); }}>{checking ? <><Loader2 className="w-4 h-4 motion-safe:animate-spin" /> בודקים זמינות…</> : 'להזמנה'}</button>
           </div>
           
@@ -251,7 +256,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                   <h3 id="booking-gate-heading" className="font-serif text-2xl">המועד שבחרת אינו פנוי.</h3>
                   <p id="booking-gate-text">פני אלינו לבדיקת אפשרויות נוספות.</p>
                 </>
-              ) : form.stayType !== 'couple' ? (
+              ) : form.stayType !== 'couple' || !gate.searched ? (
                 <>
                   <h3 id="booking-gate-heading" className="font-serif text-2xl">התאריכים שבחרתם אינם פנויים.</h3>
                   <p id="booking-gate-text">פנו אלינו לבדיקת אפשרויות נוספות.</p>
@@ -450,6 +455,11 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
             </div>
           ) : form.apiEnabled ? (
             <div>
+              {expanded && checking && !form.sending && (
+                <p className="text-sm text-center mb-2 flex items-center justify-center gap-1.5" role="status">
+                  <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" /> בודקים זמינות…
+                </p>
+              )}
               <button
                 type="button"
                 id="submit-booking-request"

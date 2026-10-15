@@ -72,7 +72,8 @@ export async function submitBooking(page: Page, g: GuestForm): Promise<string> {
   await booking.locator(`[data-stay-type="${g.stayType}"]`).click();
   await pickDay(page, g.checkIn);
   if (g.checkOut) await pickDay(page, g.checkOut);
-  await booking.locator(`[data-adults="${g.adults}"]`).click();
+  // The bride day has no overnight guests, so no guest picker.
+  if (g.stayType !== 'bride_day') await booking.locator(`[data-adults="${g.adults}"]`).click();
   if (g.participants) await booking.locator('select[name="participants"]').selectOption(String(g.participants));
   await booking.locator('input[name="guest-name"]').fill(g.name);
   await booking.locator('input[name="phone"]').fill(g.phone);
