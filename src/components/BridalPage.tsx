@@ -19,7 +19,7 @@ export default function BridalPage({ stayType, onStayTypeChange }: { stayType: S
     <BookingSection stayType={stayType === 'couple' ? 'bride_day' : stayType} onStayTypeChange={onStayTypeChange} />
 
     <section className="bridal-editorial-section bridal-practical"><h2 className="font-serif">כמה דברים שכדאי לדעת מראש</h2><div>
-      <details><summary>כמה אנשים יכולים להיות איתי?</summary><p>עד 5 משתתפים בסך הכול בזמן ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע. במסלולים עם לילה לפני אפשר לארח עד 3 מבוגרים ללינה.</p></details>
+      <details><summary>כמה אנשים יכולים להיות איתי?</summary><p>עד 5 משתתפים בסך הכול בזמן ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע. במסלולים עם לינה (לילה לפני + יום כלה, יום התארגנות + ליל כלולות) אפשר לארח עד 3 מבוגרים ללינה.</p></details>
       <details><summary>מתי מגיעים ומתי יוצאים?</summary><p>יום התארגנות בלבד: 08:00–15:30. במסלול לילה לפני ויום התארגנות: כניסה ב־15:00 ביום שלפני ויציאה ב־15:30 ביום האירוע. ביום התארגנות + ליל כלולות: כניסה ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה ויציאה עד 13:00 למחרת החתונה.</p></details>
       <details><summary>אפשר גם לחזור אחרי החתונה?</summary><p>כן. במסלול יום התארגנות + ליל כלולות מגיעים ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה, מתארגנים וחוזרים ללינה אחרי האירוע, לילה אחד. היציאה עד 13:00 למחרת החתונה. עד 3 מבוגרים ללינה ועד 5 משתתפים בהתארגנות. אפשר לבחור את המסלול בטופס ההזמנה.</p></details>
       <details><summary>מה לגבי גישה וחניה?</summary><p>הסוויטה במפלס הקרקע והעלייה לגג במדרגות. יש חניה פרטית בתוך המשק. לבירור התאמות גישה ולתיאום ההגעה, פנו למארחים לפני ההזמנה.</p></details>
