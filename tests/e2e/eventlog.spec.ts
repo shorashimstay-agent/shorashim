@@ -87,7 +87,8 @@ test('L2: when Firestore is unreachable the buffer stops at its ceiling, booking
   const start = addDays(base, 10);
   const closed = await api.console('block', { args: { kind: 'block', start, end: addDays(start, 1), reason: 'אחר', note: `${runTag} יומן מלא` } });
   expect(closed).toMatchObject({ ok: true, result: 'blocked' });
-  expect(await api.console('unblock', { id: closed.id })).toMatchObject({ ok: true, result: 'reopened' });
+  const reopened = await api.console('unblock', { id: closed.id });
+  expect(reopened, JSON.stringify(reopened)).toMatchObject({ ok: true, result: 'reopened' });
   // Test events stop at 80, so these owner actions still found room in the buffer.
   expect((await api.eventLog('status')).status.bufferedTypes['console.block']).toBeGreaterThan(0);
 
