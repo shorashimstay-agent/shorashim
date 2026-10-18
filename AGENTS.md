@@ -102,8 +102,10 @@ These instructions apply to this project and its subdirectories.
 
 ## ClickUp
 
-- Use the ClickUp workspace and space specified in the local integration configuration for this project's tasks.
-- Discover the lists within this space before choosing a task destination. If the user's request does not identify a list and multiple lists are plausible, ask which list to use.
+- Automatically use the local `clickup-tasks` skill whenever the user asks to create ClickUp tasks, including Hebrew requests such as "הוסף משימות לקליקאפ". The user does not need to name or explicitly invoke the skill. Read its `SKILL.md` using the available-skills catalog before acting. If it is absent from the catalog, look for `skills/clickup-tasks/SKILL.md` under the Codex home directory (`CODEX_HOME`, or `~/.codex` when unset). If unavailable, explain that and continue with the configured helper and the instructions below where possible.
+- Use the ClickUp workspace specified in the local integration configuration for this project's tasks. Route frontend tasks to the `shorashim-front` space and backend tasks to the `shorashim-backend` space, using its `משימות בקאנד` list for backend tasks.
+- If it is unclear whether a task belongs to frontend or backend, ask the user before creating or moving it. Do not guess the classification.
+- Discover the lists within the selected space before choosing a task destination. If the user's request does not identify a list and multiple lists are plausible, ask which list to use.
 - Use the API helper and usage instructions specified in the local configuration. Never print API keys or save them in project files.
 - Create or update tasks when the user requests it. Do not create test tasks to verify authentication.
 
