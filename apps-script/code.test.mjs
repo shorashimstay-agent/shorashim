@@ -219,9 +219,9 @@ test('a failing calendar read answers server_error and is not retried for a few 
   assert.equal(asked.length, 1);
 });
 
-test('cancelling a prep day + wedding night booking counts from 15:00 the day before the wedding', () => {
+test('cancelling a prep day + wedding night booking counts from the arrival on the wedding day', () => {
   const ctx = load({ LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) } });
-  // Wedding on 2026-10-15: the stay holds the 14th and the 15th and starts on the 14th at 15:00.
+  // Wedding on 2026-10-15: the stay holds the 15th only and starts that day at 14:00.
   ctx.findBooking_ = () => ({
     id: 'ev1',
     iCalUID: 'uid1',
@@ -230,9 +230,9 @@ test('cancelling a prep day + wedding night booking counts from 15:00 the day be
     extendedProperties: { shared: { source: 'console', kind: 'phone', request: JSON.stringify({ stayType: 'bride_day_wedding_night', name: 'דנה', checkIn: '2026-10-15' }) } },
   });
   ctx.cancellationsLog_ = () => assert.fail('a refused cancellation writes nothing');
-  ctx.fmt_ = () => '2026-10-15T12:00';
+  ctx.fmt_ = () => '2026-10-15T14:00';
   assert.equal(ctx.cancelBooking_('uid1', { by: 'guest', notify: false }).error, 'started');
-  ctx.fmt_ = () => '2026-10-15T11:59';
+  ctx.fmt_ = () => '2026-10-15T13:59';
   ctx.cancellationsLog_ = () => {
     throw new Error('reached the log');
   };
@@ -250,7 +250,7 @@ test('the live check refuses bad ranges', () => {
 test('the short dates for the prep day + wedding night package carry the wedding-day arrival and the 13:00 departure', () => {
   const ctx = load();
   ctx.heDate_ = (d) => d;
-  assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }), 'חתונה 2026-11-20 · הגעה 2026-11-20 12:00 · יציאה 2026-11-21 עד 13:00');
+  assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }), 'חתונה 2026-11-20 · הגעה 2026-11-20 14:00 · יציאה 2026-11-21 עד 13:00');
   assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day', checkIn: '2026-11-20' }), 'חתונה 2026-11-20', 'the other packages are unchanged');
 });
 
@@ -261,7 +261,7 @@ test('messages for the prep day + wedding night package give the wedding-day arr
   assert.deepEqual([...lines], [
     'סוג האירוח: יום התארגנות + ליל כלולות',
     'תאריך החתונה: 2026-11-20',
-    'הגעה: 2026-11-20 מ-12:00 (יום החתונה)',
+    'הגעה: 2026-11-20 מ-14:00 (יום החתונה)',
     'עזיבה: 2026-11-21 עד 13:00 (למחרת החתונה)',
     'מספר אורחים: 3',
     'משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): 5',

@@ -22,6 +22,9 @@ import {
   pricesVersionOf,
   stayRange,
   stayStartsAt,
+  toMinutes,
+  PREP_WEDDING_NIGHT_ARRIVAL,
+  WEDDING_NIGHT_CHECK_OUT,
   workingDaysBetween,
   validateBlock,
   validateRequest,
@@ -198,7 +201,10 @@ test('the prep day + wedding night package holds the wedding night only, not the
   assert.equal(res.value.estimate, 2750, 'a flat package price, whatever the nights or guests');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', adults: 4 }, '2026-09-15').errors.adults, 'invalid');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
-  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-10T12:00', 'it starts on the wedding day, after the night before checks out');
+  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-10T14:00', 'it starts on the wedding day, after the night before checks out');
+  // The night before is open to any stay, the latest leaving at WEDDING_NIGHT_CHECK_OUT. An earlier
+  // arrival would overlap that guest, and nothing in the availability (nights only) would catch it.
+  assert.ok(toMinutes('2026-10-10T' + PREP_WEDDING_NIGHT_ARRIVAL) > toMinutes('2026-10-10T' + WEDDING_NIGHT_CHECK_OUT), 'the arrival comes after the latest check-out');
   // The existing packages keep their rules.
   assert.equal(estimatePrice('bride_night_day', 2, 2, PRICES), 2650);
   assert.deepEqual(stayRange('bride_night_day', '2026-10-10', ''), { start: '2026-10-09', end: '2026-10-11' });
