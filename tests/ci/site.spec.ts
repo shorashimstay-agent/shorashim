@@ -252,6 +252,19 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       await expect(gate.getByText('פני אלינו לבדיקת אפשרויות נוספות.')).toBeVisible();
       await expect(gate.locator('[data-alternative]')).toHaveCount(0);
     });
+
+    test('a taken night before does not stop the prep day + wedding night, which holds the wedding night only', async ({ page }) => {
+      const wedding = addDays(israelToday(), 50);
+      const sent = await fakeBackend(page, { taken: [addDays(wedding, -1)] });
+      await page.goto('/#bride-page');
+      const booking = page.locator('#booking');
+      await booking.evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+      await booking.locator('[data-stay-type="bride_day_wedding_night"]').click();
+      await pickDates(page, [wedding]);
+      await booking.locator('.booking-bar-continue').click();
+      await expect(page.locator('.booking-request-screen').getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+      expect(sent.checks).toEqual([`${wedding}..${addDays(wedding, 1)}`]);
+    });
   });
 }
 
@@ -352,7 +365,7 @@ test('a refusal whose re-check gets no answer still says the dates are taken, wi
 for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 375, height: 800 }]) {
   test.describe(`the new package and the dialog's accessibility on ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
-  test('the prep day + wedding night package is bookable, with its dates and up to 3 overnight guests', async ({ page }) => {
+  test('the prep day + wedding night package is bookable, with its one night and up to 3 overnight guests', async ({ page }) => {
   const sent = await fakeBackend(page);
   await openBooking(page);
   const wedding = addDays(israelToday(), 45);
@@ -368,9 +381,12 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
   });
   expect(ref).toBe('SH-CI000');
   expect(sent.body).toMatchObject({ action: 'request', stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: '', adults: 3, participants: 5 });
+  // One night: from the wedding day to the morning after, not from the day before.
   const facts = booking.locator('.request-facts');
-  await expect(facts).toContainText(addDays(wedding, -1).split('-').reverse().join('.'));
+  await expect(facts).toContainText(wedding.split('-').reverse().join('.'));
   await expect(facts).toContainText(addDays(wedding, 1).split('-').reverse().join('.'));
+  await expect(facts).not.toContainText(addDays(wedding, -1).split('-').reverse().join('.'));
+  await expect(booking.getByText('לילה אחד: הגעה ב־').first()).toBeVisible();
   await expect(booking.getByText('יציאה עד 13:00 למחרת החתונה').first()).toBeVisible();
 });
 

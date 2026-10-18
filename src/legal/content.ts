@@ -2,6 +2,7 @@
 // work (apps-script/, src/); change it together with them.
 // A body item is a paragraph (string) or a bulleted list (string[]). URLs, emails and phone numbers
 // in the text become links.
+import { PREP_WEDDING_NIGHT_ARRIVAL } from '../../shared/rules.js';
 
 export type Lang = 'he' | 'en';
 export type PageId = 'terms' | 'privacy' | 'accessibility';
@@ -13,7 +14,7 @@ export interface LegalDoc {
   sections: { heading: string; body: (string | string[])[] }[];
 }
 
-const UPDATED = { he: 'עודכן לאחרונה: 15.10.2026', en: 'Last updated: 15 October 2026' };
+const UPDATED = { he: 'עודכן לאחרונה: 18.10.2026', en: 'Last updated: 18 October 2026' };
 const CONTACT_HE = ['טלפון ו-WhatsApp: 052-322-4220', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
 const CONTACT_EN = ['Phone and WhatsApp: +972-52-322-4220', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
 
@@ -67,7 +68,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'האירוח מיועד למבוגרים בלבד.',
               'עד שלושה מבוגרים. האורח השלישי לן על ספה נפתחת בסלון.',
               "צ'ק-אין החל מהשעה 15:00, וצ'ק-אאוט עד השעה 11:00. שינוי בשעות אפשרי בתיאום מראש.",
-              'יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג. יום התארגנות + ליל כלולות: הגעה ב-15:00 ביום שלפני החתונה, התארגנות ביום החתונה וחזרה ללינה אחרי האירוע, יציאה ב-13:00 למחרת החתונה, עד 3 אורחי לינה.',
+              `יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג. יום התארגנות + ליל כלולות: הגעה ב-${PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה, התארגנות וחזרה ללינה אחרי האירוע, יציאה ב-13:00 למחרת החתונה (לילה אחד), עד 3 אורחי לינה.`,
               'במסלולי יום הכלה משתתפים עד 5 אנשים, כולל הכלה, המלוות ואנשי המקצוע.',
               'האירוח הוא ללא בעלי חיים.',
               'העישון מותר בחצר ובמרפסת הגג בלבד, ואסור בתוך החלל הסגור.',
@@ -150,7 +151,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Adults only.',
               'Up to three adults. The third guest sleeps on a sofa bed in the living room.',
               'Check-in from 15:00, check-out by 11:00. Other times can be arranged in advance.',
-              'Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple. Preparation day + wedding night: arrive 15:00 the day before the wedding, get ready on the wedding day and come back for the night after the event, leave 13:00 the day after the wedding, up to 3 overnight guests.',
+              `Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple. Preparation day + wedding night: arrive ${PREP_WEDDING_NIGHT_ARRIVAL} on the wedding day, get ready and come back for the night after the event, leave 13:00 the day after the wedding (one night), up to 3 overnight guests.`,
               'Bride-day packages host up to 5 people during the day, including the bride, her companions and the professionals.',
               'No pets.',
               'Smoking is allowed only in the courtyard and on the roof terrace, never indoors.',
