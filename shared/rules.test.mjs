@@ -188,16 +188,17 @@ test('wedding requests derive their range from the wedding date', () => {
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
 });
 
-test('the prep day + wedding night package holds the night before and the wedding night, from 15:00 the day before', () => {
+test('the prep day + wedding night package holds the wedding night only, not the night before', () => {
   const res = validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', checkOut: '', adults: 3, participants: 5 }, '2026-09-15', PRICES);
   assert.equal(res.ok, true);
-  assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-09', '2026-10-11', '2026-10-11', 2]);
+  assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-10', '2026-10-11', '2026-10-11', 1]);
+  assert.deepEqual(stayRange('bride_day_wedding_night', '2026-10-10', ''), { start: '2026-10-10', end: '2026-10-11' });
   assert.equal(res.value.adults, 3, 'up to three overnight guests');
   assert.equal(res.value.participants, 5);
   assert.equal(res.value.estimate, 2750, 'a flat package price, whatever the nights or guests');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', adults: 4 }, '2026-09-15').errors.adults, 'invalid');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
-  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-09T15:00');
+  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-10T12:00', 'it starts on the wedding day, after the night before checks out');
   // The existing packages keep their rules.
   assert.equal(estimatePrice('bride_night_day', 2, 2, PRICES), 2650);
   assert.deepEqual(stayRange('bride_night_day', '2026-10-10', ''), { start: '2026-10-09', end: '2026-10-11' });

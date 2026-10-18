@@ -28,7 +28,8 @@ interface AvailabilityCalendarProps {
 /**
  * Date picker that only allows free nights. Regular stays pick check-in then check-out, and a
  * check-out may fall on a day whose night is taken. Wedding stays pick the wedding date, which
- * needs both the night before and the wedding night free.
+ * needs every night the package holds free (stayRange): the night before and the wedding night, or
+ * the wedding night alone for the prep day + wedding night.
  */
 export default function AvailabilityCalendar({ stayType, blocked, windowEnd, checkIn, checkOut, onChange }: AvailabilityCalendarProps) {
   const wedding = isWeddingStay(stayType);
@@ -40,7 +41,10 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
   const isDisabled = (date: Date) => {
     const d = toISODate(date);
     if (d < firstDate) return true;
-    if (wedding) return d > lastNight || blocked.has(addDays(d, -1)) || blocked.has(d);
+    if (wedding) {
+      const held = stayRange(stayType, d, '');
+      return d > lastNight || nightsOf(held.start, held.end).some((n) => blocked.has(n));
+    }
     if (pickingCheckOut && d > checkIn) {
       return d > addDays(lastNight, 1) || daysBetween(checkIn, d) > MAX_NIGHTS || nightsOf(checkIn, d).some((n) => blocked.has(n));
     }

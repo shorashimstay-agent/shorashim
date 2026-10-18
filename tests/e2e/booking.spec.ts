@@ -387,30 +387,32 @@ test('G8: a bride-day request holds the night before and the wedding night, with
   expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
 });
 
-test('G11: the prep day + wedding night package holds the night before and the wedding night, at its own price, through approval and cancellation', async ({ page }) => {
+test('G11: the prep day + wedding night package holds the wedding night only, at its own price, through approval and cancellation', async ({ page }) => {
   const name = guestName('התארגנות וליל כלולות');
   const wedding = addDays(slot(11), 1);
   await openBooking(page);
   const ref = await submitBooking(page, { stayType: 'bride_day_wedding_night', checkIn: wedding, adults: 3, participants: 5, name, phone: randomPhone() });
   const ev = await onlyRequestEvent(name);
-  expect([ev.start.date, ev.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
+  expect([ev.start.date, ev.end.date]).toEqual([wedding, addDays(wedding, 1)]);
   expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({
     ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), adults: 3, participants: 5,
     estimate: pricesFile.prices.bride_day_wedding_night,
   });
   expect(ev.description).toContain('עד 13:00 (למחרת החתונה)');
-  expect(await blocked([addDays(wedding, -1), wedding])).toBe(true);
-  // The live check sees the hold at once, with no snapshot in between.
-  expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: false, conflicts: [addDays(wedding, -1), wedding] });
-  // Approved, it is a booking over the same two nights; cancelled from the console, they are free.
+  expect(ev.description).toContain('(יום החתונה)');
+  expect(await blocked([wedding])).toBe(true);
+  // The live check sees the hold at once, with no snapshot in between; the night before stays open.
+  expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: false, conflicts: [wedding] });
+  expect(await api.check(addDays(wedding, -1), wedding)).toMatchObject({ ok: true, free: true, conflicts: [] });
+  // Approved, it is a booking over the same one night; cancelled from the console, it is free.
   expect(await api.decide('approve', ev.iCalUID)).toMatchObject({ ok: true, result: 'approved' });
   const booked = await waitFor('the approved booking', async () => (await bookingEvents(cfg, name))[0], 60_000, 3_000);
-  expect([booked.start.date, booked.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
+  expect([booked.start.date, booked.end.date]).toEqual([wedding, addDays(wedding, 1)]);
   const listed = (await api.console('overview')).bookings.find((x: any) => x.id === booked.iCalUID);
   expect(listed).toMatchObject({ cancellable: true });
   const cancelled = await api.console('cancelBooking', { id: booked.iCalUID, args: { requestId: `${runTag}-g11`.replace(/[^\w-]/g, ''), by: 'us', notify: false, reason: '' } });
-  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ ok: true, result: 'cancelled', start: addDays(wedding, -1), nights: 2 });
-  expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
+  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ ok: true, result: 'cancelled', start: wedding, nights: 1 });
+  expect(await api.check(wedding, addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
 });
 
 test('G12: the live check answers from the calendars and refuses bad ranges', async () => {

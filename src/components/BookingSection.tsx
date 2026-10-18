@@ -4,7 +4,7 @@ import { BRAND_DATA } from '../data/shorashimData';
 import { STAY_PACKAGES, PRICE_NOTE } from '../data/booking';
 import { useBookingForm } from '../booking/useBookingForm';
 import { Announcer, DatePicker, FieldError, Honeypot, SendConsent, SentHeading, described } from '../booking/parts';
-import { NOTES_MAX, addDays, daysBetween, estimatePrice, formatHebrewDate, type StayType } from '../lib/stay';
+import { NOTES_MAX, PREP_WEDDING_NIGHT_ARRIVAL, addDays, daysBetween, estimatePrice, formatHebrewDate, type StayType } from '../lib/stay';
 import PolicyDetails from './PolicyDetails';
 import PriceStatus from './PriceStatus';
 
@@ -131,7 +131,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                     {p.id === 'bride_day' && <span className="block text-sm mt-1">ללא לינה · עד 5 משתתפים בסך הכול, כולל הכלה, המלוות ואנשי המקצוע</span>}
                     {p.id === 'bride_night_day' && <span className="block text-sm mt-1">עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול ביום ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע</span>}
                     {p.id === 'wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה אחרי האירוע בתיאום · יציאה ב־13:00 · שובר לארוחת בוקר זכרונית</span>}
-                    {p.id === 'bride_day_wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה ב־15:00 ביום שלפני החתונה · עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול בהתארגנות, כולל הכלה, המלוות ואנשי המקצוע · חזרה ללינה אחרי החתונה ויציאה עד 13:00 למחרת</span>}
+                    {p.id === 'bride_day_wedding_night' && <span className="block text-sm mt-1 leading-relaxed">הגעה ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה · עד 3 מבוגרים ללינה · עד 5 משתתפים בסך הכול בהתארגנות, כולל הכלה, המלוות ואנשי המקצוע · חזרה ללינה אחרי החתונה ויציאה עד 13:00 למחרת</span>}
                   </span>
                 </button>
               ))}
@@ -188,7 +188,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               {pkg.hours}
               {form.stayType === 'wedding_night' && ' · נא לציין שעת הגעה משוערת בהערות; הגעה אחרי חצות תתואם אישית.'}
             </p>
-            {wedding && form.stayType !== 'bride_day' && (
+            {form.stayType === 'bride_night_day' && (
               <p className="mt-1 text-sm text-[#5E574D]">
                 כדי שהבית יהיה פנוי ושקט עבורך, אנחנו שומרים את הלילה שלפני החתונה ואת ליל החתונה.
               </p>
@@ -329,7 +329,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                 <dd>{form.stayType === 'bride_night_day' && form.checkIn
                   ? <>{formatHebrewDate(addDays(form.checkIn, -1))} – {formatHebrewDate(form.checkIn)}</>
                   : form.stayType === 'bride_day_wedding_night' && form.checkIn
-                  ? <>{formatHebrewDate(addDays(form.checkIn, -1))} – {formatHebrewDate(addDays(form.checkIn, 1))}</>
+                  ? <>{formatHebrewDate(form.checkIn)} – {formatHebrewDate(addDays(form.checkIn, 1))}</>
                   : form.datesText || 'טרם נבחרו'}</dd>
               </div>
               <div>
@@ -354,7 +354,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               </div>
             </dl>
             {form.stayType === 'bride_night_day' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">לילה אחד ויום התארגנות. הגעה ב־15:00 ביום שלפני החתונה ויציאה ב־15:30 ביום החתונה.</p>}
-            {form.stayType === 'bride_day_wedding_night' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">תאריך החתונה: {formatHebrewDate(form.checkIn)}. שני לילות: הגעה ב־15:00 ביום שלפני החתונה, יום ההתארגנות, וחזרה ללינה אחרי החתונה. יציאה עד 13:00 למחרת החתונה.</p>}
+            {form.stayType === 'bride_day_wedding_night' && form.checkIn && <p className="text-sm mt-3 text-[#665548]">תאריך החתונה: {formatHebrewDate(form.checkIn)}. לילה אחד: הגעה ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה להתארגנות, וחזרה ללינה אחרי החתונה. יציאה עד 13:00 למחרת החתונה.</p>}
             <p className="text-sm mt-3">{PRICE_NOTE}</p>
             <PriceStatus />
           </div>
