@@ -794,6 +794,23 @@ dialog#faq { padding: 0; }
 
 /* A slim mobile booking bar with comfortable touch targets. */
 @media (max-width: 767px) {
+  .compact-booking:not(.booking-expanded) .booking-bar-dates[open] {
+    grid-column: 1 / -1;
+  }
+  .compact-booking:not(.booking-expanded) .booking-bar-dates .booking-bar-popover {
+    position: static;
+    width: 100%;
+    max-width: none;
+    padding: 8px;
+    border: 0;
+    border-top: 1px solid #ded5c8;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .booking-bar-dates .shorashim-calendar {
+    --rdp-day-width: clamp(26px, calc((100vw - 120px) / 7), 36px);
+    --rdp-day_button-width: clamp(24px, calc((100vw - 134px) / 7), 34px);
+  }
   #booking > div { padding-inline: 16px; }
   .audience-holiday .compact-booking:not(.booking-expanded) .booking-bar {
     grid-template-columns: minmax(0, 1fr) 84px;
