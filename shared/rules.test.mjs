@@ -324,6 +324,8 @@ test('a stored stay follows its event when the owner moves, stretches or shorten
   assert.deepEqual(storedSpan(prep, '2026-11-20', '2026-11-21'), { start: '2026-11-20T08:00', end: '2026-11-20T16:00' }, 'the night before trimmed: its own hours');
   assert.deepEqual(storedSpan(prep, '2026-11-19', '2026-11-20'), { start: '2026-11-19T15:00', end: '2026-11-20T11:00' }, 'its day trimmed away: the night left');
   assert.deepEqual(storedSpan(prep, '2026-11-18', '2026-11-21'), { start: '2026-11-18T15:00', end: '2026-11-21T11:00' }, 'stretched: every night of the event, and its hours');
+  const before = { stayType: 'bride_night_day', checkIn: '2026-11-20' };
+  assert.deepEqual(storedSpan(before, '2026-11-19', '2026-11-20'), { start: '2026-11-19T17:30', end: '2026-11-20T16:00' }, 'trimmed to its own night, it keeps its hours');
   const night = { stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' };
   assert.deepEqual(storedSpan(night, '2026-11-19', '2026-11-21'), { start: '2026-11-20T08:00', end: '2026-11-21T13:00' });
   assert.deepEqual(storedSpan({ stayType: 'wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21' }, '2026-11-20', '2026-11-22'), { start: '2026-11-20T15:00', end: '2026-11-22T13:00' });

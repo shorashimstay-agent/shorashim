@@ -305,7 +305,7 @@ export function stayNights(stayType, checkIn, checkOut) {
  * - A couple stay or a wedding night takes the event's dates as its own.
  * - A bride package keeps its wedding date while the event still covers that day, and moves with
  *   the event when it no longer does. Stretched, it also keeps every night of the event; shortened
- *   to one night, it keeps only its own hours (or that night, when its day is gone).
+ *   to one night, it keeps only its own hours (or that night, when it is not the package's own).
  * @param {{ stayType?: string, checkIn?: string, checkOut?: string }} req @param {string} start @param {string} end
  */
 export function storedSpan(req, start, end) {
@@ -317,8 +317,10 @@ export function storedSpan(req, start, end) {
   var nights = daysBetween(start, end);
   if (nights === 2) return staySpan(req.stayType, covers ? wedding : addDays(start, 1), '');
   if (nights > 2) return hull(staySpan(req.stayType, covers ? wedding : addDays(start, 1), ''), nightsSpan(start, end));
-  // One night left: the wedding day's own hours if the event still starts on it, else that night.
-  return start === wedding ? staySpan(req.stayType, wedding, '') : nightsSpan(start, end);
+  // One night left: the package's own hours if that is its own night (the wedding day, or for the
+  // night before + prep day the night before it), else that night.
+  var own = start === wedding || (req.stayType === 'bride_night_day' && start === addDays(wedding, -1));
+  return own ? staySpan(req.stayType, wedding, '') : nightsSpan(start, end);
 }
 
 /** The smallest span covering both. */

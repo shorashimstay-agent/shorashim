@@ -342,3 +342,10 @@ test('the admin sheet and the console show a bride package\'s own hours, not the
   assert.equal(ctx.stayedNights_({ stayType: 'bride_day', checkIn: '2026-11-20' }, { nights: 2 }), 0);
   assert.equal(ctx.stayOf_({ start: { date: '2026-11-19' }, end: { date: '2026-11-21' } }), null, 'a closing has no stay hours');
 });
+
+test('a decided bride request shows its own hours, not its event\'s nights', () => {
+  const ctx = load();
+  assert.deepEqual(plain(ctx.decisionSpan_({ stayType: 'bride_day_wedding_night', start: '2026-11-19', end: '2026-11-21' })), { start: '2026-11-20T08:00', end: '2026-11-21T13:00' });
+  assert.deepEqual(plain(ctx.decisionSpan_({ stayType: 'couple', start: '2026-11-19', end: '2026-11-21' })), { start: '2026-11-19T15:00', end: '2026-11-21T11:00' });
+  assert.equal(ctx.decisionSpan_({ stayType: '', start: '2026-11-19', end: '2026-11-21' }), null);
+});
