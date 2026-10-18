@@ -422,8 +422,9 @@ test('G11: the prep day + wedding night package is one night from 08:00, keeps t
 
 test('G14: after a prep day, another bride checks in at 17:30 for the next day, and no couple stays that evening', async ({ page }) => {
   const prep = addDays(slot(14), 1);
-  const first = guestName('יום כלה ברצף');
-  const second = guestName('לילה לפני ברצף');
+  // Names that share no word with each other or the package names: the calendar search matches words.
+  const first = guestName('ראשונה ברצף');
+  const second = guestName('שנייה ברצף');
   await openBooking(page); // loads reCAPTCHA for the direct requests below
   expect(await postRequest(page, { stayType: 'bride_day', checkIn: prep, checkOut: '', adults: 2, participants: 3, name: first, phone: randomPhone() })).toMatchObject({ ok: true });
   // A couple on the prep day's evening clashes with its 16:00 end; the server refuses it by its span.
