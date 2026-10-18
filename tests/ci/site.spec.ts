@@ -272,7 +272,7 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       await pickDates(page, [wedding]);
       await booking.locator('.booking-bar-continue').click();
       await expect(page.getByRole('alertdialog', { name: 'המועד שבחרת אינו פנוי.' }), 'a guest on the night before clashes with the 08:00 start').toBeVisible();
-      expect(sent.checks).toEqual([`${wedding}..${addDays(wedding, 1)}`]);
+      expect(sent.checks).toEqual([`${addDays(wedding, -1)}..${addDays(wedding, 1)}`]);
     });
 
     test('after a prep day, the calendar offers the next bride at 17:30 but no couple stay that evening', async ({ page }) => {

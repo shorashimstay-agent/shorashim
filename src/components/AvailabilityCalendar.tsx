@@ -59,8 +59,16 @@ export default function AvailabilityCalendar({ stayType, blocked, busy, windowEn
     else onChange(checkIn, d);
   };
 
-  // Day-only bridal preparation highlights the chosen day, rather than the surrounding hold nights.
-  const range = checkIn ? (stayType === 'bride_day' ? { start: checkIn, end: checkIn } : stayType === 'bride_night_day' ? { start: addDays(checkIn, -1), end: checkIn } : stayRange(stayType, checkIn, checkOut || checkIn)) : null;
+  // Bride packages highlight the guest's own days, rather than every night their event keeps free.
+  const range = checkIn
+    ? stayType === 'bride_day'
+      ? { start: checkIn, end: checkIn }
+      : stayType === 'bride_night_day'
+        ? { start: addDays(checkIn, -1), end: checkIn }
+        : stayType === 'bride_day_wedding_night'
+          ? { start: checkIn, end: addDays(checkIn, 1) }
+          : stayRange(stayType, checkIn, checkOut || checkIn)
+    : null;
   const inRange = (date: Date, part: 'start' | 'middle' | 'end') => {
     if (!range) return false;
     const d = toISODate(date);

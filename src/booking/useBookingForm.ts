@@ -252,7 +252,9 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     // has not caught up yet. Without an answer there is no window to look for nearby dates in.
     const fresh: Availability = result?.availability ?? { from: '', to: '', blocked: new Set<string>(), busy: [] };
     taken.forEach((d) => fresh.blocked.add(d));
-    if (taken.length) fresh.busy = [...fresh.busy, ...spansOfNights(taken)].sort((a, b) => (a.start < b.start ? -1 : 1));
+    // The check's own spans say exactly what is taken; only when it found the dates free (its copy not
+    // caught up yet) or gave no answer do the refused nights stand in, as whole nights.
+    if (taken.length && (!result || result.free)) fresh.busy = [...fresh.busy, ...spansOfNights(taken)].sort((a, b) => (a.start < b.start ? -1 : 1));
     // The calendar shows what the check found for its window.
     setAvailability((prev) => {
       if (!prev) return prev;

@@ -16,20 +16,22 @@ Each booking is an all-day event from the check-in date to the check-out date. G
 
 Availability is worked out in time. Every stay occupies a **span** (`staySpan` in `shared/rules.js`), and two stays clash exactly when their spans overlap. The bride packages' hours come from the owner (ClickUp `z8r3fdvdp6`, 18.10.2026):
 
-| Stay on date D | Occupies | Calendar event (the nights it is booked and priced for) |
+| Stay on date D | Occupies | Calendar event (the nights it keeps from guests) · nights stayed |
 |---|---|---|
-| Couple stay | 15:00 on check-in → 11:00 on check-out | check-in → check-out |
-| Wedding night | 15:00 → 13:00 the next day | D → D+1 |
-| Prep day only (`bride_day`) | 08:00 → 16:00 on D | D-1 → D+1 |
-| Night before + prep day (`bride_night_day`) | 17:30 on D-1 → 16:00 on D | D-1 → D+1 |
-| Prep day + wedding night (`bride_day_wedding_night`) | 08:00 on D → 13:00 on D+1 | D → D+1 (one night) |
+| Couple stay | 15:00 on check-in → 11:00 on check-out | check-in → check-out · all |
+| Wedding night | 15:00 → 13:00 the next day | D → D+1 · 1 |
+| Prep day only (`bride_day`) | 08:00 → 16:00 on D | D-1 → D+1 · 0 |
+| Night before + prep day (`bride_night_day`) | 17:30 on D-1 → 16:00 on D | D-1 → D+1 · 1 |
+| Prep day + wedding night (`bride_day_wedding_night`) | 08:00 on D → 13:00 on D+1 | D-1 → D+1 · 1 |
 | Closings, holds, channel and manual all-day events | their nights, as a couple stay | as entered |
 
 Preparation can also start at 06:00 on a Friday by arrangement. Nothing chooses that automatically; an earlier start changes no clash, since anything before 08:00 is a night's stay that ends at 11:00 or later.
 
 That gives the owner's rules in both booking orders. No guest can sleep the night before a prep day (their stay ends after 08:00). No couple can check in on a prep day's evening (15:00 is before 16:00). Another bride can check in at 17:30 for the next day, or prepare the next morning. Nobody can prepare the morning after a wedding night (13:00 is after 08:00). A prep day + wedding night keeps the night before free of guests without counting or charging it as a night.
 
-Stored stays carry their `request` JSON (`stayType`, `checkIn`, `checkOut`), and the backend works out their span from that (`itemSpanEvent_`), not from the event's dates. So cancelling or declining a stay frees exactly its own time, and an older event's dates do not matter.
+A bride package's event covers the nights it keeps from guests, so the owner's calendar shows them taken. Its `nights` (`stayNights`) are the nights the guest actually stays, which is what the console, the admin sheet and the messages show, and the sheet's arrival and departure are the stay's own hours.
+
+Stored stays carry their `request` JSON (`stayType`, `checkIn`, `checkOut`), and the backend works out their span from it together with the event's current dates (`storedSpan`, `itemSpanEvent_`). If the owner moves an event in Google Calendar, the stay moves with it; if she stretches it, the stay also keeps every night of the event. Cancelling or declining a stay frees exactly its own time. In the console, a phone booking of a bride package is entered over the night before and the wedding night, as on the website. If those nights clash, it can still be offered, and the server checks it by its hours.
 
 The **blocked nights** the site and the snapshot carry are the nights a couple stay cannot take. They are exactly what they were before the spans for every package, so a page from before the spans stays correct. The **busy spans** (`busy`) are what the site uses to tell which package fits which date.
 

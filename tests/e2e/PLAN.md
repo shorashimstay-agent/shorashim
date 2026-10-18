@@ -132,7 +132,8 @@ console (O9); emails sent before that open this page, so it stays covered.
 - G10: the web app reads the staging prices sheet: with the pin cleared, `diag` reports the sheet's
   version; after the suite edits a price in the sheet, `diag` reports the new version within about
   a minute, with no deploy. The edit is undone afterwards.
-- G11: `bride_day_wedding_night` on day D is one night (event D → D+1) from 08:00, carries 3
+- G11: `bride_day_wedding_night` on day D is one night from 08:00 (its event D-1 → D+1 keeps the
+  night before from guests; `nights` is 1), carries 3
   overnight guests and 5 day participants, is priced at its own test price, and its owner text gives
   the 08:00 arrival, the 13:00 departure and the night before kept free. Couples cannot take D-1 or
   D; a prep day on D-1 still fits. The live check sees the hold at once. Approved, it is a booking
