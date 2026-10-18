@@ -325,7 +325,14 @@
   // browser lays the two dates out left to right, and the range reads backwards.
   function range(a, b) { return heFull(a) + ' \u200F–\u200F ' + heFull(b); }
   function money(n) { return n ? '₪' + Number(n).toLocaleString('en-US') : '—'; }
-  function nightsText(n) { return n === 1 ? 'לילה אחד' : n + ' לילות'; }
+  function nightsText(n) { return n === 0 ? 'ללא לינה' : n === 1 ? 'לילה אחד' : n + ' לילות'; }
+  // A stored stay's own hours (x.stay, from the backend), so a bride package shows when the guest
+  // comes rather than the night before its event keeps free; its event's dates otherwise.
+  function stayText(x) {
+    if (!x.stay) return range(x.start, x.end);
+    var at = function (t) { return he(t.slice(0, 10)) + ' ' + t.slice(11); };
+    return at(x.stay.start) + ' – ' + at(x.stay.end);
+  }
   function adultsText(n) { return n ? (Number(n) === 1 ? 'מבוגר אחד' : n + ' מבוגרים') : ''; }
   function participantsText(n) { return n ? n + ' משתתפי יום' : ''; }
   function announce(text) { $('status').textContent = ''; setTimeout(function () { $('status').textContent = text; }, 50); }
@@ -860,6 +867,7 @@
       // (a 17:30 check-in after a prep day); the panel offers it, and the server checks it.
       b.start = date;
       b.end = null;
+      b.phoneOnly = false;
       announce('לילה ראשון: ' + he(date) + (kinds[date] ? ' (תפוס)' : '') + '. עכשיו לחצי על יום היציאה');
     } else {
       b.end = date;
@@ -967,7 +975,7 @@
 
   function blockResult(r) {
     var title = r.kind === 'phone' ? '✓ ההזמנה של ' + esc(r.name) + ' נשמרה' : r.kind === 'hold' ? '✓ התאריכים שמורים' : '✓ התאריכים נסגרו';
-    var html = '<div class="result ok" id="block-result"><p class="title">' + title + '</p><p>' + range(r.start, r.end) + ' · ' + nightsText(r.nights) + (r.reason ? ' · ' + esc(r.reason) : '') + '</p>' +
+    var html = '<div class="result ok" id="block-result"><p class="title">' + title + '</p><p>' + stayText(r) + ' · ' + nightsText(r.nights) + (r.reason ? ' · ' + esc(r.reason) : '') + '</p>' +
       '<ul class="prop"><li>יומן ההזמנות של Google<span class="pill ok">נשמר</span></li>' +
       '<li>האתר<span class="pill ' + (r.snapshot ? 'ok">מעודכן' : 'warn">יתעדכן תוך כמה דקות') + '</span></li></ul>';
     if (r.kind === 'hold') html += '<p>' + holdLeft(r.expiresAt) + ', אם לא תהפכי אותה להזמנה קודם.</p>';
@@ -1014,7 +1022,7 @@
       .then(function (res) {
         if (res.ok) {
           b.step = 'result';
-          b.result = { kind: res.kind, id: res.id, start: res.start, end: res.end, nights: res.nights, snapshot: res.snapshot, expiresAt: res.expiresAt, invited: res.invited, whatsapp: res.whatsapp, name: f.name.trim(), email: f.email.trim(), reason: f.kind === 'block' ? f.reason : '' };
+          b.result = { kind: res.kind, id: res.id, start: res.start, end: res.end, stay: res.stay, nights: res.nights, snapshot: res.snapshot, expiresAt: res.expiresAt, invited: res.invited, whatsapp: res.whatsapp, name: f.name.trim(), email: f.email.trim(), reason: f.kind === 'block' ? f.reason : '' };
           renderCalendar();
           var t = document.querySelector('#block-result .title');
           if (t) { t.setAttribute('tabindex', '-1'); t.focus(); announce(t.textContent); }
@@ -1109,6 +1117,7 @@
     } else if (action === 'back') {
       if (b.replaceId) { state.block = null; renderCalendar(); return; }
       b.step = 'pick';
+      b.phoneOnly = false;
       renderCalendar();
     } else if (action === 'no') {
       b.step = 'form';
@@ -1140,9 +1149,9 @@
   function bookingItem(b) {
     var guest = b.kind === 'website' || b.kind === 'phone';
     // Manual events (made in Google Calendar) stay here: they may be a guest's stay.
-    var what = [range(b.start, b.end), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants), b.kind === 'phone' && b.estimate ? money(b.estimate) : ''].filter(Boolean).join(' · ');
+    var what = [stayText(b), nightsText(b.nights), b.stayLabel, adultsText(b.adults), participantsText(b.participants), b.kind === 'phone' && b.estimate ? money(b.estimate) : ''].filter(Boolean).join(' · ');
     var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
-    return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.start) +
+    return '<li class="item" data-booking-ref="' + esc(b.ref) + '">' + dateTile(b.stay ? b.stay.start.slice(0, 10) : b.start) +
       '<div><p class="who">' + esc(guest ? b.name || b.title : b.title) + '</p><p class="what">' + esc(what) + '</p>' +
       (b.phone ? '<p class="what"><a href="tel:' + esc(b.phone) + '" dir="ltr">' + esc(b.phone) + '</a>' + (b.email ? ' · <span dir="ltr">' + esc(b.email) + '</span>' : '') + '</p>' : '') +
       (b.notes ? '<p class="what">' + esc(b.notes) + '</p>' : '') +
@@ -1191,7 +1200,7 @@
     var busy = c.step === 'busy';
     var ready = c.by && (!b.email || c.notify !== null);
     var html = '<div class="panel blockform" id="cancel-form" role="group" aria-labelledby="cf-title"><h3 id="cf-title">ביטול ההזמנה של ' + esc(b.name || b.title) + '</h3>' +
-      '<p class="what">' + range(b.start, b.end) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) + (b.kind === 'website' ? ' (הערכה)' : '') : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
+      '<p class="what">' + stayText(b) + ' · ' + nightsText(b.nights) + (b.stayLabel ? ' · ' + esc(b.stayLabel) : '') + (b.estimate ? ' · ' + money(b.estimate) + (b.kind === 'website' ? ' (הערכה)' : '') : '') + (b.ref ? ' · ' + esc(b.ref) : '') + '</p>' +
       '<span class="label" id="cf-by-l">מי ביקש לבטל</span><div class="choices" role="group" aria-labelledby="cf-by-l">' +
       choice('by', 'guest', c.by, 'האורח') + choice('by', 'us', c.by, 'אנחנו') + '</div>';
     if (c.by && b.cancelFees) html += '<p class="where" id="cf-fee"><b>דמי ביטול לפי התנאים:</b> ' + esc(feeLine(b.cancelFees[c.by], b.kind === 'website')) + ' לידיעה בלבד: המערכת לא גובה תשלום. מחושב לשעת טעינת הרשימה; הביטול מחשב שוב לפי שעת הביצוע.</p>';
@@ -1208,7 +1217,7 @@
   }
 
   function cancelResult(r) {
-    var html = '<div class="result ok" id="cancel-result"><p class="title">✓ ההזמנה של ' + esc(r.name) + ' בוטלה</p><p>' + range(r.start, r.end) + ' · ' + nightsText(r.nights) + (r.ref ? ' · ' + esc(r.ref) : '') + '</p>' +
+    var html = '<div class="result ok" id="cancel-result"><p class="title">✓ ההזמנה של ' + esc(r.name) + ' בוטלה</p><p>' + stayText(r) + ' · ' + nightsText(r.nights) + (r.ref ? ' · ' + esc(r.ref) : '') + '</p>' +
       '<ul class="prop"><li>יומן ההזמנות של Google<span class="pill ok">נמחקה</span></li>' +
       '<li>יומן הביטולים בגיליון<span class="pill ok">נרשם</span></li>' +
       '<li>האתר<span class="pill ' + (r.snapshot ? 'ok">התאריכים פנויים' : 'warn">יתעדכן תוך כמה דקות') + '</span></li>' +
@@ -1308,7 +1317,7 @@
   /** A closed date in the bookings tab: what closed it, and a reopen button with a second tap. */
   function blockItem(b) {
     var who = b.kind === 'block' ? 'סגור · ' + b.reason : 'שמירה זמנית' + (b.holder ? ' · ' + b.holder : '');
-    var what = [range(b.start, b.end), nightsText(b.nights), b.kind === 'hold' ? holdLeft(b.expiresAt) : ''].filter(Boolean).join(' · ');
+    var what = [stayText(b), nightsText(b.nights), b.kind === 'hold' ? holdLeft(b.expiresAt) : ''].filter(Boolean).join(' · ');
     var pill = KIND_PILL[b.kind] || KIND_PILL.manual;
     var side;
     if (!b.reopenable) side = '<span class="pill ' + pill[0] + '">' + pill[1] + '</span>';
