@@ -24,10 +24,8 @@ export var MAX_DAY_PARTICIPANTS = 5;
 export var DAY_PARTICIPANT_TYPES = ['bride_day', 'bride_night_day', 'bride_day_wedding_night'];
 export var NOTES_MAX = 450;
 
-// Wedding-type stays are keyed by the wedding date and block the night before and the wedding night,
-// except bride_day_wedding_night: one night only. Arrival at PREP_WEDDING_NIGHT_ARRIVAL on the
-// wedding day, the bride's preparation, and back for the wedding night, leaving by
-// WEDDING_NIGHT_CHECK_OUT the morning after. The night before stays open to other guests.
+// Wedding-type stays are keyed by the wedding date. What each one occupies, and so what it clashes
+// with, is its span of time (staySpan), not a list of nights.
 export var STAY_TYPES = {
   couple: { label: 'אירוח זוגי בוטיק', wedding: false },
   wedding_night: { label: 'ליל כלולות זוגי', wedding: false },
@@ -36,11 +34,16 @@ export var STAY_TYPES = {
   bride_day_wedding_night: { label: 'יום התארגנות + ליל כלולות', wedding: true },
 };
 export var WEDDING_NIGHT_CHECK_OUT = '13:00';
-// The night before stays open, and the stay on it may be a wedding night (or this package for the day
-// before), which leaves at WEDDING_NIGHT_CHECK_OUT, not at 11:00. Availability tracks nights only, so
-// the arrival must come after that check-out (rules.test.mjs holds it to that), leaving time to clean.
-// Pending the owner's answer on the ClickUp task z8r3fdvdp6.
-export var PREP_WEDDING_NIGHT_ARRIVAL = '14:00';
+// The bride packages' hours, as the owner set them on 18.10.2026 (ClickUp z8r3fdvdp6):
+// - preparation starts at PREP_START in every season; on a Friday it may start at PREP_FRIDAY_START,
+//   by arrangement (nothing chooses that automatically);
+// - a preparation day is kept free until PREP_END (the bride leaves between 15:30 and 16:00);
+// - the night before + preparation package checks in at NIGHT_BEFORE_CHECK_IN the day before, so
+//   another bride's preparation that day can end first.
+export var PREP_START = '08:00';
+export var PREP_FRIDAY_START = '06:00';
+export var PREP_END = '16:00';
+export var NIGHT_BEFORE_CHECK_IN = '17:30';
 
 // Prices are not in the code. They live in the owner's prices spreadsheet (one row per key, see
 // pricesFromRows), which the site reads as a public CSV and the web app reads directly, so a price
@@ -149,6 +152,140 @@ export function stayRange(stayType, checkIn, checkOut) {
   return { start: checkIn, end: checkOut };
 }
 
+// ---------------------------------------------------------------------------
+// Spans: availability in time, not in nights. A span is { start, end } in local 'YYYY-MM-DDTHH:mm',
+// end exclusive. Two stays clash exactly when their spans overlap, which gives every rule in the
+// owner's list in both booking orders:
+// - a couple stay (15:00 to 11:00) or a wedding night (15:00 to 13:00) on the night before a
+//   preparation day runs past its 08:00 start, and one on the evening of a preparation day starts
+//   before its 16:00 end;
+// - a night before + preparation package (17:30 the day before to 16:00) fits right after another
+//   bride's preparation day, which ends at 16:00, and a preparation day fits the morning after one;
+// - a prep day + wedding night (08:00 to 13:00 the next day) keeps the night before free of guests
+//   without counting it as a night, and no other bride can prepare the morning after.
+// Owner closings, holds, channel events and anything else without a stay type occupy their nights
+// as a couple stay would (15:00 on the first to 11:00 after the last), as before.
+
+/**
+ * The span a stay occupies. Wedding-type stays are keyed by checkIn, the wedding date.
+ * @param {StayType} stayType @param {string} checkIn @param {string} checkOut
+ * @returns {{ start: string, end: string }}
+ */
+export function staySpan(stayType, checkIn, checkOut) {
+  if (stayType === 'bride_day') return { start: checkIn + 'T' + PREP_START, end: checkIn + 'T' + PREP_END };
+  if (stayType === 'bride_night_day') return { start: addDays(checkIn, -1) + 'T' + NIGHT_BEFORE_CHECK_IN, end: checkIn + 'T' + PREP_END };
+  if (stayType === 'bride_day_wedding_night') return { start: checkIn + 'T' + PREP_START, end: addDays(checkIn, 1) + 'T' + WEDDING_NIGHT_CHECK_OUT };
+  if (stayType === 'wedding_night') return { start: checkIn + 'T' + hhmm(CHECK_IN_MINUTES), end: checkOut + 'T' + WEDDING_NIGHT_CHECK_OUT };
+  return nightsSpan(checkIn, checkOut);
+}
+
+/** The span of the nights [start, end) held as a couple stay: 15:00 on the first, 11:00 after the last. */
+export function nightsSpan(start, end) {
+  return { start: start + 'T' + hhmm(CHECK_IN_MINUTES), end: end + 'T' + hhmm(CHECK_OUT_MINUTES) };
+}
+
+/**
+ * The span a stored request (validateRequest's value, as kept on calendar events) occupies; its nights
+ * as a couple stay when it carries no usable stay type or date.
+ * @param {{ stayType?: string, checkIn?: string, checkOut?: string, start: string, end: string }} req
+ */
+export function requestSpan(req) {
+  var type = req && STAY_TYPES[req.stayType];
+  if (type && DATE_RE.test(String(req.checkIn || '')) && (type.wedding || DATE_RE.test(String(req.checkOut || '')))) {
+    return staySpan(req.stayType, req.checkIn, req.checkOut);
+  }
+  return nightsSpan(req.start, req.end);
+}
+
+/** A span as a timed CalendarEvent, the form blockedNights and spanConflicts read. */
+export function spanEvent(span) {
+  return { allDay: false, start: span.start, end: span.end };
+}
+
+/** @param {CalendarEvent} ev @returns {{ start: string, end: string }} */
+function eventSpan(ev) {
+  return ev.allDay ? nightsSpan(ev.start, ev.end) : { start: ev.start, end: ev.end };
+}
+
+/**
+ * The nights a span clashes with events in, for messages ("these dates are taken"). Each night owns
+ * 11:00 on its date to 11:00 the next day, so an overlap in the morning is the night before's.
+ * @param {CalendarEvent[]} events @param {{ start: string, end: string }} span @returns {string[]}
+ */
+export function spanConflicts(events, span) {
+  var s = toMinutes(span.start);
+  var e = toMinutes(span.end);
+  var set = {};
+  events.forEach(function (ev) {
+    var o = eventSpan(ev);
+    var a = Math.max(s, toMinutes(o.start));
+    var b = Math.min(e, toMinutes(o.end));
+    if (!(a < b)) return;
+    for (var n = Math.floor((a - CHECK_OUT_MINUTES) / 1440); n <= Math.floor((b - 1 - CHECK_OUT_MINUTES) / 1440); n++) set[fromDayNumber(n)] = true;
+  });
+  return Object.keys(set).sort();
+}
+
+/**
+ * The time events occupy within [from, to), merged into sorted, separate spans: what the site needs
+ * to tell which packages fit a date.
+ * @param {CalendarEvent[]} events @param {string} from @param {string} to
+ * @returns {{ start: string, end: string }[]}
+ */
+export function busySpans(events, from, to) {
+  var lo = from + 'T00:00';
+  var hi = to + 'T00:00';
+  var spans = events
+    .map(eventSpan)
+    .filter(function (sp) {
+      return sp.start < sp.end && sp.end > lo && sp.start < hi;
+    })
+    .sort(function (a, b) {
+      return a.start < b.start ? -1 : a.start > b.start ? 1 : 0;
+    });
+  var out = [];
+  spans.forEach(function (sp) {
+    var last = out[out.length - 1];
+    if (last && sp.start <= last.end) {
+      if (sp.end > last.end) last.end = sp.end;
+    } else out.push({ start: sp.start, end: sp.end });
+  });
+  return out;
+}
+
+/**
+ * Whether a span is clear of every busy span.
+ * @param {{ start: string, end: string }[]} busy @param {{ start: string, end: string }} span
+ */
+export function spanIsFree(busy, span) {
+  return !(busy || []).some(function (b) {
+    return span.start < b.end && span.end > b.start;
+  });
+}
+
+/** Spans as text, for the snapshot cell: 'start/end' joined by commas. */
+export function formatSpans(spans) {
+  return spans
+    .map(function (sp) {
+      return sp.start + '/' + sp.end;
+    })
+    .join(',');
+}
+
+var SPAN_TEXT_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})\/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})$/;
+
+/** @param {string} text @returns {{ start: string, end: string }[]} */
+export function parseSpans(text) {
+  var out = [];
+  String(text || '')
+    .split(',')
+    .forEach(function (part) {
+      var m = SPAN_TEXT_RE.exec(part.trim());
+      if (m && m[1] < m[2]) out.push({ start: m[1], end: m[2] });
+    });
+  return out;
+}
+
 /** @param {string} start @param {string} end @returns {string[]} */
 export function nightsOf(start, end) {
   var out = [];
@@ -235,23 +372,19 @@ export var ALTERNATIVE_SEARCH_DAYS = 30;
 
 /**
  * Up to `limit` free stays of the same length near a taken one, closest first (a day later, a day
- * earlier, two days later, ...). Only nights inside the window the blocked list covers, [from, to),
- * are considered, and none before `firstNight`; a stay never runs past `to`.
- * @param {string[]} blocked taken nights within [from, to)
+ * earlier, two days later, ...), as couple stays. Only nights inside the window the busy list covers,
+ * [from, to), are considered, and none before `firstNight`; a stay never runs past `to`.
+ * @param {{ start: string, end: string }[]} busy the time taken within [from, to) (busySpans)
  * @param {string} checkIn the requested check-in @param {number} nights
  * @param {string} from @param {string} to the covered window (to exclusive)
  * @param {string} firstNight the earliest night a stay may start (today)
  * @param {number} [limit] at most this many, MAX_ALTERNATIVES by default
  * @returns {{ checkIn: string, checkOut: string }[]}
  */
-export function findAlternatives(blocked, checkIn, nights, from, to, firstNight, limit) {
+export function findAlternatives(busy, checkIn, nights, from, to, firstNight, limit) {
   limit = limit || MAX_ALTERNATIVES;
   var out = [];
   if (!(nights >= 1) || isNaN(toDayNumber(checkIn)) || isNaN(toDayNumber(from)) || isNaN(toDayNumber(to))) return out;
-  var taken = {};
-  (blocked || []).forEach(function (d) {
-    taken[d] = true;
-  });
   var lo = Math.max(toDayNumber(from), toDayNumber(firstNight));
   var hi = toDayNumber(to);
   var base = toDayNumber(checkIn);
@@ -260,14 +393,7 @@ export function findAlternatives(blocked, checkIn, nights, from, to, firstNight,
     for (var i = 0; i < starts.length && out.length < limit; i++) {
       var s = starts[i];
       if (s < lo || s + nights > hi) continue;
-      var free = true;
-      for (var n = s; n < s + nights; n++) {
-        if (taken[fromDayNumber(n)]) {
-          free = false;
-          break;
-        }
-      }
-      if (free) out.push({ checkIn: fromDayNumber(s), checkOut: fromDayNumber(s + nights) });
+      if (spanIsFree(busy, staySpan('couple', fromDayNumber(s), fromDayNumber(s + nights)))) out.push({ checkIn: fromDayNumber(s), checkOut: fromDayNumber(s + nights) });
     }
   }
   return out;
@@ -468,22 +594,21 @@ export var STATUTORY_MIN_DAYS = 7;
 export var STATUTORY_RATE = 5;
 export var STATUTORY_CAP = 100;
 
-// A bride day starts at 08:00 on the wedding day (the house rules in src/legal/content.ts).
-export var BRIDE_DAY_START_MINUTES = 8 * 60;
 
 /**
  * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night, by the house
- * rules: check-in at 15:00 on the first night, including bride_night_day, whose guests arrive the
- * day before. A bride day blocks the night before only to keep the suite ready; it starts at 08:00
- * on the wedding day. A prep day + wedding night starts on the wedding day, its first and only
- * night, at PREP_WEDDING_NIGHT_ARRIVAL.
+ * rules: check-in at 15:00 on the first night; for bride_night_day, whose guests arrive the day
+ * before, at NIGHT_BEFORE_CHECK_IN. A bride day's event starts the night before (it is kept free for
+ * her); the day itself starts at PREP_START on the wedding day. A prep day + wedding night starts on
+ * the wedding day, its first and only night, at PREP_START.
  * A wedding night's arrival is "after the event, by arrangement", so its check-in hour, the earliest
  * it can be, stands in for it.
  * @param {StayType} stayType @param {string} start @returns {string}
  */
 export function stayStartsAt(stayType, start) {
-  if (stayType === 'bride_day') return addDays(start, 1) + 'T' + hhmm(BRIDE_DAY_START_MINUTES);
-  if (stayType === 'bride_day_wedding_night') return start + 'T' + PREP_WEDDING_NIGHT_ARRIVAL;
+  if (stayType === 'bride_day') return addDays(start, 1) + 'T' + PREP_START;
+  if (stayType === 'bride_day_wedding_night') return start + 'T' + PREP_START;
+  if (stayType === 'bride_night_day') return start + 'T' + NIGHT_BEFORE_CHECK_IN;
   return start + 'T' + hhmm(CHECK_IN_MINUTES);
 }
 

@@ -5,22 +5,43 @@ import {
   DAY_PARTICIPANT_TYPES,
   MAX_DAY_PARTICIPANTS,
   MAX_NIGHTS,
+  NIGHT_BEFORE_CHECK_IN,
   NOTES_MAX,
-  PREP_WEDDING_NIGHT_ARRIVAL,
+  PREP_FRIDAY_START,
+  PREP_START,
   STAY_TYPES,
   addDays,
   daysBetween,
   estimatePrice as estimateWith,
   findAlternatives,
   nightsOf,
+  nightsSpan,
+  parseSpans,
+  spanIsFree,
   stayRange,
+  staySpan,
   validateRequest,
 } from '../../shared/rules.js';
 import { getPrices } from './prices';
 
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
 
-export { DAY_PARTICIPANT_TYPES, MAX_DAY_PARTICIPANTS, MAX_NIGHTS, NOTES_MAX, PREP_WEDDING_NIGHT_ARRIVAL, STAY_TYPES, addDays, daysBetween, findAlternatives, nightsOf, stayRange, validateRequest };
+export { DAY_PARTICIPANT_TYPES, MAX_DAY_PARTICIPANTS, MAX_NIGHTS, NIGHT_BEFORE_CHECK_IN, NOTES_MAX, PREP_FRIDAY_START, PREP_START, STAY_TYPES, addDays, daysBetween, findAlternatives, nightsOf, nightsSpan, parseSpans, spanIsFree, stayRange, staySpan, validateRequest };
+
+/** Local 'YYYY-MM-DDTHH:mm' times, end exclusive (shared/rules.js, "Spans"). */
+export interface Span {
+  start: string;
+  end: string;
+}
+
+/** Whether a stay fits around the busy time (its span overlaps none of it). */
+export const stayFits = (busy: Span[], type: StayType, checkIn: string, checkOut: string) => spanIsFree(busy, staySpan(type, checkIn, checkOut));
+
+/** Busy time from taken nights alone, for an answer from a backend that sends no spans. */
+export const spansOfNights = (nights: Iterable<string>): Span[] => [...nights].sort().map((n) => nightsSpan(n, addDays(n, 1)));
+
+/** Friday, when preparation may also start at PREP_FRIDAY_START by arrangement. */
+export const isFriday = (date: string) => fromISODate(date).getDay() === 5;
 
 export { getPrices, getPricesVersion, usePrices } from './prices';
 

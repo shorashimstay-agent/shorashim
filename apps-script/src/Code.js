@@ -14,7 +14,7 @@
  */
 
 var TZ = 'Asia/Jerusalem';
-var AVAILABILITY_CACHE_KEY = 'availability:v1';
+var AVAILABILITY_CACHE_KEY = 'availability:v2';
 var PRICES_TAB = 'מחירים';
 var PRICES_CACHE_KEY = 'prices:v1';
 var PRICES_REFETCH_KEY = 'prices:refetched';
@@ -31,7 +31,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (p.action === 'availability') return json_(getAvailability_());
-    if (p.action === 'check') return json_(checkDates_(p.start, p.end));
+    if (p.action === 'check') return json_(checkDates_(p.start, p.end, p.stayType ? { stayType: p.stayType, checkIn: p.checkIn, checkOut: p.checkOut } : null));
     // The signed decision page. Owner emails sent before they linked to the console still open it.
     if (p.action === 'decide') return decisionPage_(p.id, p.sig);
     if (p.action === 'diag' && validSig_('diag:' + p.t, p.sig) && Math.abs(Date.now() - Number(p.t)) < 300000) return json_(diagnose_(p.pv));
@@ -303,6 +303,25 @@ function itemRuleEvent_(item) {
   };
 }
 
+/**
+ * What an item occupies, for availability: a stored stay (a request, a website or phone booking) by
+ * its span (requestSpan), so a bride package holds its hours rather than whole nights; anything else
+ * (closings, holds, channel and manual events) as itemRuleEvent_.
+ */
+function itemSpanEvent_(item) {
+  var props = eventProps_(item);
+  if (props.request) {
+    try {
+      var req = JSON.parse(props.request);
+      if (req && STAY_TYPES[req.stayType]) {
+        var range = itemRange_(item);
+        return spanEvent(requestSpan({ stayType: req.stayType, checkIn: req.checkIn, checkOut: req.checkOut, start: range.start, end: range.end }));
+      }
+    } catch (ignored) {}
+  }
+  return itemRuleEvent_(item);
+}
+
 function itemRange_(item) {
   var d = itemRuleEvent_(item);
   var start = d.start.slice(0, 10);
@@ -343,12 +362,12 @@ function blockingEvents_(start, end, opts) {
     if (opts.expireStale) deleteExpiredHold_(item);
     return false;
   });
-  var out = bookings.concat(lists.channels).map(itemRuleEvent_);
+  var out = bookings.concat(lists.channels).map(itemSpanEvent_);
   lists.requests.forEach(function (item) {
     var props = eventProps_(item);
     if (item.iCalUID === opts.excludeId || props.status !== 'pending') return;
     if (isHoldActive(props.createdAt, now)) {
-      out.push(itemRuleEvent_(item));
+      out.push(itemSpanEvent_(item));
       if (opts.holdEnds) opts.holdEnds.push(Date.parse(props.createdAt) + HOLD_HOURS * 3600 * 1000);
     } else if (opts.expireStale) markExpired_(item);
   });
@@ -386,8 +405,16 @@ function markExpired_(item) {
   } catch (ignored) {}
 }
 
-function conflictsFor_(start, end, opts) {
-  return conflictingNights(blockedNights(blockingEvents_(start, end, opts), start, end), start, end);
+/** The nights a span clashes in (spanConflicts), against everything that blocks now. */
+function conflictsFor_(span, opts) {
+  return spanConflicts(blockingEvents_(span.start.slice(0, 10), addDays(span.end.slice(0, 10), 1), opts), span);
+}
+
+/** What a console closing occupies: a phone booking its stay's span, a block or hold its nights. */
+function closingSpan_(c) {
+  if (c.kind !== 'phone') return nightsSpan(c.start, c.end);
+  var wedding = STAY_TYPES[c.stayType].wedding;
+  return requestSpan({ stayType: c.stayType, checkIn: wedding ? addDays(c.end, -1) : c.start, checkOut: c.end, start: c.start, end: c.end });
 }
 
 function getAvailability_() {
@@ -397,11 +424,15 @@ function getAvailability_() {
   var from = today_();
   var to = addDays(from, HORIZON_DAYS + 1);
   var holdEnds = [];
+  var events = blockingEvents_(from, to, { expireStale: true, holdEnds: holdEnds });
+  // blocked: the nights a couple stay cannot take (what pages from before the spans read);
+  // busy: the time taken, from which the page tells which packages fit a date.
   var result = {
     ok: true,
     from: from,
     to: to,
-    blocked: blockedNights(blockingEvents_(from, to, { expireStale: true, holdEnds: holdEnds }), from, to),
+    blocked: blockedNights(events, from, to),
+    busy: busySpans(events, from, to),
     generatedAt: new Date().toISOString(),
   };
   // The timer rebuilds when the first of these holds runs out (mirrorsNeedRefresh_).
@@ -420,7 +451,7 @@ function getAvailability_() {
 // forces a new read), as for ?action=availability. Every booking change this backend makes clears the
 // copy (invalidateAvailability_), so requests show at once; a direct Google Calendar edit shows within
 // the period.
-var CHECK_CACHE_KEY = 'check:v1';
+var CHECK_CACHE_KEY = 'check:v2';
 var CHECK_CACHE_SECONDS = 30;
 var CHECK_GENERATION_KEY = 'check:generation';
 // After a failed calendar read, checks answer server_error for this long without reading again.
@@ -430,10 +461,15 @@ var CHECK_FAILED_SECONDS = 10;
 // happened since it was read (single flight, best effort: the cache has no atomic claim).
 var CHECK_READING_KEY = 'check:reading';
 var CHECK_READING_SECONDS = 15;
-var CHECK_LAST_KEY = 'check:last';
+var CHECK_LAST_KEY = 'check:last:v2';
 var CHECK_LAST_SECONDS = 600;
 
-function checkDates_(start, end) {
+/**
+ * With `stay` ({ stayType, checkIn, checkOut }, from pages that know the spans), the answer is for
+ * that stay's span, and [start, end) are the nights it is booked over (stayRange); without it, for
+ * the nights [start, end) as a couple stay, as pages from before the spans ask.
+ */
+function checkDates_(start, end, stay) {
   start = String(start || '');
   end = String(end || '');
   var today = today_();
@@ -445,38 +481,55 @@ function checkDates_(start, end) {
   var windowDays = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
   var from = addDays(start, -windowDays) < today ? today : addDays(start, -windowDays);
   var to = addDays(end, windowDays) > horizonEnd ? horizonEnd : addDays(end, windowDays);
-  var all = liveBlocked_(today, horizonEnd);
+  var span = null;
+  if (stay) {
+    var type = STAY_TYPES[String(stay.stayType || '')];
+    var checkIn = String(stay.checkIn || '');
+    var checkOut = String(stay.checkOut || '');
+    if (!type || !DATE_RE.test(checkIn) || (!type.wedding && !DATE_RE.test(checkOut))) return { ok: false, error: 'invalid' };
+    var range = stayRange(stay.stayType, checkIn, checkOut);
+    if (range.start !== start || range.end !== end) return { ok: false, error: 'invalid' };
+    span = staySpan(stay.stayType, checkIn, checkOut);
+  }
+  var all = liveAvailability_(today, horizonEnd);
   if (!all) return { ok: false, error: 'server_error' };
-  var blocked = all.filter(function (d) {
+  var blocked = all.blocked.filter(function (d) {
     return d >= from && d < to;
   });
-  var conflicts = conflictingNights(blocked, start, end);
+  var lo = from + 'T00:00';
+  var hi = to + 'T00:00';
+  var busy = all.busy.filter(function (sp) {
+    return sp.end > lo && sp.start < hi;
+  });
+  var conflicts = span ? spanConflicts(busy.map(spanEvent), span) : conflictingNights(blocked, start, end);
   countLogNoise_(conflicts.length ? 'availability.taken' : 'availability.free');
-  return { ok: true, free: !conflicts.length, conflicts: conflicts, from: from, to: to, blocked: blocked };
+  return { ok: true, free: !conflicts.length, conflicts: conflicts, from: from, to: to, blocked: blocked, busy: busy };
 }
 
 /**
- * Taken nights in [from, to), read-only, from a copy at most CHECK_CACHE_SECONDS old; null while the
+ * Taken nights and busy spans in [from, to) ({ blocked, busy }), read-only, from a copy at most CHECK_CACHE_SECONDS old; null while the
  * calendars cannot be read (remembered for CHECK_FAILED_SECONDS, so a failing API is not hammered).
  * A copy is stored only if no booking change happened while it was read (CHECK_GENERATION_KEY).
  */
-function liveBlocked_(from, to) {
+function liveAvailability_(from, to) {
   var cache = CacheService.getScriptCache();
   var hits = cache.getAll([CHECK_CACHE_KEY, CHECK_GENERATION_KEY, CHECK_FAILED_KEY, CHECK_READING_KEY, CHECK_LAST_KEY]);
   if (hits[CHECK_FAILED_KEY]) return null;
   var generation = hits[CHECK_GENERATION_KEY] || '';
   if (hits[CHECK_CACHE_KEY]) {
     var copy = JSON.parse(hits[CHECK_CACHE_KEY]);
-    if (copy.from === from && copy.to === to) return copy.blocked;
+    if (copy.from === from && copy.to === to) return { blocked: copy.blocked, busy: copy.busy };
   }
   if (hits[CHECK_READING_KEY] && hits[CHECK_LAST_KEY]) {
     var last = JSON.parse(hits[CHECK_LAST_KEY]);
-    if (last.from === from && last.to === to && last.generation === generation) return last.blocked;
+    if (last.from === from && last.to === to && last.generation === generation) return { blocked: last.blocked, busy: last.busy };
   }
   cache.put(CHECK_READING_KEY, '1', CHECK_READING_SECONDS);
-  var blocked;
+  var blocked, busy;
   try {
-    blocked = blockedNights(blockingEvents_(from, to, {}), from, to);
+    var events = blockingEvents_(from, to, {});
+    blocked = blockedNights(events, from, to);
+    busy = busySpans(events, from, to);
   } catch (err) {
     console.warn('live check: calendars unreadable', err);
     cache.remove(CHECK_READING_KEY);
@@ -486,11 +539,11 @@ function liveBlocked_(from, to) {
   }
   cache.remove(CHECK_READING_KEY);
   if ((cache.get(CHECK_GENERATION_KEY) || '') === generation) {
-    var text = JSON.stringify({ from: from, to: to, blocked: blocked });
+    var text = JSON.stringify({ from: from, to: to, blocked: blocked, busy: busy });
     cache.put(CHECK_CACHE_KEY, text, CHECK_CACHE_SECONDS);
-    cache.put(CHECK_LAST_KEY, JSON.stringify({ from: from, to: to, blocked: blocked, generation: generation }), CHECK_LAST_SECONDS);
+    cache.put(CHECK_LAST_KEY, JSON.stringify({ from: from, to: to, blocked: blocked, busy: busy, generation: generation }), CHECK_LAST_SECONDS);
   }
-  return blocked;
+  return { blocked: blocked, busy: busy };
 }
 
 // ---------------------------------------------------------------------------
@@ -498,7 +551,8 @@ function liveBlocked_(from, to) {
 // reads it first because it answers in well under a second, while this web app often takes
 // 10+ seconds to start. It holds dates only, never guest details.
 
-var SNAPSHOT_COLUMNS = ['from', 'to', 'generatedAt', 'blocked'];
+// busy (formatSpans) came after blocked; pages from before it read A1:D2 and never see it.
+var SNAPSHOT_COLUMNS = ['from', 'to', 'generatedAt', 'blocked', 'busy'];
 
 function refreshAvailabilitySnapshot_() {
   invalidateAvailability_();
@@ -509,7 +563,7 @@ function refreshAvailabilitySnapshot_() {
   sheet
     .getRange(1, 1, 2, SNAPSHOT_COLUMNS.length)
     .setNumberFormat('@')
-    .setValues([SNAPSHOT_COLUMNS, [data.from, data.to, data.generatedAt, data.blocked.join(',')]]);
+    .setValues([SNAPSHOT_COLUMNS, [data.from, data.to, data.generatedAt, data.blocked.join(','), formatSpans(data.busy)]]);
   return data;
 }
 
@@ -898,9 +952,11 @@ function adminData_() {
       stayType: req.stayType || '',
       stayLabel: stayLabel(req.stayType),
       checkIn: req.checkIn || range.start,
+      checkOut: req.checkOut || range.end,
       start: range.start,
       end: range.end,
       nights: range.nights,
+      held: heldNights_(item),
       adults: req.adults || '',
       participants: req.participants || 0,
       name: req.name || item.summary || '',
@@ -945,6 +1001,7 @@ function adminData_() {
       start: range.start,
       end: range.end,
       nights: range.nights,
+      held: heldNights_(item),
       source: props.source === 'website' ? 'website' : props.source === 'console' ? 'console' : 'manual',
       // website, manual (made in Google Calendar), or a console closing: block, phone, hold.
       kind: props.source === 'website' ? 'website' : props.source === 'console' ? props.kind : 'manual',
@@ -977,9 +1034,18 @@ function adminData_() {
   });
   var channels = lists.channels.map(function (item) {
     var range = itemRange_(item);
-    return { id: item.iCalUID, title: item.summary || '', start: range.start, end: range.end, nights: range.nights };
+    return { id: item.iCalUID, title: item.summary || '', start: range.start, end: range.end, nights: range.nights, held: heldNights_(item) };
   });
   return { today: today, lists: lists, requests: requests, decisions: decisions, bookings: bookings, channels: channels };
+}
+
+/**
+ * The nights an item keeps from couple stays, for the console's calendar: its own nights, and for a
+ * bride package also the night before (a prep day + wedding night does not count it as a night).
+ */
+function heldNights_(item) {
+  var ev = itemSpanEvent_(item);
+  return blockedNights([ev], addDays(ev.start.slice(0, 10), -1), addDays(ev.end.slice(0, 10), 1));
 }
 
 function syncAdminSheet_() {
@@ -1218,7 +1284,7 @@ function validSession_(token) {
 function consoleOverview_() {
   var data = adminData_();
   var now = Date.now();
-  var fixed = data.lists.bookings.concat(data.lists.channels).map(itemRuleEvent_);
+  var fixed = data.lists.bookings.concat(data.lists.channels).map(itemSpanEvent_);
   var holds = data.lists.requests.filter(function (item) {
     var props = eventProps_(item);
     return props.status === 'pending' && isHoldActive(props.createdAt, now);
@@ -1229,9 +1295,9 @@ function consoleOverview_() {
         .filter(function (item) {
           return item.iCalUID !== r.id;
         })
-        .map(itemRuleEvent_)
+        .map(itemSpanEvent_)
     );
-    r.conflicts = conflictingNights(blockedNights(others, r.start, r.end), r.start, r.end);
+    r.conflicts = spanConflicts(others, requestSpan(r));
   });
   var props = PropertiesService.getScriptProperties();
   return {
@@ -1430,7 +1496,7 @@ function closeDates_(args) {
       var rp = replaced ? eventProps_(replaced) : {};
       if (!replaced || rp.source !== 'console' || rp.kind !== 'hold') return { ok: false, error: 'not_found' };
     }
-    var conflicts = conflictsFor_(c.start, c.end, { expireStale: true, excludeId: replace || undefined });
+    var conflicts = conflictsFor_(closingSpan_(c), { expireStale: true, excludeId: replace || undefined });
     if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
     var ref = c.kind === 'phone' ? newRef_() : '';
     var event = closingEvent_(c, ref);
@@ -1788,7 +1854,7 @@ function createRequestOnce_(body) {
   var eventId;
   var conflicts;
   try {
-    conflicts = conflictsFor_(req.start, req.end, { expireStale: true });
+    conflicts = conflictsFor_(requestSpan(req), { expireStale: true });
     mark('conflictCheck');
     if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts };
     req.ref = newRef_();
@@ -1871,8 +1937,14 @@ function stayLines_(req) {
   var lines = ['סוג האירוח: ' + STAY_TYPES[req.stayType].label];
   if (req.stayType === 'bride_day_wedding_night') {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
-    lines.push('הגעה: ' + heDate_(req.checkIn) + ' מ-' + PREP_WEDDING_NIGHT_ARRIVAL + ' (יום החתונה)');
-    lines.push('עזיבה: ' + heDate_(req.end) + ' עד ' + WEDDING_NIGHT_CHECK_OUT + ' (למחרת החתונה)');
+    lines.push('הגעה: ' + heDate_(req.checkIn) + ' מ-' + PREP_START + ' (יום החתונה' + (fridayNote_(req.checkIn) ? '; ' + fridayNote_(req.checkIn) : '') + ')');
+    lines.push('עזיבה: ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT + ' (למחרת החתונה, לילה אחד)');
+  } else if (req.stayType === 'bride_night_day') {
+    lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
+    lines.push('הגעה: ' + heDate_(addDays(req.checkIn, -1)) + ' מ-' + NIGHT_BEFORE_CHECK_IN + ' (יום לפני החתונה)');
+  } else if (req.stayType === 'bride_day') {
+    lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
+    lines.push('התארגנות: ' + heDate_(req.checkIn) + ' מ-' + PREP_START + (fridayNote_(req.checkIn) ? ' (' + fridayNote_(req.checkIn) + ')' : ''));
   } else if (STAY_TYPES[req.stayType].wedding) {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
   } else {
@@ -1885,12 +1957,19 @@ function stayLines_(req) {
   return lines;
 }
 
+/** On a Friday, preparation may also start at PREP_FRIDAY_START, by arrangement ('' on other days). */
+function fridayNote_(date) {
+  return new Date(toDayNumber(date) * 86400000).getUTCDay() === 5 ? 'בשישי אפשר גם מ-' + PREP_FRIDAY_START + ' בתיאום' : '';
+}
+
 function ownerLines_(req) {
   var lines = stayLines_(req);
-  if (req.stayType === 'bride_day_wedding_night') {
-    lines.push('שמור ביומן: ליל החתונה בלבד (לילה אחד)');
-  } else if (STAY_TYPES[req.stayType].wedding) {
-    lines.push('שמור ביומן: הלילה שלפני (' + heDate_(req.start) + ') וליל החתונה');
+  if (STAY_TYPES[req.stayType].wedding) {
+    var span = requestSpan(req);
+    var held = 'שמור ביומן: ' + heDate_(span.start.slice(0, 10)) + ' ' + span.start.slice(11) + ' עד ' + heDate_(span.end.slice(0, 10)) + ' ' + span.end.slice(11);
+    // A preparation from 08:00 keeps the night before free of guests; it is not one of the stay's nights.
+    if (req.stayType !== 'bride_night_day') held += ' · הלילה שלפני חסום ללינה (לא נספר כלילה)';
+    lines.push(held);
   }
   lines.push('הערכת מחיר: ' + (req.estimate ? '₪' + Number(req.estimate).toLocaleString('en-US') : 'לא חושבה (אין מחירים זמינים) — לתמחר ידנית'));
   lines.push('שם: ' + req.name);
@@ -1914,8 +1993,9 @@ function waLink_(phone, text) {
 
 function stayDatesShort_(req) {
   if (req.stayType === 'bride_day_wedding_night') {
-    return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(req.checkIn) + ' ' + PREP_WEDDING_NIGHT_ARRIVAL + ' · יציאה ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT;
+    return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(req.checkIn) + ' ' + PREP_START + ' · יציאה ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT;
   }
+  if (req.stayType === 'bride_night_day') return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(addDays(req.checkIn, -1)) + ' ' + NIGHT_BEFORE_CHECK_IN;
   if (STAY_TYPES[req.stayType].wedding) return 'חתונה ' + heDate_(req.checkIn);
   return heDate_(req.checkIn) + '–' + heDate_(req.checkOut);
 }
@@ -2001,7 +2081,7 @@ function decisionState_(id, sig) {
     ref: req.ref,
     lines: ownerLines_(req),
     expired: ev.getTag('status') !== 'pending' || !isHoldActive(ev.getTag('createdAt'), Date.now()),
-    conflicts: conflictsFor_(req.start, req.end, { excludeId: id }).map(heDate_),
+    conflicts: conflictsFor_(requestSpan(req), { excludeId: id }).map(heDate_),
   };
 }
 
@@ -2060,7 +2140,7 @@ function decideOnce_(action, id) {
       return { ok: true, result: 'declined', whatsapp: declineLink, ref: req.ref, start: req.start, end: req.end, nights: req.nights };
     }
 
-    var conflicts = conflictsFor_(req.start, req.end, { excludeId: id });
+    var conflicts = conflictsFor_(requestSpan(req), { excludeId: id });
     if (conflicts.length) return { ok: false, error: 'unavailable', nights: conflicts.map(heDate_) };
 
     var booking = {

@@ -132,10 +132,14 @@ console (O9); emails sent before that open this page, so it stays covered.
 - G10: the web app reads the staging prices sheet: with the pin cleared, `diag` reports the sheet's
   version; after the suite edits a price in the sheet, `diag` reports the new version within about
   a minute, with no deploy. The edit is undone afterwards.
-- G11: `bride_day_wedding_night` on day D holds D → D+1 (one night; D-1 stays open), carries 3
+- G11: `bride_day_wedding_night` on day D is one night (event D → D+1) from 08:00, carries 3
   overnight guests and 5 day participants, is priced at its own test price, and its owner text gives
-  the wedding-day arrival and the 13:00 departure. The live check sees the hold at once. Approved, it
-  is a booking over the same night; cancelled from the console it frees it, and the check says so.
+  the 08:00 arrival, the 13:00 departure and the night before kept free. Couples cannot take D-1 or
+  D; a prep day on D-1 still fits. The live check sees the hold at once. Approved, it is a booking
+  over the same night (the console lists D-1 and D as held); cancelled from the console it frees them.
+- G14: a prep day on D is followed by another bride's night before + prep day for D+1 (check-in 17:30
+  on D), while a couple stay on the night of D is refused by its span. Both approve; cancelling the
+  first frees only its own time (the night before it), not the second bride's.
 - G12: the live check (`?action=check`) answers free for open nights and refuses past or empty ranges.
 - G13: with the page's own availability made stale (snapshot unreachable, the web app's list empty),
   "להזמנה" on a held couple range opens the taken dialog from the live check; every nearby stay it

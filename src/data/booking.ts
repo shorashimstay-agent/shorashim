@@ -1,5 +1,5 @@
 import type { Prices } from '../lib/prices';
-import { PREP_WEDDING_NIGHT_ARRIVAL } from '../../shared/rules.js';
+import { NIGHT_BEFORE_CHECK_IN, PREP_FRIDAY_START, PREP_START } from '../../shared/rules.js';
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
 export interface StayPackage {
   id: StayType;
@@ -12,10 +12,10 @@ export interface StayPackage {
 // No prices here: they come from the owner's prices sheet at runtime (src/lib/prices.ts, LIVE_SITE.md).
 export const STAY_PACKAGES: Record<StayType, StayPackage> = {
   couple: { id: 'couple', title: 'חופשה זוגית', description: 'סוויטה לחופשה שקטה', hours: 'כניסה 15:00 · יציאה 11:00', capacity: 'עד 3 מבוגרים ללינה' },
-  bride_day: { id: 'bride_day', title: 'יום כלה — התארגנות', description: 'בוקר ההתארגנות ללא לינה', hours: '08:00–15:30 ביום ההתארגנות', capacity: 'עד 5 משתתפים כולל הכלה, מלוות ואנשי מקצוע' },
-  bride_night_day: { id: 'bride_night_day', title: 'לילה לפני + יום כלה', description: 'לינה ערב קודם ובוקר ההתארגנות', hours: '15:00 ביום שלפני · יציאה 15:30 ביום האירוע', capacity: 'עד 3 ללינה · עד 5 משתתפים ביום כולל הכלה ואנשי מקצוע' },
+  bride_day: { id: 'bride_day', title: 'יום כלה — התארגנות', description: 'בוקר ההתארגנות ללא לינה', hours: `${PREP_START}–15:30 ביום ההתארגנות (בשישי אפשר גם מ־${PREP_FRIDAY_START})`, capacity: 'עד 5 משתתפים כולל הכלה, מלוות ואנשי מקצוע' },
+  bride_night_day: { id: 'bride_night_day', title: 'לילה לפני + יום כלה', description: 'לינה ערב קודם ובוקר ההתארגנות', hours: `${NIGHT_BEFORE_CHECK_IN} ביום שלפני · יציאה 15:30 ביום האירוע`, capacity: 'עד 3 ללינה · עד 5 משתתפים ביום כולל הכלה ואנשי מקצוע' },
   wedding_night: { id: 'wedding_night', title: 'ליל כלולות', description: 'לילה זוגי לאחר האירוע', hours: 'הגעה לאחר האירוע בתיאום · יציאה 13:00', capacity: 'לינה לזוג' },
-  bride_day_wedding_night: { id: 'bride_day_wedding_night', title: 'יום התארגנות + ליל כלולות', description: 'התארגנות ביום החתונה וחזרה ללינה אחרי האירוע, לילה אחד', hours: `הגעה ${PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה · יציאה עד 13:00 למחרת החתונה`, capacity: 'עד 3 ללינה · עד 5 משתתפים ביום כולל הכלה ואנשי מקצוע' },
+  bride_day_wedding_night: { id: 'bride_day_wedding_night', title: 'יום התארגנות + ליל כלולות', description: 'התארגנות ביום החתונה וחזרה ללינה אחרי האירוע, לילה אחד', hours: `הגעה ${PREP_START} ביום החתונה (בשישי אפשר גם ${PREP_FRIDAY_START}) · יציאה עד 13:00 למחרת החתונה`, capacity: 'עד 3 ללינה · עד 5 משתתפים ביום כולל הכלה ואנשי מקצוע' },
 };
 const shekels = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 /** The couple-stay price note, from the live prices. */

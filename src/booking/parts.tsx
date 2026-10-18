@@ -35,6 +35,7 @@ export function DatePicker({ form, className }: { form: BookingForm; className?:
       <AvailabilityCalendar
         stayType={form.stayType}
         blocked={form.blocked}
+        busy={form.busy}
         windowEnd={form.windowEnd}
         checkIn={form.checkIn}
         checkOut={form.checkOut}

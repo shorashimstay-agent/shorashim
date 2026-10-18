@@ -22,9 +22,16 @@ import {
   pricesVersionOf,
   stayRange,
   stayStartsAt,
-  toMinutes,
-  PREP_WEDDING_NIGHT_ARRIVAL,
-  WEDDING_NIGHT_CHECK_OUT,
+  staySpan,
+  nightsSpan,
+  requestSpan,
+  spanEvent,
+  spanConflicts,
+  spanIsFree,
+  busySpans,
+  formatSpans,
+  parseSpans,
+  addDays,
   workingDaysBetween,
   validateBlock,
   validateRequest,
@@ -191,7 +198,7 @@ test('wedding requests derive their range from the wedding date', () => {
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
 });
 
-test('the prep day + wedding night package holds the wedding night only, not the night before', () => {
+test('the prep day + wedding night package is one night, from 08:00 on the wedding day', () => {
   const res = validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', checkOut: '', adults: 3, participants: 5 }, '2026-09-15', PRICES);
   assert.equal(res.ok, true);
   assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-10', '2026-10-11', '2026-10-11', 1]);
@@ -201,13 +208,92 @@ test('the prep day + wedding night package holds the wedding night only, not the
   assert.equal(res.value.estimate, 2750, 'a flat package price, whatever the nights or guests');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', adults: 4 }, '2026-09-15').errors.adults, 'invalid');
   assert.equal(validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-09-15' }, '2026-09-15').errors.checkIn, 'past');
-  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-10T14:00', 'it starts on the wedding day, after the night before checks out');
-  // The night before is open to any stay, the latest leaving at WEDDING_NIGHT_CHECK_OUT. An earlier
-  // arrival would overlap that guest, and nothing in the availability (nights only) would catch it.
-  assert.ok(toMinutes('2026-10-10T' + PREP_WEDDING_NIGHT_ARRIVAL) > toMinutes('2026-10-10T' + WEDDING_NIGHT_CHECK_OUT), 'the arrival comes after the latest check-out');
+  assert.equal(stayStartsAt('bride_day_wedding_night', res.value.start), '2026-10-10T08:00');
+  assert.deepEqual(requestSpan(res.value), { start: '2026-10-10T08:00', end: '2026-10-11T13:00' });
   // The existing packages keep their rules.
   assert.equal(estimatePrice('bride_night_day', 2, 2, PRICES), 2650);
   assert.deepEqual(stayRange('bride_night_day', '2026-10-10', ''), { start: '2026-10-09', end: '2026-10-11' });
+});
+
+// The owner's rules for the bride packages (ClickUp z8r3fdvdp6, 18.10.2026), as pairs of stays that
+// fit together or clash. Each pair is checked in both booking orders.
+test('the bride packages fit together and clash by the owner\'s rules, in both booking orders', () => {
+  const D = '2026-11-18';
+  const stay = (type, checkIn, checkOut = '') => ({ type, span: staySpan(type, checkIn, checkOut) });
+  const closed = (start, end) => ({ type: 'closed', span: nightsSpan(start, end) });
+  const fits = (a, b) => !spanConflicts([spanEvent(a.span)], b.span).length && !spanConflicts([spanEvent(b.span)], a.span).length;
+  const pairs = [
+    // 1. Preparation day only
+    [stay('bride_day', D), stay('couple', addDays(D, -1), D), false, 'the night before a prep day takes no guests'],
+    [stay('bride_day', D), stay('wedding_night', addDays(D, -1), D), false, 'nor a wedding night, which leaves at 13:00'],
+    [stay('bride_day', D), stay('couple', D, addDays(D, 1)), false, 'no couple stay on the night right after'],
+    [stay('bride_day', D), stay('wedding_night', D, addDays(D, 1)), false, 'nor a wedding night on it'],
+    [stay('bride_day', D), stay('bride_night_day', addDays(D, 1)), true, 'another bride may check in at 17:30 for tomorrow'],
+    [stay('bride_day', D), stay('bride_day', addDays(D, 1)), true, 'or prepare the next morning'],
+    [stay('bride_day', D), stay('bride_day', addDays(D, -1)), true, 'a prep day the day before is no lodging'],
+    [stay('bride_day', D), stay('bride_night_day', D), false, 'one bride a day'],
+    // 2. Preparation + wedding night
+    [stay('bride_day_wedding_night', D), stay('couple', addDays(D, -1), D), false, 'the night before is kept free'],
+    [stay('bride_day_wedding_night', D), stay('bride_day', addDays(D, -1)), true, 'a prep day the day before'],
+    [stay('bride_day_wedding_night', D), stay('bride_night_day', addDays(D, -1)), true, 'a night before + prep day the day before'],
+    [stay('bride_day_wedding_night', D), stay('bride_day', addDays(D, 1)), false, 'no other bride the morning after the wedding night'],
+    [stay('bride_day_wedding_night', D), stay('bride_night_day', addDays(D, 1)), false, 'nor one who checks in on the wedding evening'],
+    [stay('bride_day_wedding_night', D), stay('bride_day_wedding_night', addDays(D, 1)), false],
+    [stay('bride_day_wedding_night', D), stay('couple', addDays(D, 1), addDays(D, 3)), true, 'a couple checks in at 15:00 after the 13:00 departure'],
+    // 3. Night before + preparation day
+    [stay('bride_night_day', D), stay('bride_day', addDays(D, -1)), true, 'another bride prepares on the check-in day until 16:00'],
+    [stay('bride_night_day', D), stay('couple', addDays(D, -1), D), false, 'its own night'],
+    [stay('bride_night_day', D), stay('wedding_night', addDays(D, -1), D), false],
+    [stay('bride_night_day', D), stay('couple', D, addDays(D, 1)), false, 'after it, the prep-day rules: no couple that evening'],
+    [stay('bride_night_day', D), stay('bride_night_day', addDays(D, 1)), true, 'but a bride at 17:30'],
+    [stay('bride_night_day', D), stay('bride_day', addDays(D, 1)), true, 'or a prep day the next morning'],
+    [stay('bride_night_day', D), stay('couple', addDays(D, -3), addDays(D, -1)), true, 'a couple leaving at 11:00 that day'],
+    // Closings hold their nights as a couple stay would.
+    [stay('bride_day', D), closed(addDays(D, -1), D), false],
+    [stay('bride_night_day', D), closed(addDays(D, -2), addDays(D, -1)), true],
+  ];
+  for (const [a, b, expected, why] of pairs) {
+    assert.equal(fits(a, b), expected, `${a.type} ${a.span.start} with ${b.type} ${b.span.start}: ${why || ''}`);
+  }
+});
+
+test('a prep day + wedding night keeps the night before from couple stays, without counting it', () => {
+  const span = staySpan('bride_day_wedding_night', '2026-11-18', '');
+  // The nights a couple cannot take: the night before (its morning) and the wedding night.
+  assert.deepEqual(blockedNights([spanEvent(span)], '2026-11-10', '2026-11-30'), ['2026-11-17', '2026-11-18']);
+  const res = validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-11-18', checkOut: '' }, '2026-09-15', PRICES);
+  assert.equal(res.value.nights, 1, 'one night is booked and priced');
+});
+
+test('the blocked nights pages from before the spans read are what they were for every package', () => {
+  const D = '2026-11-18';
+  const nights = (type, checkIn, checkOut = '') => blockedNights([spanEvent(staySpan(type, checkIn, checkOut))], '2026-11-01', '2026-12-01');
+  assert.deepEqual(nights('bride_day', D), ['2026-11-17', '2026-11-18']);
+  assert.deepEqual(nights('bride_night_day', D), ['2026-11-17', '2026-11-18']);
+  assert.deepEqual(nights('wedding_night', D, '2026-11-19'), ['2026-11-18']);
+  assert.deepEqual(nights('couple', D, '2026-11-21'), ['2026-11-18', '2026-11-19', '2026-11-20']);
+});
+
+test('busy spans merge, cross the snapshot as text, and tell what fits', () => {
+  const events = [
+    { allDay: true, start: '2026-11-10', end: '2026-11-12' },
+    spanEvent(staySpan('bride_day', '2026-11-12', '')),
+    { allDay: false, start: '2026-11-12T15:30', end: '2026-11-12T17:00' },
+  ];
+  const busy = busySpans(events, '2026-11-01', '2026-12-01');
+  // The closing runs to 11:00 on the 12th, past the prep day's 08:00, and the timed event overlaps
+  // the prep day's end: one span.
+  assert.deepEqual(busy, [{ start: '2026-11-10T15:00', end: '2026-11-12T17:00' }]);
+  assert.deepEqual(parseSpans(formatSpans(busy)), busy);
+  assert.deepEqual(parseSpans('junk,2026-11-12T08:00/2026-11-12T07:00'), [], 'bad or empty spans are dropped');
+  assert.equal(spanIsFree(busy, staySpan('bride_night_day', '2026-11-13', '')), true, '17:30 on the 12th is clear');
+  assert.equal(spanIsFree(busy, staySpan('couple', '2026-11-12', '2026-11-13')), false);
+  assert.deepEqual(busySpans(events, '2026-11-13', '2026-11-20'), [], 'only what reaches the window');
+});
+
+test('a stored request without a usable stay type holds its nights as a couple stay', () => {
+  assert.deepEqual(requestSpan({ stayType: 'nope', start: '2026-11-10', end: '2026-11-12' }), { start: '2026-11-10T15:00', end: '2026-11-12T11:00' });
+  assert.deepEqual(requestSpan({ stayType: 'couple', checkIn: '2026-11-10', start: '2026-11-10', end: '2026-11-12' }), { start: '2026-11-10T15:00', end: '2026-11-12T11:00' });
 });
 
 test('alternatives keep the number of nights, closest first, inside the covered window', () => {
@@ -215,20 +301,21 @@ test('alternatives keep the number of nights, closest first, inside the covered 
   // later, a day earlier, two later, two earlier, ...: 12 and 10 clash, 13 fits, 9 clashes (the 10th),
   // 14 and 8 fit.
   const blocked = ['2026-11-10', '2026-11-11', '2026-11-12'];
-  assert.deepEqual(findAlternatives(blocked, '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01'), [
+  const busyOf = (nights) => busySpans(nights.map((n) => ({ allDay: true, start: n, end: addDays(n, 1) })), '2026-10-01', '2027-03-01');
+  assert.deepEqual(findAlternatives(busyOf(blocked), '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01'), [
     { checkIn: '2026-11-13', checkOut: '2026-11-15' },
     { checkIn: '2026-11-14', checkOut: '2026-11-16' },
     { checkIn: '2026-11-08', checkOut: '2026-11-10' },
   ]);
   assert.equal(MAX_ALTERNATIVES, 3);
-  assert.equal(findAlternatives(blocked, '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01', 1).length, 1);
+  assert.equal(findAlternatives(busyOf(blocked), '2026-11-11', 2, '2026-11-01', '2026-12-01', '2026-11-01', 1).length, 1);
   // Never before today, never past the window's end.
   const late = findAlternatives([], '2026-11-02', 3, '2026-11-01', '2026-11-06', '2026-11-02');
   assert.deepEqual(late, [{ checkIn: '2026-11-03', checkOut: '2026-11-06' }]);
   // Everything taken: none.
   const all = Array.from({ length: 90 }, (_, i) => new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10));
-  assert.deepEqual(findAlternatives(all, '2026-11-11', 2, '2026-11-01', '2027-01-30', '2026-11-01'), []);
-  assert.deepEqual(findAlternatives(blocked, 'nope', 2, '2026-11-01', '2026-12-01', '2026-11-01'), []);
+  assert.deepEqual(findAlternatives(busyOf(all), '2026-11-11', 2, '2026-11-01', '2027-01-30', '2026-11-01'), []);
+  assert.deepEqual(findAlternatives(busyOf(blocked), 'nope', 2, '2026-11-01', '2026-12-01', '2026-11-01'), []);
 });
 
 test('bride-day packages carry an optional count of day participants, 1 to 5', () => {
@@ -305,7 +392,7 @@ test('working days between two dates leave out both ends and Saturdays', () => {
 
 test('a stay starts at check-in on its first night; a bride day at 08:00 on the wedding day', () => {
   assert.equal(stayStartsAt('couple', '2026-11-20'), '2026-11-20T15:00');
-  assert.equal(stayStartsAt('bride_night_day', '2026-11-20'), '2026-11-20T15:00', 'the package with the night before starts with the night');
+  assert.equal(stayStartsAt('bride_night_day', '2026-11-20'), '2026-11-20T17:30', 'the package with the night before starts with the night, at 17:30');
   assert.equal(stayStartsAt('bride_day', '2026-11-20'), '2026-11-21T08:00', 'the night before is only kept free');
   assert.equal(stayStartsAt('wedding_night', '2026-11-20'), '2026-11-20T15:00');
 });
