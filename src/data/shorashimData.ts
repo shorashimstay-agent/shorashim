@@ -20,6 +20,15 @@ export const BRAND_DATA = {
 
 export const IMAGES = GENERATED_IMAGES;
 
+export const FAMILY_GALLERY_ITEMS: GalleryItem[] = [
+  { id: 'family-archive', image: IMAGES.archive_family, title: 'מהאלבום המשפחתי', description: 'רגע משפחתי בחצר, מתוך ארכיון משפחת פויזנר', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+  { id: 'family-horses', image: IMAGES.archive_horses, title: 'שורשים באדמה', description: 'אנשים וסוסים בשדה, מתוך הארכיון המשפחתי', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+  { id: 'family-harvest', image: IMAGES.archive_field, title: 'העבודה של פעם', description: 'עבודה משותפת בשדה, מתוך ארכיון משפחת פויזנר', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+  { id: 'family-yossi', image: IMAGES.yossi_field, title: 'יוסי בשדה', description: 'אבא שלנו, יוסי, בין הערוגות במשק', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+  { id: 'family-siblings', image: IMAGES.family_field, title: 'שרי ויואב במשק', description: 'עוד רגע יחד, באדמה שגדלנו עליה', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+  { id: 'family-together', image: IMAGES.family_gathering, title: 'ביחד, בבית', description: 'המשפחה שלנו סביב העוגה: ״חקלאי זה גזע״', category: 'details', categoryLabel: 'הסיפור המשפחתי' },
+];
+
 export const AMENITIES: Amenity[] = [
   { id: '1', name: 'חדר שינה נפרד', category: 'comfort', icon: 'BedDouble', description: 'מיטה מרווחת, מזרן איכותי, מצעי כותנה טבעיים ומיזוג אוויר נפרד' },
   { id: '2', name: 'מטבח מלא ומאובזר', category: 'kitchen', icon: 'UtensilsCrossed', description: 'אי רחב לישיבה ולאכילה, מקרר גדול, תנור, כיריים וכלי בישול' },
