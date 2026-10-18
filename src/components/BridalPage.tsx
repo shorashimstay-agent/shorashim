@@ -2,7 +2,7 @@ import Picture from './Picture';
 import { IMAGES } from '../data/shorashimData';
 import BookingSection from './BookingSection';
 import type { StayType } from '../data/booking';
-import { PREP_WEDDING_NIGHT_ARRIVAL } from '../lib/stay';
+import { NIGHT_BEFORE_CHECK_IN, PREP_FRIDAY_START, PREP_START } from '../lib/stay';
 
 export default function BridalPage({ stayType, onStayTypeChange }: { stayType: StayType; onStayTypeChange: (type: StayType) => void }) {
   return <>
@@ -20,8 +20,8 @@ export default function BridalPage({ stayType, onStayTypeChange }: { stayType: S
 
     <section className="bridal-editorial-section bridal-practical"><h2 className="font-serif">כמה דברים שכדאי לדעת מראש</h2><div>
       <details><summary>כמה אנשים יכולים להיות איתי?</summary><p>עד 5 משתתפים בסך הכול בזמן ההתארגנות, כולל הכלה, המלוות ואנשי המקצוע. במסלולים עם לינה (לילה לפני + יום כלה, יום התארגנות + ליל כלולות) אפשר לארח עד 3 מבוגרים ללינה.</p></details>
-      <details><summary>מתי מגיעים ומתי יוצאים?</summary><p>יום התארגנות בלבד: 08:00–15:30. במסלול לילה לפני ויום התארגנות: כניסה ב־15:00 ביום שלפני ויציאה ב־15:30 ביום האירוע. ביום התארגנות + ליל כלולות: כניסה ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה ויציאה עד 13:00 למחרת החתונה.</p></details>
-      <details><summary>אפשר גם לחזור אחרי החתונה?</summary><p>כן. במסלול יום התארגנות + ליל כלולות מגיעים ב־{PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה, מתארגנים וחוזרים ללינה אחרי האירוע, לילה אחד. היציאה עד 13:00 למחרת החתונה. עד 3 מבוגרים ללינה ועד 5 משתתפים בהתארגנות. אפשר לבחור את המסלול בטופס ההזמנה.</p></details>
+      <details><summary>מתי מגיעים ומתי יוצאים?</summary><p>יום התארגנות בלבד: {PREP_START}–15:30. במסלול לילה לפני ויום התארגנות: כניסה ב־{NIGHT_BEFORE_CHECK_IN} ביום שלפני ויציאה ב־15:30 ביום האירוע. ביום התארגנות + ליל כלולות: כניסה ב־{PREP_START} ביום החתונה ויציאה עד 13:00 למחרת החתונה. ביום שישי אפשר להתחיל את ההתארגנות גם ב־{PREP_FRIDAY_START}, בתיאום.</p></details>
+      <details><summary>אפשר גם לחזור אחרי החתונה?</summary><p>כן. במסלול יום התארגנות + ליל כלולות מגיעים ב־{PREP_START} ביום החתונה, מתארגנים וחוזרים ללינה אחרי האירוע, לילה אחד. היציאה עד 13:00 למחרת החתונה. עד 3 מבוגרים ללינה ועד 5 משתתפים בהתארגנות. אפשר לבחור את המסלול בטופס ההזמנה.</p></details>
       <details><summary>מה לגבי גישה וחניה?</summary><p>הסוויטה במפלס הקרקע והעלייה לגג במדרגות. יש חניה פרטית בתוך המשק. לבירור התאמות גישה ולתיאום ההגעה, פנו למארחים לפני ההזמנה.</p></details>
       <details><summary>שליחת הפרטים מאשרת את ההזמנה?</summary><p>לא. זו בקשת הזמנה, וההזמנה כפופה לאישור זמינות. נחזור אליכם לאישור סופי ולתיאום האירוח.</p></details>
     </div></section>

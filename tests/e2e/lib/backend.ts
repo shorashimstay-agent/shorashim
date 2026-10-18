@@ -52,8 +52,14 @@ const notDefault = (j: any) => !(j.ok === true && j.service);
 export const webApp = (cfg: BackendConfig) => ({
   ping: () => call(cfg, { query: '?action=ping' }, (j) => j.service === 'shorashim-booking'),
   availability: () => call(cfg, { query: '?action=availability' }, (j) => Array.isArray(j.blocked)),
-  /** The live check the site runs before the details: nights [start, end), straight from the calendars. */
-  check: (start: string, end: string) => call(cfg, { query: `?action=check&start=${start}&end=${end}` }, (j) => typeof j.free === 'boolean' || j.ok === false),
+  /**
+   * The live check the site runs before the details, straight from the calendars: for the nights
+   * [start, end) as a couple stay, or with `stay` for that stay's span (start and end its stayRange).
+   */
+  check: (start: string, end: string, stay?: { stayType: string; checkIn: string; checkOut?: string }) => {
+    const extra = stay ? `&stayType=${stay.stayType}&checkIn=${stay.checkIn}&checkOut=${stay.checkOut ?? ''}` : '';
+    return call(cfg, { query: `?action=check&start=${start}&end=${end}${extra}` }, (j) => typeof j.free === 'boolean' || j.ok === false);
+  },
   /** `pricesVersion` is the prices version the caller expects, as a page would send it. */
   diag: (pricesVersion = '') => {
     const t = String(Date.now());

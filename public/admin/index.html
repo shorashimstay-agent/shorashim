@@ -479,7 +479,9 @@
 
   function datesMeta(r) {
     if (WEDDING[r.stayType]) {
-      return '<div><dt>תאריך החתונה</dt><dd>' + he(r.checkIn) + '</dd></div><div><dt>נשמר</dt><dd>' + range(r.start, r.end) + '</dd></div>';
+      // held: the nights kept from couple stays, the night before a morning preparation included.
+      var held = r.held && r.held.length ? range(r.held[0], addDays(r.held[r.held.length - 1], 1)) : range(r.start, r.end);
+      return '<div><dt>תאריך החתונה</dt><dd>' + he(r.checkIn) + '</dd></div><div><dt>נשמר</dt><dd>' + held + '</dd></div>';
     }
     return '<div><dt>הגעה</dt><dd>' + he(r.start) + ' · 15:00</dd></div><div><dt>עזיבה</dt><dd>' + he(r.end) + ' · 11:00</dd></div>';
   }
@@ -672,14 +674,17 @@
   }
   function nightKinds() {
     var d = state.data, out = {};
-    function mark(start, end, entry) {
-      for (var n = start; n < end; n = addDays(n, 1)) (out[n] = out[n] || []).push(entry);
+    // An item marks the nights it keeps from couple stays (held, from the backend): a bride package
+    // also keeps the night before, which is not one of its nights. Its own nights otherwise.
+    function mark(item, entry) {
+      if (item.held) return item.held.forEach(function (n) { (out[n] = out[n] || []).push(entry); });
+      for (var n = item.start; n < item.end; n = addDays(n, 1)) (out[n] = out[n] || []).push(entry);
     }
     // While a hold is being turned into a booking, its own nights do not count as taken.
     var replacing = state.block && state.block.replaceId;
-    d.bookings.forEach(function (b) { if (b.id !== replacing) mark(b.start, b.end, { kind: KIND_CLASS[b.kind] || 'block', label: bookingLabel(b), booking: b }); });
-    d.channels.forEach(function (c) { mark(c.start, c.end, { kind: 'ota', label: 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights) }); });
-    d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r.start, r.end, { kind: 'hold', label: 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate), request: r }); });
+    d.bookings.forEach(function (b) { if (b.id !== replacing) mark(b, { kind: KIND_CLASS[b.kind] || 'block', label: bookingLabel(b), booking: b }); });
+    d.channels.forEach(function (c) { mark(c, { kind: 'ota', label: 'ערוץ · ' + c.title + ' · ' + nightsText(c.nights) }); });
+    d.requests.filter(function (r) { return r.holding; }).forEach(function (r) { mark(r, { kind: 'hold', label: 'בקשה ממתינה · ' + r.name + ' · ' + money(r.estimate), request: r }); });
     return out;
   }
 

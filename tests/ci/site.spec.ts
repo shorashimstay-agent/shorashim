@@ -3,8 +3,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAKE_API } from '../../playwright.ci.config';
 import fs from 'node:fs';
-import { addDays, estimatePrice } from '../../shared/rules.js';
+import { addDays, busySpans, estimatePrice, spanConflicts, spanEvent, staySpan } from '../../shared/rules.js';
 import { openBooking, submitBooking } from '../e2e/lib/site';
+import type { StayType } from '../../src/lib/stay';
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 
@@ -17,6 +18,8 @@ interface Sent {
 interface FakeOptions {
   /** Nights the live check reports as taken (the snapshot still shows them free, as when it is stale). */
   taken?: string[];
+  /** Stays already booked, which both the availability and the live check report, by their spans. */
+  booked?: { stayType: StayType; checkIn: string; checkOut?: string }[];
   /** The live check gets no usable answer (`true`), or none for its first N calls. */
   checkFails?: boolean | number;
   /** The live check gets no usable answer once a request has been sent. */
@@ -31,6 +34,7 @@ interface FakeOptions {
 /** Answers the booking API and reCAPTCHA the way the real ones do; records the request the form sends. */
 async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent> {
   const sent: Sent = { body: null, checks: [] };
+  const bookedEvents = (options.booked ?? []).map((b) => spanEvent(staySpan(b.stayType, b.checkIn, b.checkOut ?? '')));
   await page.route('https://www.google.com/recaptcha/**', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -52,10 +56,15 @@ async function fakeBackend(page: Page, options: FakeOptions = {}): Promise<Sent>
         if (failing) return route.fulfill({ status: 500, body: '<html>error</html>' });
         if (options.checkDelayMs) await new Promise((r) => setTimeout(r, options.checkDelayMs));
         const taken = options.taken ?? [];
-        const conflicts = taken.filter((d) => d >= start && d < end);
-        return route.fulfill({ json: { ok: true, free: !conflicts.length, conflicts, from, to: addDays(from, 366), blocked: taken } });
+        // As the real check: by the stay's span when the page names the stay, by nights otherwise.
+        const stayType = url.searchParams.get('stayType');
+        const events = [...taken.map((d) => ({ allDay: true, start: d, end: addDays(d, 1) })), ...bookedEvents];
+        const conflicts = stayType
+          ? spanConflicts(events, staySpan(stayType as StayType, url.searchParams.get('checkIn')!, url.searchParams.get('checkOut') ?? ''))
+          : taken.filter((d) => d >= start && d < end);
+        return route.fulfill({ json: { ok: true, free: !conflicts.length, conflicts, from, to: addDays(from, 366), blocked: taken, busy: busySpans(events, from, addDays(from, 366)) } });
       }
-      return route.fulfill({ json: { ok: true, from, to: addDays(from, 365), blocked: [] } });
+      return route.fulfill({ json: { ok: true, from, to: addDays(from, 365), blocked: [], busy: busySpans(bookedEvents, from, addDays(from, 365)) } });
     }
     const first = sent.body === null;
     sent.body = JSON.parse(req.postData() ?? 'null');
@@ -253,7 +262,7 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       await expect(gate.locator('[data-alternative]')).toHaveCount(0);
     });
 
-    test('a taken night before does not stop the prep day + wedding night, which holds the wedding night only', async ({ page }) => {
+    test('the prep day + wedding night needs the night before free of guests, though it books one night', async ({ page }) => {
       const wedding = addDays(israelToday(), 50);
       const sent = await fakeBackend(page, { taken: [addDays(wedding, -1)] });
       await page.goto('/#bride-page');
@@ -262,8 +271,29 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       await booking.locator('[data-stay-type="bride_day_wedding_night"]').click();
       await pickDates(page, [wedding]);
       await booking.locator('.booking-bar-continue').click();
-      await expect(page.locator('.booking-request-screen').getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+      await expect(page.getByRole('alertdialog', { name: 'המועד שבחרת אינו פנוי.' }), 'a guest on the night before clashes with the 08:00 start').toBeVisible();
       expect(sent.checks).toEqual([`${wedding}..${addDays(wedding, 1)}`]);
+    });
+
+    test('after a prep day, the calendar offers the next bride at 17:30 but no couple stay that evening', async ({ page }) => {
+      const prep = addDays(israelToday(), 50);
+      const sent = await fakeBackend(page, { booked: [{ stayType: 'bride_day', checkIn: prep }] });
+      // A couple cannot check in on the prep day's evening, nor stay the night before it.
+      await openBar(page);
+      await page.locator('#booking .booking-bar-dates summary').click();
+      const day = (d: string) => page.locator(`.shorashim-calendar [data-day="${d}"] button`);
+      for (let i = 0; i < 14 && !(await day(prep).isVisible()); i++) await page.locator('.shorashim-calendar .rdp-button_next').click();
+      await expect(day(prep), 'no couple check-in on the evening of a prep day').toBeDisabled();
+      await expect(day(addDays(prep, -1)), 'nor on the night before it').toBeDisabled();
+      // The night before + prep day for the next day checks in at 17:30, after the prep day ends.
+      await page.goto('/#bride-page');
+      const booking = page.locator('#booking');
+      await booking.evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+      await booking.locator('[data-stay-type="bride_night_day"]').click();
+      await pickDates(page, [addDays(prep, 1)]);
+      await booking.locator('.booking-bar-continue').click();
+      await expect(page.locator('.booking-request-screen').getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+      expect(sent.checks.at(-1)).toBe(`${prep}..${addDays(prep, 2)}`);
     });
   });
 }

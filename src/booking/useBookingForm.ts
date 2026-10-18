@@ -19,7 +19,10 @@ import {
   israelToday,
   NOTES_MAX,
   nightsOf,
-  PREP_WEDDING_NIGHT_ARRIVAL,
+  PREP_START,
+  spansOfNights,
+  staySpan,
+  type Span,
   stayRange,
   validateRequest,
   type StayType,
@@ -59,6 +62,7 @@ export type Submission =
   | { state: 'failed'; message: string };
 
 const NO_BLOCKS = new Set<string>();
+const NO_SPANS: Span[] = [];
 
 /** Maps the shared rules' error codes onto the form's fields and wording, for both validation passes. */
 const SERVER_FIELD_ERRORS: Record<string, [Field, string]> = {
@@ -229,10 +233,9 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     else setGate({ state: 'checking', key });
     runningCheck.current = key;
     setAnnouncement('בודקים זמינות...');
-    const range = stayRange(stayType, from, to);
     let result: Awaited<ReturnType<typeof checkDates>> | null = null;
     try {
-      result = await checkDates(range.start, range.end);
+      result = await checkDates(stayType, from, to);
     } catch {
       result = null;
     }
@@ -247,14 +250,19 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     }
     // The server refused these nights: they are taken even if the check got no answer, or its copy
     // has not caught up yet. Without an answer there is no window to look for nearby dates in.
-    const fresh: Availability = result?.availability ?? { from: '', to: '', blocked: new Set<string>() };
+    const fresh: Availability = result?.availability ?? { from: '', to: '', blocked: new Set<string>(), busy: [] };
     taken.forEach((d) => fresh.blocked.add(d));
+    if (taken.length) fresh.busy = [...fresh.busy, ...spansOfNights(taken)].sort((a, b) => (a.start < b.start ? -1 : 1));
     // The calendar shows what the check found for its window.
     setAvailability((prev) => {
       if (!prev) return prev;
       const blocked = new Set([...prev.blocked].filter((d) => !fresh.from || d < fresh.from || d >= fresh.to));
       fresh.blocked.forEach((d) => blocked.add(d));
-      return { ...prev, blocked };
+      const lo = `${fresh.from}T00:00`;
+      const hi = `${fresh.to}T00:00`;
+      const kept = prev.busy.filter((sp) => !fresh.from || sp.end <= lo || sp.start >= hi);
+      const busy = [...kept, ...fresh.busy].sort((a, b) => (a.start < b.start ? -1 : 1));
+      return { ...prev, blocked, busy };
     });
     if (result?.free && !taken.length) {
       if (opts.beforeSend) setGate({ state: 'free', key, verified: true });
@@ -263,7 +271,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     }
     // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
     const searched = stayType === 'couple' && Boolean(fresh.from);
-    const alternatives = searched ? findAlternatives([...fresh.blocked], from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
+    const alternatives = searched ? findAlternatives(fresh.busy, from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
     showGate({ state: 'taken', key, alternatives, searched });
     return 'taken';
   };
@@ -326,7 +334,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       ref ? `שלום שורשים, שלחתי בקשת הזמנה באתר (מספר ${ref}):` : `שלום שורשים, אשמח לבדוק זמינות ולהזמין:`,
       `• סוג האירוח: ${stayTypeName}`,
       checkIn ? (wedding ? `• תאריך החתונה: ${formatHebrewDate(checkIn)}` : `• תאריך הגעה: ${formatHebrewDate(checkIn)}`) : '',
-      checkIn && stayType === 'bride_day_wedding_night' ? `• הגעה: ${formatHebrewDate(checkIn)} ב־${PREP_WEDDING_NIGHT_ARRIVAL} (יום החתונה) · יציאה: ${formatHebrewDate(addDays(checkIn, 1))} עד 13:00` : '',
+      checkIn && stayType === 'bride_day_wedding_night' ? `• הגעה: ${formatHebrewDate(checkIn)} ב־${PREP_START} (יום החתונה) · יציאה: ${formatHebrewDate(addDays(checkIn, 1))} עד 13:00` : '',
       checkOut && !wedding ? `• תאריך עזיבה: ${formatHebrewDate(checkOut)} (${nights} לילות)` : '',
       `• מספר אורחים (מבוגרים): ${adultsCount}`,
       hasDayParticipants ? `• משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): ${participants}` : '',
@@ -406,7 +414,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       setTimeout(() => successHeadingRef.current?.focus(), 0);
       // The public availability sheet catches up within about a minute; grey out the held nights now.
       const held = stayRange(stayType, checkIn, checkOut);
-      setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]) });
+      const span = staySpan(stayType, checkIn, checkOut);
+      setAvailability((current) => current && { ...current, blocked: new Set([...current.blocked, ...nightsOf(held.start, held.end)]), busy: [...current.busy, span].sort((a, b) => (a.start < b.start ? -1 : 1)) });
       return;
     }
     if (result.error === 'unavailable') {
@@ -483,6 +492,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     changeDates,
     clearDates,
     blocked: availability?.blocked ?? NO_BLOCKS,
+    busy: availability?.busy ?? NO_SPANS,
     windowEnd: availability?.to,
     availabilityState,
     adultsCount,

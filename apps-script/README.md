@@ -12,7 +12,26 @@ A Google Apps Script web app in the `shorashimstay@gmail.com` account. It powers
 
 Each booking is an all-day event from the check-in date to the check-out date. Google Calendar's own end date is exclusive, so an event on 20–23 September blocks the nights of the 20th, 21st and 22nd. A timed event (for example a cleaning from 09:00 to 17:00) blocks every night whose stay window, 15:00 to 11:00 the next day, it overlaps.
 
-A bride day or "night before + bride day" on wedding date D holds the night before (D-1) and the wedding night (D).
+### What clashes: spans, not nights
+
+Availability is worked out in time. Every stay occupies a **span** (`staySpan` in `shared/rules.js`), and two stays clash exactly when their spans overlap. The bride packages' hours come from the owner (ClickUp `z8r3fdvdp6`, 18.10.2026):
+
+| Stay on date D | Occupies | Calendar event (the nights it is booked and priced for) |
+|---|---|---|
+| Couple stay | 15:00 on check-in → 11:00 on check-out | check-in → check-out |
+| Wedding night | 15:00 → 13:00 the next day | D → D+1 |
+| Prep day only (`bride_day`) | 08:00 → 16:00 on D | D-1 → D+1 |
+| Night before + prep day (`bride_night_day`) | 17:30 on D-1 → 16:00 on D | D-1 → D+1 |
+| Prep day + wedding night (`bride_day_wedding_night`) | 08:00 on D → 13:00 on D+1 | D → D+1 (one night) |
+| Closings, holds, channel and manual all-day events | their nights, as a couple stay | as entered |
+
+Preparation can also start at 06:00 on a Friday by arrangement. Nothing chooses that automatically; an earlier start changes no clash, since anything before 08:00 is a night's stay that ends at 11:00 or later.
+
+That gives the owner's rules in both booking orders. No guest can sleep the night before a prep day (their stay ends after 08:00). No couple can check in on a prep day's evening (15:00 is before 16:00). Another bride can check in at 17:30 for the next day, or prepare the next morning. Nobody can prepare the morning after a wedding night (13:00 is after 08:00). A prep day + wedding night keeps the night before free of guests without counting or charging it as a night.
+
+Stored stays carry their `request` JSON (`stayType`, `checkIn`, `checkOut`), and the backend works out their span from that (`itemSpanEvent_`), not from the event's dates. So cancelling or declining a stay frees exactly its own time, and an older event's dates do not matter.
+
+The **blocked nights** the site and the snapshot carry are the nights a couple stay cannot take. They are exactly what they were before the spans for every package, so a page from before the spans stays correct. The **busy spans** (`busy`) are what the site uses to tell which package fits which date.
 
 ## Google Drive folder
 
@@ -22,13 +41,13 @@ Everything for the site lives in the Drive folder **shorashim-webpage** of the S
 |---|---|---|
 | **Shorashim Booking** (Apps Script) | Private | The booking backend |
 | **שורשים – ניהול הזמנות** | Private | Tabs בקשות / הזמנות / ערוצים mirroring the calendars, with approve/decline |
-| **שורשים – זמינות לאתר** | Anyone with the link (view) | A header row, then from, to, generatedAt and blocked nights. Dates only, no guest details |
+| **שורשים – זמינות לאתר** | Anyone with the link (view) | A header row, then from, to, generatedAt, blocked nights and busy spans (`start/end` local times, comma-separated). Dates and times only, no guest details |
 
 The availability data is a separate file on purpose. The public file contains nothing but dates, so no sharing or publishing mistake can expose the guest details in the admin sheet. **Never share the admin sheet.**
 
 The website reads the availability sheet's CSV export first, because Google answers it in well under a second. A cold call to the web app often takes 10 seconds or more. If the sheet is unreachable or its data is older than 30 minutes, the site asks the web app directly. The server re-checks every request, so stale availability can't cause a double booking.
 
-Before the website opens or sends a request, it runs the **live check**: `GET ?action=check&start=YYYY-MM-DD&end=YYYY-MM-DD` (nights `[start, end)`, at most 14, inside the booking window). It answers `{ ok, free, conflicts, from, to, blocked }`, where `blocked` lists the taken nights in a window of ±44 days, which the site uses to offer up to 3 nearby stays. It is public and read-only: it never expires or deletes anything. All checks share one read of the calendars per 30 seconds (`CHECK_CACHE_SECONDS`), and checks that arrive while a read is running answer from the last copy, so steady traffic costs about 8,600 UrlFetch calls a day, against the account's 20,000. This is best effort, not a hard cap: the cache has no atomic claim. `?action=availability` has the same limits. Every booking change this backend makes clears that copy, so new requests show at once. An edit made directly in Google Calendar shows within 30 seconds. After a failed read, checks answer `server_error` for 10 seconds without retrying, and the site never shows a failed check as free.
+Before the website opens or sends a request, it runs the **live check**: `GET ?action=check&start=YYYY-MM-DD&end=YYYY-MM-DD&stayType=…&checkIn=…&checkOut=…`. `[start, end)` are the stay's nights (`stayRange`, at most 14, inside the booking window), and the answer is for the stay's span. Without `stayType`, as pages from before the spans ask, it is for the nights as a couple stay. It answers `{ ok, free, conflicts, from, to, blocked, busy }`, where `blocked` and `busy` cover a window of ±44 days, which the site uses for the calendar and to offer up to 3 nearby stays. It is public and read-only: it never expires or deletes anything. All checks share one read of the calendars per 30 seconds (`CHECK_CACHE_SECONDS`), and checks that arrive while a read is running answer from the last copy, so steady traffic costs about 8,600 UrlFetch calls a day, against the account's 20,000. This is best effort, not a hard cap: the cache has no atomic claim. `?action=availability` has the same limits. Every booking change this backend makes clears that copy, so new requests show at once. An edit made directly in Google Calendar shows within 30 seconds. After a failed read, checks answer `server_error` for 10 seconds without retrying, and the site never shows a failed check as free.
 
 Both spreadsheets are rewritten after every request or decision, whenever a booking calendar changes, and on a timer. Apps Script calendar change triggers only work on an account's primary calendar, and the booking calendars are secondary calendars. So `setup` falls back to a timer every 5 minutes, and Saray's own edits in Google Calendar reach the sheet and the website within about 5 minutes. The timer also lets expired holds drop out.
 
