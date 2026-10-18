@@ -36,9 +36,11 @@ export var STAY_TYPES = {
   bride_day_wedding_night: { label: 'יום התארגנות + ליל כלולות', wedding: true },
 };
 export var WEDDING_NIGHT_CHECK_OUT = '13:00';
-// After the night before's check-out (11:00), so a guest staying that night never overlaps the bride.
+// The night before stays open, and the stay on it may be a wedding night (or this package for the day
+// before), which leaves at WEDDING_NIGHT_CHECK_OUT, not at 11:00. Availability tracks nights only, so
+// the arrival must come after the latest check-out and the turnover; rules.test.mjs holds it to that.
 // Pending the owner's answer on the ClickUp task z8r3fdvdp6.
-export var PREP_WEDDING_NIGHT_ARRIVAL = '12:00';
+export var PREP_WEDDING_NIGHT_ARRIVAL = '14:00';
 
 // Prices are not in the code. They live in the owner's prices spreadsheet (one row per key, see
 // pricesFromRows), which the site reads as a public CSV and the web app reads directly, so a price
@@ -305,6 +307,8 @@ export function validateRequest(input, today, prices) {
   var todayN = toDayNumber(today);
   var inN = toDayNumber(checkIn);
   if (isNaN(inN)) errors.checkIn = 'invalid';
+  // A wedding date is tomorrow at the earliest, the prep day + wedding night included: the house is
+  // prepared for the bride, so it is not booked on the day.
   else if (inN < todayN + (type && type.wedding ? 1 : 0)) errors.checkIn = 'past';
   else if (inN > todayN + HORIZON_DAYS) errors.checkIn = 'too_far';
 
