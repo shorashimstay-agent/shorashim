@@ -348,7 +348,8 @@ test('O11: closings that overlap taken nights are refused, a retry closes once, 
   // Nor can a manual event made in Google Calendar: it may be a guest's stay.
   const manual = await owner.insertEvent(cfg.calendars.bookings, { summary: `${runTag} ידני ביומן`, start: { date: addDays(start, 8) }, end: { date: addDays(start, 9) } });
   expect(await api.console('unblock', { id: manual.iCalUID })).toMatchObject({ ok: false, error: 'is_booking' });
-  expect(await api.console('unblock', { id: first.id })).toMatchObject({ ok: true, result: 'reopened' });
+  const reopened = await api.console('unblock', { id: first.id });
+  expect(reopened, JSON.stringify(reopened)).toMatchObject({ ok: true, result: 'reopened' });
 });
 
 test('O12: a phone booking invites the guest; a temporary hold blocks, extends, turns into a booking, and runs out', async () => {
@@ -370,7 +371,7 @@ test('O12: a phone booking invites the guest; a temporary hold blocks, extends, 
   const holder = guestName('קונסולה שמירה');
   const held = nights(addDays(start, 3), addDays(start, 5));
   const hold = await api.console('block', { args: { kind: 'hold', start: held[0], end: addDays(start, 5), hours: 24, name: holder } });
-  expect(hold).toMatchObject({ ok: true, result: 'held' });
+  expect(hold, JSON.stringify(hold)).toMatchObject({ ok: true, result: 'held' });
   expect((await api.availability()).blocked).toEqual(expect.arrayContaining(held));
   const extended = await api.console('extendHold', { id: hold.id, args: { hours: 24 } });
   expect(Date.parse(extended.expiresAt) - Date.parse(hold.expiresAt)).toBeGreaterThan(23 * 3600_000);

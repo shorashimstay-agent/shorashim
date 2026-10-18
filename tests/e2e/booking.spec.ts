@@ -399,7 +399,7 @@ test('G11: the prep day + wedding night package is one night from 08:00, keeps t
     ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), nights: 1, adults: 3, participants: 5,
     estimate: pricesFile.prices.bride_day_wedding_night,
   });
-  expect(ev.description).toContain('עד 13:00 (למחרת החתונה)');
+  expect(ev.description).toContain('עד 13:00 (למחרת החתונה, לילה אחד)');
   expect(ev.description).toContain('מ-08:00 (יום החתונה');
   expect(ev.description).toContain('הלילה שלפני חסום ללינה (לא נספר כלילה)');
   // No couple can take the night before (its morning is the 08:00 start) or the wedding night.
@@ -424,6 +424,7 @@ test('G14: after a prep day, another bride checks in at 17:30 for the next day, 
   const prep = addDays(slot(14), 1);
   const first = guestName('יום כלה ברצף');
   const second = guestName('לילה לפני ברצף');
+  await openBooking(page); // loads reCAPTCHA for the direct requests below
   expect(await postRequest(page, { stayType: 'bride_day', checkIn: prep, checkOut: '', adults: 2, participants: 3, name: first, phone: randomPhone() })).toMatchObject({ ok: true });
   // A couple on the prep day's evening clashes with its 16:00 end; the server refuses it by its span.
   const couple = await postRequest(page, { stayType: 'couple', checkIn: prep, checkOut: addDays(prep, 1), adults: 2, name: guestName('זוג אחרי יום כלה'), phone: randomPhone() });
