@@ -1,5 +1,6 @@
 import { Clock, Landmark } from 'lucide-react';
-import { IMAGES } from '../data/shorashimData';
+import { IMAGES, FAMILY_GALLERY_ITEMS } from '../data/shorashimData';
+import GallerySection from './GallerySection';
 import { RootLine, EditorialTag } from './RootLine';
 import Picture from './Picture';
 import ConceptSection from './ConceptSection';
@@ -93,28 +94,7 @@ export default function StorySection() {
           {/* Authentic Archival Photography & Founders' Words — Quiet Editorial Left Column */}
           <div className="lg:col-span-5 w-full max-w-none text-right" dir="rtl">
             
-            {/* Authentic Family Archival Photograph — sitting directly on warm cream background */}
-            <div className="w-full">
-              <div className="p-1 sm:p-1.5 bg-[#F8F5EE] shadow-[0_4px_22px_rgba(40,30,20,0.06)] border border-[#E5DFD3]/80">
-                <div className="aspect-[4/3] overflow-hidden bg-[#292824]">
-                  <Picture
-                    image={IMAGES.archive_plough}
-                    alt="תצלום היסטורי מארכיון משפחת פויזנר: עבודה בשדה עם סוסים בזכרון יעקב"
-                    className="w-full h-full object-cover sepia-[0.35] brightness-[0.95]"
-                    sizes="(min-width: 1024px) 40vw, 100vw"
-                  />
-                </div>
-              </div>
-
-              {/* Archival Caption */}
-              <div className="mt-2.5 flex items-center justify-between text-[11px] font-mono text-[#7B6045]" dir="rtl">
-                <span>ארכיון משפחת פויזנר</span>
-                <span>משק פויזנר · זכרון יעקב</span>
-              </div>
-              <p className="mt-1 text-xs text-[#27241F]/70 font-light leading-relaxed text-right" dir="rtl">
-                המשק המשפחתי לאורך השנים. השורשים שניטעו כאן ב־<bdi>1882</bdi> ממשיכים לחיות בכל אבן, עץ ופינה.
-              </p>
-            </div>
+            <div className="family-history-gallery"><GallerySection items={FAMILY_GALLERY_ITEMS} embedded galleryId="family" label="אלבום משפחת פויזנר" /></div>
 
             {/* The Founders' Quote — Quiet Editorial Typography directly on cream */}
             <div className="pt-8 sm:pt-12 text-right w-full max-w-md mr-auto lg:mr-0" dir="rtl">
@@ -142,6 +122,7 @@ export default function StorySection() {
     </section>
   );
 }
+
 
 
 
