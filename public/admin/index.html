@@ -574,7 +574,7 @@
           var approved = x.result === 'approved';
           var at = new Date(x.at);
           return '<li class="item" data-decision-ref="' + esc(x.ref) + '"><div class="date"><b>' + at.getDate() + '</b><span>' + MONTHS[at.getMonth()].slice(0, 3) + '׳</span></div>' +
-            '<div><p class="who">' + esc(x.name) + '</p><p class="what">' + range(x.start, x.end) + ' · ' + esc(x.stayLabel) + '</p></div>' +
+            '<div><p class="who">' + esc(x.name) + '</p><p class="what">' + stayText(x) + ' · ' + esc(x.stayLabel) + '</p></div>' +
             '<div class="side"><span class="pill ' + (approved ? 'ok' : 'bad') + '">' + (approved ? 'אושרה' : 'נדחתה') + '</span>' +
             (x.whatsapp ? '<a class="btn wa icon" href="' + esc(x.whatsapp) + '" target="_blank" rel="noopener" aria-label="' + (approved ? 'שליחת אישור' : 'שליחת דחייה') + ' ב-WhatsApp ל' + esc(x.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
         }).join('')

@@ -330,7 +330,19 @@ function itemSpanEvent_(item) {
 function whenCells_(item) {
   var ev = itemSpanEvent_(item);
   if (ev.allDay) return [text_(heDate_(ev.start)), text_(heDate_(ev.end))];
-  return [text_(heDate_(ev.start.slice(0, 10)) + ' ' + ev.start.slice(11)), text_(heDate_(ev.end.slice(0, 10)) + ' ' + ev.end.slice(11))];
+  return spanCells_(ev);
+}
+
+/** A span as the admin sheet's arrival and departure cells. */
+function spanCells_(span) {
+  return [text_(heDate_(span.start.slice(0, 10)) + ' ' + span.start.slice(11)), text_(heDate_(span.end.slice(0, 10)) + ' ' + span.end.slice(11))];
+}
+
+/** A recorded decision's stay span: decisions keep the stay type and the event's dates only. */
+function decisionSpan_(d) {
+  var type = STAY_TYPES[d.stayType];
+  if (!type) return null;
+  return storedSpan({ stayType: d.stayType, checkIn: type.wedding ? addDays(d.end, -1) : d.start, checkOut: d.end }, d.start, d.end);
 }
 
 /** A stored stay's own span ({ start, end } local times) for the console; null for anything else. */
@@ -1013,6 +1025,7 @@ function adminData_() {
         start: d.start,
         end: d.end,
         nights: STAY_TYPES[d.stayType] && STAY_TYPES[d.stayType].wedding ? stayNights(d.stayType, '', '') : daysBetween(d.start, d.end),
+        stay: decisionSpan_(d),
         whatsapp: d.whatsapp || '',
       };
     });
@@ -1124,8 +1137,8 @@ function syncAdminSheet_() {
       text_(d.ref),
       approved ? 'אושרה ✓' : 'נדחתה ✗',
       d.stayLabel,
-      text_(heDate_(d.start)),
-      text_(heDate_(d.end)),
+      d.stay ? spanCells_(d.stay)[0] : text_(heDate_(d.start)),
+      d.stay ? spanCells_(d.stay)[1] : text_(heDate_(d.end)),
       d.nights,
       '',
       text_(d.name),
