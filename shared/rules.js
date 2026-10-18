@@ -140,12 +140,14 @@ export function daysBetween(a, b) {
 }
 
 /**
- * The nights a stay occupies, as [start, end) dates.
+ * The nights a stay keeps from couple stays, as [start, end) dates: its calendar event. A wedding-type
+ * stay keeps the night before and the wedding night (a morning preparation leaves no room for a guest
+ * the night before; the night before + prep day sleeps there). How many of them the guest stays and
+ * pays for is stayNights.
  * @param {StayType} stayType @param {string} checkIn @param {string} checkOut
  * @returns {{ start: string, end: string }}
  */
 export function stayRange(stayType, checkIn, checkOut) {
-  if (stayType === 'bride_day_wedding_night') return { start: checkIn, end: addDays(checkIn, 1) };
   if (STAY_TYPES[stayType] && STAY_TYPES[stayType].wedding) {
     return { start: addDays(checkIn, -1), end: addDays(checkIn, 1) };
   }
@@ -191,7 +193,7 @@ export function nightsSpan(start, end) {
  */
 export function requestSpan(req) {
   var type = req && STAY_TYPES[req.stayType];
-  if (type && DATE_RE.test(String(req.checkIn || '')) && (type.wedding || DATE_RE.test(String(req.checkOut || '')))) {
+  if (type && isRealDate(req.checkIn) && (type.wedding || isRealDate(req.checkOut))) {
     return staySpan(req.stayType, req.checkIn, req.checkOut);
   }
   return nightsSpan(req.start, req.end);
@@ -284,6 +286,42 @@ export function parseSpans(text) {
       if (m && m[1] < m[2]) out.push({ start: m[1], end: m[2] });
     });
   return out;
+}
+
+/**
+ * The nights the guest stays, as shown and priced: a preparation day alone has none, the night before
+ * + prep day and the prep day + wedding night one each. The calendar event may keep more (stayRange).
+ * @param {StayType} stayType @param {string} checkIn @param {string} checkOut @returns {number}
+ */
+export function stayNights(stayType, checkIn, checkOut) {
+  if (stayType === 'bride_day') return 0;
+  if (stayType === 'bride_night_day' || stayType === 'bride_day_wedding_night') return 1;
+  return daysBetween(checkIn, checkOut);
+}
+
+/**
+ * The span a stored stay occupies, given the dates its calendar event has now. Those are normally
+ * its stayRange; when the owner moved or stretched the event in Google Calendar, the stay moves
+ * with its first night, and a stretched one also keeps every night of the event.
+ * @param {{ stayType?: string, checkIn?: string, checkOut?: string }} req @param {string} start @param {string} end
+ */
+export function storedSpan(req, start, end) {
+  var type = req && STAY_TYPES[req.stayType];
+  if (!type || !isRealDate(req.checkIn) || (!type.wedding && !isRealDate(req.checkOut))) return nightsSpan(start, end);
+  var expected = stayRange(req.stayType, req.checkIn, req.checkOut);
+  if (expected.start === start && expected.end === end) return staySpan(req.stayType, req.checkIn, req.checkOut);
+  var shift = daysBetween(expected.start, start);
+  var moved = staySpan(req.stayType, addDays(req.checkIn, shift), type.wedding ? '' : addDays(req.checkOut, shift));
+  if (daysBetween(start, end) === daysBetween(expected.start, expected.end)) return moved;
+  var nights = nightsSpan(start, end);
+  return { start: moved.start < nights.start ? moved.start : nights.start, end: moved.end > nights.end ? moved.end : nights.end };
+}
+
+/** A 'YYYY-MM-DD' string that names a real date (not 2026-02-31). */
+export function isRealDate(date) {
+  var s = String(date || '');
+  var n = DATE_RE.test(s) ? toDayNumber(s) : NaN;
+  return !isNaN(n) && fromDayNumber(n) === s;
 }
 
 /** @param {string} start @param {string} end @returns {string[]} */
@@ -472,7 +510,7 @@ export function validateRequest(input, today, prices) {
 
   if (Object.keys(errors).length) return { ok: false, errors: errors };
 
-  var blockedCount = daysBetween(range.start, range.end);
+  var stayed = stayNights(stayType, checkIn, type.wedding ? range.end : checkOut);
   return {
     ok: true,
     value: {
@@ -481,14 +519,14 @@ export function validateRequest(input, today, prices) {
       checkOut: type.wedding ? range.end : checkOut,
       start: range.start,
       end: range.end,
-      nights: blockedCount,
+      nights: stayed,
       adults: adults,
       participants: participants,
       name: name,
       phone: phone,
       email: email,
       notes: notes,
-      estimate: estimatePrice(stayType, blockedCount, adults, prices || null, range.start),
+      estimate: estimatePrice(stayType, stayed, adults, prices || null, range.start),
     },
   };
 }
@@ -565,6 +603,9 @@ export function validateBlock(input, today) {
     if (!(adults >= 1 && adults <= MAX_ADULTS && Math.floor(adults) === adults)) errors.adults = 'invalid';
     var price = input.price === '' || input.price == null ? 0 : Number(input.price);
     if (!(price >= 0 && price <= PHONE_PRICE_MAX && Math.floor(price) === price)) errors.price = 'invalid';
+    // A bride package is booked over the night before and the wedding night, as on the website
+    // (stayRange): its wedding date is the second night.
+    if (STAY_TYPES[stayType] && STAY_TYPES[stayType].wedding && value.nights !== 2) errors.end = 'wedding_range';
     value.stayType = stayType;
     value.name = name;
     value.phone = phone;
@@ -598,16 +639,15 @@ export var STATUTORY_CAP = 100;
 /**
  * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night, by the house
  * rules: check-in at 15:00 on the first night; for bride_night_day, whose guests arrive the day
- * before, at NIGHT_BEFORE_CHECK_IN. A bride day's event starts the night before (it is kept free for
- * her); the day itself starts at PREP_START on the wedding day. A prep day + wedding night starts on
- * the wedding day, its first and only night, at PREP_START.
+ * before, at NIGHT_BEFORE_CHECK_IN. A bride day's and a prep day + wedding night's events start the
+ * night before (kept free of guests for them); the stay itself starts at PREP_START on the wedding
+ * day. It is staySpan's start.
  * A wedding night's arrival is "after the event, by arrangement", so its check-in hour, the earliest
  * it can be, stands in for it.
  * @param {StayType} stayType @param {string} start @returns {string}
  */
 export function stayStartsAt(stayType, start) {
-  if (stayType === 'bride_day') return addDays(start, 1) + 'T' + PREP_START;
-  if (stayType === 'bride_day_wedding_night') return start + 'T' + PREP_START;
+  if (stayType === 'bride_day' || stayType === 'bride_day_wedding_night') return addDays(start, 1) + 'T' + PREP_START;
   if (stayType === 'bride_night_day') return start + 'T' + NIGHT_BEFORE_CHECK_IN;
   return start + 'T' + hhmm(CHECK_IN_MINUTES);
 }

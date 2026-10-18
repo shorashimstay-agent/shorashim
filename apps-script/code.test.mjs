@@ -181,6 +181,8 @@ test('the live check answers for a stay by its span, so a bride package fits aro
   assert.deepEqual(ask('couple', '2026-11-19', '2026-11-20').conflicts, ['2026-11-19'], 'nor the night before it');
   assert.equal(ask('bride_day_wedding_night', '2026-11-20').free, false);
   assert.equal(ctx.checkDates_('2026-11-20', '2026-11-21', { stayType: 'bride_day_wedding_night', checkIn: '2026-11-21' }).error, 'invalid', 'the nights must be the stay\'s own');
+  assert.equal(ctx.checkDates_('2026-11-19', '2026-11-21', { stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }).ok, true);
+  assert.equal(ctx.checkDates_('2027-02-30', '2027-03-02', { stayType: 'bride_day', checkIn: '2027-02-31' }).error, 'invalid', 'a date that does not exist');
   assert.equal(ctx.checkDates_('2026-11-20', '2026-11-21', { stayType: 'nope', checkIn: '2026-11-20' }).error, 'invalid');
   // Asked by nights only (a page from before the spans), the same prep day takes both nights.
   assert.deepEqual([...ctx.checkDates_('2026-11-19', '2026-11-21').conflicts], ['2026-11-19', '2026-11-20']);
@@ -239,11 +241,11 @@ test('a failing calendar read answers server_error and is not retried for a few 
 
 test('cancelling a prep day + wedding night booking counts from the arrival on the wedding day', () => {
   const ctx = load({ LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) } });
-  // Wedding on 2026-10-15: the stay holds the 15th only and starts that day at 08:00.
+  // Wedding on 2026-10-15: the event keeps the 14th and the 15th; the stay starts on the 15th at 08:00.
   ctx.findBooking_ = () => ({
     id: 'ev1',
     iCalUID: 'uid1',
-    start: { date: '2026-10-15' },
+    start: { date: '2026-10-14' },
     end: { date: '2026-10-16' },
     extendedProperties: { shared: { source: 'console', kind: 'phone', request: JSON.stringify({ stayType: 'bride_day_wedding_night', name: 'דנה', checkIn: '2026-10-15' }) } },
   });
@@ -276,7 +278,7 @@ test('the short dates for the prep day + wedding night package carry the wedding
 test('messages for the prep day + wedding night package give the wedding-day arrival and the 13:00 departure', () => {
   const ctx = load();
   ctx.heDate_ = (d) => d;
-  const lines = ctx.stayLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-20', end: '2026-11-21', adults: 3, participants: 5 });
+  const lines = ctx.stayLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-19', end: '2026-11-21', adults: 3, participants: 5 });
   assert.deepEqual([...lines], [
     'סוג האירוח: יום התארגנות + ליל כלולות',
     'תאריך החתונה: 2026-11-20',
@@ -290,9 +292,42 @@ test('messages for the prep day + wedding night package give the wedding-day arr
 test('the owner text gives the hours a bride package holds, and the night before it keeps free', () => {
   const ctx = load();
   ctx.heDate_ = (d) => d;
-  const lines = [...ctx.ownerLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-20', end: '2026-11-21', adults: 3, participants: 5, estimate: 2800, name: 'דנה', phone: '0501234567', ref: 'SH-T1' })];
+  const lines = [...ctx.ownerLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-19', end: '2026-11-21', adults: 3, participants: 5, estimate: 2800, name: 'דנה', phone: '0501234567', ref: 'SH-T1' })];
   assert.ok(lines.includes('שמור ביומן: 2026-11-20 08:00 עד 2026-11-21 13:00 · הלילה שלפני חסום ללינה (לא נספר כלילה)'));
   const bride = [...ctx.ownerLines_({ stayType: 'bride_night_day', checkIn: '2026-11-20', start: '2026-11-19', end: '2026-11-21', adults: 2, name: 'דנה', phone: '0501234567', ref: 'SH-T2' })];
   assert.ok(bride.includes('שמור ביומן: 2026-11-19 17:30 עד 2026-11-20 16:00'), 'the night before + prep day is its own night, from 17:30');
   assert.ok(bride.includes('הגעה: 2026-11-19 מ-17:30 (יום לפני החתונה)'));
+});
+
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
+test('a standalone wedding night\'s messages say after the event and 13:00', () => {
+  const ctx = load();
+  ctx.heDate_ = (d) => d;
+  const lines = [...ctx.stayLines_({ stayType: 'wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', adults: 2 })];
+  assert.ok(lines.includes('הגעה: 2026-11-20 לאחר האירוע, בתיאום'));
+  assert.ok(lines.includes('עזיבה: 2026-11-21 עד 13:00'));
+});
+
+test('a stored stay holds its span from the event\'s dates, even after the owner moved it in Google Calendar', () => {
+  const ctx = load();
+  const item = (start, end, req) => ({ start: { date: start }, end: { date: end }, extendedProperties: { shared: { request: JSON.stringify(req) } } });
+  const prep = { stayType: 'bride_day', checkIn: '2026-11-20' };
+  assert.deepEqual(plain(ctx.itemSpanEvent_(item('2026-11-19', '2026-11-21', prep))), { allDay: false, start: '2026-11-20T08:00', end: '2026-11-20T16:00' });
+  // Moved two days later in the calendar: the prep day moves with it.
+  assert.deepEqual(plain(ctx.itemSpanEvent_(item('2026-11-21', '2026-11-23', prep))), { allDay: false, start: '2026-11-22T08:00', end: '2026-11-22T16:00' });
+  // A couple stay stretched by a night keeps every night of the event.
+  const couple = { stayType: 'couple', checkIn: '2026-11-20', checkOut: '2026-11-22' };
+  assert.deepEqual(plain(ctx.itemSpanEvent_(item('2026-11-20', '2026-11-23', couple))), { allDay: false, start: '2026-11-20T15:00', end: '2026-11-23T11:00' });
+  // Closings and manual events hold their nights.
+  assert.deepEqual(plain(ctx.itemSpanEvent_({ start: { date: '2026-11-20' }, end: { date: '2026-11-21' } })), { allDay: true, start: '2026-11-20', end: '2026-11-21' });
+});
+
+test('the console\'s held nights include the night before a morning preparation', () => {
+  const ctx = load();
+  const item = { start: { date: '2026-11-19' }, end: { date: '2026-11-21' }, extendedProperties: { shared: { request: JSON.stringify({ stayType: 'bride_night_day', checkIn: '2026-11-20' }) } } };
+  assert.deepEqual([...ctx.heldNights_(item)], ['2026-11-19', '2026-11-20']);
+  const phone = (stayType, start, end) => plain(ctx.closingSpan_({ kind: 'phone', stayType, start, end }));
+  assert.deepEqual(phone('bride_night_day', '2026-11-20', '2026-11-22'), { start: '2026-11-20T17:30', end: '2026-11-21T16:00' }, 'a phone booking holds its package\'s hours');
+  assert.deepEqual(plain(ctx.closingSpan_({ kind: 'block', start: '2026-11-20', end: '2026-11-22' })), { start: '2026-11-20T15:00', end: '2026-11-22T11:00' });
 });

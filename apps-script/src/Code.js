@@ -315,11 +315,31 @@ function itemSpanEvent_(item) {
       var req = JSON.parse(props.request);
       if (req && STAY_TYPES[req.stayType]) {
         var range = itemRange_(item);
-        return spanEvent(requestSpan({ stayType: req.stayType, checkIn: req.checkIn, checkOut: req.checkOut, start: range.start, end: range.end }));
+        // From the event's dates as they are now: the owner may have moved it in Google Calendar.
+        return spanEvent(storedSpan(req, range.start, range.end));
       }
     } catch (ignored) {}
   }
   return itemRuleEvent_(item);
+}
+
+/**
+ * The nights a stored stay's guest stays (stayNights): a bride package's own, a couple stay's the
+ * event's (which the owner may have stretched); the event's for anything else.
+ */
+/**
+ * Arrival and departure for the admin sheet: a stored stay's own hours (its span), so a bride
+ * package shows when the guest comes, not the night before it keeps free; other items their dates.
+ */
+function whenCells_(item) {
+  var ev = itemSpanEvent_(item);
+  if (ev.allDay) return [text_(heDate_(ev.start)), text_(heDate_(ev.end))];
+  return [text_(heDate_(ev.start.slice(0, 10)) + ' ' + ev.start.slice(11)), text_(heDate_(ev.end.slice(0, 10)) + ' ' + ev.end.slice(11))];
+}
+
+function stayedNights_(req, range) {
+  var type = STAY_TYPES[req.stayType];
+  return type && type.wedding ? stayNights(req.stayType, req.checkIn, '') : range.nights;
 }
 
 function itemRange_(item) {
@@ -475,7 +495,7 @@ function checkDates_(start, end, stay) {
   var today = today_();
   var horizonEnd = addDays(today, HORIZON_DAYS + 1);
   var nights = daysBetween(start, end);
-  if (!DATE_RE.test(start) || !DATE_RE.test(end) || isNaN(nights) || nights < 1 || nights > MAX_NIGHTS || start < today || end > horizonEnd) {
+  if (!isRealDate(start) || !isRealDate(end) || isNaN(nights) || nights < 1 || nights > MAX_NIGHTS || start < today || end > horizonEnd) {
     return { ok: false, error: 'invalid' };
   }
   var windowDays = ALTERNATIVE_SEARCH_DAYS + MAX_NIGHTS;
@@ -486,7 +506,7 @@ function checkDates_(start, end, stay) {
     var type = STAY_TYPES[String(stay.stayType || '')];
     var checkIn = String(stay.checkIn || '');
     var checkOut = String(stay.checkOut || '');
-    if (!type || !DATE_RE.test(checkIn) || (!type.wedding && !DATE_RE.test(checkOut))) return { ok: false, error: 'invalid' };
+    if (!type || !isRealDate(checkIn) || (!type.wedding && !isRealDate(checkOut))) return { ok: false, error: 'invalid' };
     var range = stayRange(stay.stayType, checkIn, checkOut);
     if (range.start !== start || range.end !== end) return { ok: false, error: 'invalid' };
     span = staySpan(stay.stayType, checkIn, checkOut);
@@ -955,8 +975,9 @@ function adminData_() {
       checkOut: req.checkOut || range.end,
       start: range.start,
       end: range.end,
-      nights: range.nights,
+      nights: stayedNights_(req, range),
       held: heldNights_(item),
+      when: whenCells_(item),
       adults: req.adults || '',
       participants: req.participants || 0,
       name: req.name || item.summary || '',
@@ -984,7 +1005,7 @@ function adminData_() {
         stayLabel: stayLabel(d.stayType),
         start: d.start,
         end: d.end,
-        nights: daysBetween(d.start, d.end),
+        nights: STAY_TYPES[d.stayType] && STAY_TYPES[d.stayType].wedding ? stayNights(d.stayType, '', '') : daysBetween(d.start, d.end),
         whatsapp: d.whatsapp || '',
       };
     });
@@ -992,7 +1013,7 @@ function adminData_() {
     var props = eventProps_(item);
     var req = JSON.parse(props.request || '{}');
     var range = itemRange_(item);
-    var startsAt = stayStartsAt(req.stayType, range.start);
+    var startsAt = itemSpanEvent_(item).start;
     var cancellable = isCancellable_(item, props) && nowLocal < startsAt;
     var confirmed = bookingConfirmed_(item, props);
     return {
@@ -1000,8 +1021,9 @@ function adminData_() {
       title: item.summary || '',
       start: range.start,
       end: range.end,
-      nights: range.nights,
+      nights: stayedNights_(req, range),
       held: heldNights_(item),
+      when: whenCells_(item),
       source: props.source === 'website' ? 'website' : props.source === 'console' ? 'console' : 'manual',
       // website, manual (made in Google Calendar), or a console closing: block, phone, hold.
       kind: props.source === 'website' ? 'website' : props.source === 'console' ? props.kind : 'manual',
@@ -1072,8 +1094,8 @@ function syncAdminSheet_() {
       text_(r.ref),
       r.holding ? 'ממתינה – התאריכים שמורים' : 'ממתינה – פג תוקף השמירה',
       r.stayLabel,
-      text_(heDate_(r.start)),
-      text_(heDate_(r.end)),
+      r.when[0],
+      r.when[1],
       r.nights,
       guestsCell_(r),
       text_(r.name),
@@ -1127,8 +1149,8 @@ function syncAdminSheet_() {
     data.bookings.map(function (b) {
       return [
         text_(b.title),
-        text_(heDate_(b.start)),
-        text_(heDate_(b.end)),
+        b.when[0],
+        b.when[1],
         b.nights,
         BOOKING_SOURCE_LABELS[b.kind] || 'ידני',
         b.stayLabel,
@@ -1297,7 +1319,7 @@ function consoleOverview_() {
         })
         .map(itemSpanEvent_)
     );
-    r.conflicts = spanConflicts(others, requestSpan(r));
+    r.conflicts = spanConflicts(others, storedSpan(r, r.start, r.end));
   });
   var props = PropertiesService.getScriptProperties();
   return {
@@ -1452,7 +1474,7 @@ function closingEvent_(c, ref) {
     checkOut: c.end,
     start: c.start,
     end: c.end,
-    nights: c.nights,
+    nights: stayNights(c.stayType, c.start, c.end),
     adults: c.adults,
     participants: 0,
     name: c.name,
@@ -1611,7 +1633,7 @@ function cancelBooking_(id, args) {
     range = itemRange_(item);
     req = JSON.parse(props.request || '{}');
     var nowLocal = fmt_(new Date(), "yyyy-MM-dd'T'HH:mm");
-    var startsAt = stayStartsAt(req.stayType, range.start);
+    var startsAt = itemSpanEvent_(item).start;
     if (nowLocal >= startsAt) return { ok: false, error: 'started' };
     var confirmed = bookingConfirmed_(item, props);
     fee = cancellationFee({ startsAt: startsAt, confirmed: confirmed, now: nowLocal, price: Number(req.estimate) || 0, by: args.by });
@@ -1624,9 +1646,9 @@ function cancelBooking_(id, args) {
       text_(req.phone),
       text_(req.email),
       STAY_TYPES[req.stayType] ? STAY_TYPES[req.stayType].label : '',
-      text_(heDate_(range.start)),
-      text_(heDate_(range.end)),
-      range.nights,
+      whenCells_(item)[0],
+      whenCells_(item)[1],
+      stayedNights_(req, range),
       req.estimate ? text_('₪' + Number(req.estimate).toLocaleString('en-US') + (props.source === 'website' ? ' (הערכה)' : '')) : '',
       confirmed ? text_(heDate_(confirmed)) : '',
       CANCEL_BY[args.by],
@@ -1679,7 +1701,7 @@ function cancelBooking_(id, args) {
     name: name,
     start: range.start,
     end: range.end,
-    nights: range.nights,
+    nights: stayedNights_(req, range),
     by: args.by,
     emailed: emailed,
     fee: fee,
@@ -1947,6 +1969,9 @@ function stayLines_(req) {
     lines.push('התארגנות: ' + heDate_(req.checkIn) + ' מ-' + PREP_START + (fridayNote_(req.checkIn) ? ' (' + fridayNote_(req.checkIn) + ')' : ''));
   } else if (STAY_TYPES[req.stayType].wedding) {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
+  } else if (req.stayType === 'wedding_night') {
+    lines.push('הגעה: ' + heDate_(req.checkIn) + ' לאחר האירוע, בתיאום');
+    lines.push('עזיבה: ' + heDate_(req.checkOut) + ' עד ' + WEDDING_NIGHT_CHECK_OUT);
   } else {
     var nights = daysBetween(req.checkIn, req.checkOut);
     lines.push('הגעה: ' + heDate_(req.checkIn) + ' מ-15:00');
