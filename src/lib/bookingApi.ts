@@ -1,6 +1,6 @@
 import { AVAILABILITY_SNAPSHOT_URL, BOOKING_API_URL } from '../data/bookingConfig';
 import { parseCsv } from './csv';
-import { getPricesVersion, type StayType } from './stay';
+import { getPricesVersion, parseSpans, spansOfNights, stayRange, type Span, type StayType } from './stay';
 
 export const bookingApiEnabled = Boolean(BOOKING_API_URL);
 
@@ -9,8 +9,17 @@ export interface Availability {
   from: string;
   /** Exclusive end of the covered window. */
   to: string;
-  /** Nights that are taken. */
+  /** Nights a couple stay cannot take. */
   blocked: Set<string>;
+  /** The time taken, sorted: which packages fit a date (shared/rules.js, "Spans"). */
+  busy: Span[];
+}
+
+/** An answer's busy spans; from a backend that sends none, the taken nights as couple stays. */
+function busyOf(spans: unknown, blocked: Set<string>): Span[] {
+  if (Array.isArray(spans)) return spans.filter((sp) => sp && typeof sp.start === 'string' && typeof sp.end === 'string');
+  if (typeof spans === 'string' && spans) return parseSpans(spans);
+  return spansOfNights(blocked);
 }
 
 interface RetryPolicy {
@@ -72,17 +81,19 @@ const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 
 /**
  * The published זמינות לאתר tab, which the backend rewrites on every calendar change:
- * a header row, then from, to, generatedAt and the comma-separated blocked nights.
+ * a header row, then from, to, generatedAt, the comma-separated blocked nights and the busy spans.
  */
 async function fetchSnapshot(): Promise<Availability> {
   const res = await fetchWithTimeout(AVAILABILITY_SNAPSHOT_URL, { cache: 'no-store' }, 8000);
   if (!res.ok) throw new Error(`snapshot ${res.status}`);
   const row = parseCsv(await res.text()).find((cells) => DATE_RE.test(cells[0] ?? ''));
   if (!row) throw new Error('snapshot unreadable');
-  const [from, to, generatedAt, blocked = ''] = row;
+  const [from, to, generatedAt, blockedText = '', busyText] = row;
   if (!DATE_RE.test(to)) throw new Error('snapshot unreadable');
   if (!(Date.now() - Date.parse(generatedAt) < SNAPSHOT_MAX_AGE_MS)) throw new Error('snapshot stale');
-  return { from, to, blocked: new Set(blocked.split(',').filter((d) => DATE_RE.test(d))) };
+  const blocked = new Set(blockedText.split(',').filter((d) => DATE_RE.test(d)));
+  // A snapshot written before the spans has no busy column; its nights stand in for them.
+  return { from, to, blocked, busy: busyOf(busyText === undefined ? undefined : busyText, blocked) };
 }
 
 export async function fetchAvailability(): Promise<Availability> {
@@ -95,7 +106,8 @@ export async function fetchAvailability(): Promise<Availability> {
   }
   const data = await callApi((d) => (d?.ok === true && Array.isArray(d.blocked)) || d?.ok === false, READ_POLICY, undefined, '?action=availability');
   if (!data.ok) throw new Error(data.error);
-  return { from: data.from, to: data.to, blocked: new Set<string>(data.blocked) };
+  const blocked = new Set<string>(data.blocked);
+  return { from: data.from, to: data.to, blocked, busy: busyOf(data.busy, blocked) };
 }
 
 export interface DatesCheck {
@@ -107,19 +119,22 @@ export interface DatesCheck {
 }
 
 /**
- * Asks the web app whether the nights [start, end) are free right now, from the calendars rather
- * than the snapshot. Throws when there is no answer.
+ * Asks the web app whether the stay fits right now, from the calendars rather than the snapshot.
+ * Throws when there is no answer.
  */
-export async function checkDates(start: string, end: string): Promise<DatesCheck> {
+export async function checkDates(stayType: StayType, checkIn: string, checkOut: string): Promise<DatesCheck> {
+  const { start, end } = stayRange(stayType, checkIn, checkOut);
+  const stay = `&stayType=${encodeURIComponent(stayType)}&checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`;
   const data = await callApi(
     // A server_error (say, a calendar hiccup) is retried like a lost reply; 'invalid' is final.
     (d) => (d?.ok === true && typeof d.free === 'boolean' && Array.isArray(d.blocked)) || (d?.ok === false && typeof d.error === 'string' && d.error !== 'server_error'),
     CHECK_POLICY,
     undefined,
-    `?action=check&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+    `?action=check&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}${stay}`
   );
   if (!data.ok) throw new Error(data.error);
-  return { free: data.free, conflicts: data.conflicts ?? [], availability: { from: data.from, to: data.to, blocked: new Set<string>(data.blocked) } };
+  const blocked = new Set<string>(data.blocked);
+  return { free: data.free, conflicts: data.conflicts ?? [], availability: { from: data.from, to: data.to, blocked, busy: busyOf(data.busy, blocked) } };
 }
 
 export interface BookingRequest {

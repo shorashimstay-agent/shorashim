@@ -8,9 +8,10 @@ import {
   fromISODate,
   isWeddingStay,
   israelToday,
-  nightsOf,
+  stayFits,
   stayRange,
   toISODate,
+  type Span,
   type StayType,
 } from '../lib/stay';
 
@@ -18,6 +19,8 @@ interface AvailabilityCalendarProps {
   stayType: StayType;
   /** Nights that are taken; empty while availability is unknown. */
   blocked: Set<string>;
+  /** The time taken (shared/rules.js, "Spans"), which tells whether a package fits a date. */
+  busy: Span[];
   /** Exclusive end of the window the availability covers. */
   windowEnd?: string;
   checkIn: string;
@@ -26,12 +29,11 @@ interface AvailabilityCalendarProps {
 }
 
 /**
- * Date picker that only allows free nights. Regular stays pick check-in then check-out, and a
- * check-out may fall on a day whose night is taken. Wedding stays pick the wedding date, which
- * needs every night the package holds free (stayRange): the night before and the wedding night, or
- * the wedding night alone for the prep day + wedding night.
+ * Date picker that only allows stays that fit. Regular stays pick check-in then check-out, and a
+ * check-out may fall on a day whose night is taken. Wedding stays pick the wedding date. A choice
+ * fits when the stay's span (staySpan: its hours, not just its nights) overlaps no busy time.
  */
-export default function AvailabilityCalendar({ stayType, blocked, windowEnd, checkIn, checkOut, onChange }: AvailabilityCalendarProps) {
+export default function AvailabilityCalendar({ stayType, blocked, busy, windowEnd, checkIn, checkOut, onChange }: AvailabilityCalendarProps) {
   const wedding = isWeddingStay(stayType);
   const today = israelToday();
   const firstDate = wedding ? addDays(today, 1) : today;
@@ -41,15 +43,14 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
   const isDisabled = (date: Date) => {
     const d = toISODate(date);
     if (d < firstDate) return true;
-    if (wedding) {
-      const held = stayRange(stayType, d, '');
-      return d > lastNight || nightsOf(held.start, held.end).some((n) => blocked.has(n));
-    }
+    if (wedding) return d > lastNight || !stayFits(busy, stayType, d, '');
     if (pickingCheckOut && d > checkIn) {
-      return d > addDays(lastNight, 1) || daysBetween(checkIn, d) > MAX_NIGHTS || nightsOf(checkIn, d).some((n) => blocked.has(n));
+      return d > addDays(lastNight, 1) || daysBetween(checkIn, d) > MAX_NIGHTS || !stayFits(busy, stayType, checkIn, d);
     }
-    return d > lastNight || blocked.has(d);
+    return d > lastNight || !stayFits(busy, stayType, d, addDays(d, 1));
   };
+  // Taken for this package: a wedding date it does not fit, or a night a stay cannot start on.
+  const taken = (d: string) => (wedding ? d <= lastNight && d >= firstDate && !stayFits(busy, stayType, d, '') : blocked.has(d));
 
   const handleDayClick = (date: Date, modifiers: Modifiers) => {
     if (modifiers.disabled) return;
@@ -87,13 +88,13 @@ export default function AvailabilityCalendar({ stayType, blocked, windowEnd, che
           if (wedding && d === checkIn) return `${text}, תאריך החתונה שנבחר`;
           if (range && d === range.start) return `${text}, תאריך ההגעה שנבחר`;
           if (range && d === range.end) return `${text}, תאריך העזיבה שנבחר`;
-          if (blocked.has(d)) return `${text}, תפוס`;
+          if (taken(d)) return `${text}, תפוס`;
           if (modifiers.disabled) return `${text}, לא זמין לבחירה`;
           return text;
         },
       }}
       modifiers={{
-        booked: (date: Date) => blocked.has(toISODate(date)),
+        booked: (date: Date) => taken(toISODate(date)),
         stayStart: (date: Date) => inRange(date, 'start'),
         stayMiddle: (date: Date) => inRange(date, 'middle'),
         stayEnd: (date: Date) => inRange(date, 'end'),

@@ -2,7 +2,7 @@
 // work (apps-script/, src/); change it together with them.
 // A body item is a paragraph (string) or a bulleted list (string[]). URLs, emails and phone numbers
 // in the text become links.
-import { PREP_WEDDING_NIGHT_ARRIVAL } from '../../shared/rules.js';
+import { NIGHT_BEFORE_CHECK_IN, PREP_FRIDAY_START, PREP_START } from '../../shared/rules.js';
 
 export type Lang = 'he' | 'en';
 export type PageId = 'terms' | 'privacy' | 'accessibility';
@@ -68,7 +68,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'האירוח מיועד למבוגרים בלבד.',
               'עד שלושה מבוגרים. האורח השלישי לן על ספה נפתחת בסלון.',
               "צ'ק-אין החל מהשעה 15:00, וצ'ק-אאוט עד השעה 11:00. שינוי בשעות אפשרי בתיאום מראש.",
-              `יום כלה: 08:00–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-15:00 ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג. יום התארגנות + ליל כלולות: הגעה ב-${PREP_WEDDING_NIGHT_ARRIVAL} ביום החתונה, התארגנות וחזרה ללינה אחרי האירוע, יציאה ב-13:00 למחרת החתונה (לילה אחד), עד 3 אורחי לינה.`,
+              `יום כלה: ${PREP_START}–15:30 ביום ההתארגנות, ללא לינה. לילה לפני + יום כלה: הגעה ב-${NIGHT_BEFORE_CHECK_IN} ביום שלפני ויציאה ב-15:30 ביום האירוע, עד 3 אורחי לינה. ליל כלולות: הגעה לאחר האירוע בתיאום, יציאה ב-13:00, לזוג. יום התארגנות + ליל כלולות: הגעה ב-${PREP_START} ביום החתונה, התארגנות וחזרה ללינה אחרי האירוע, יציאה ב-13:00 למחרת החתונה (לילה אחד), עד 3 אורחי לינה. ביום שישי אפשר להתחיל את ההתארגנות גם ב-${PREP_FRIDAY_START}, בתיאום. לפני יום התארגנות שמתחיל בבוקר הבית נשאר ריק מאורחים בלילה שלפני; הלילה הזה אינו חלק מהאירוח ואינו מחויב.`,
               'במסלולי יום הכלה משתתפים עד 5 אנשים, כולל הכלה, המלוות ואנשי המקצוע.',
               'האירוח הוא ללא בעלי חיים.',
               'העישון מותר בחצר ובמרפסת הגג בלבד, ואסור בתוך החלל הסגור.',
@@ -151,7 +151,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Adults only.',
               'Up to three adults. The third guest sleeps on a sofa bed in the living room.',
               'Check-in from 15:00, check-out by 11:00. Other times can be arranged in advance.',
-              `Bride day: 08:00–15:30 on the day, no overnight stay. Night before + bride day: arrive 15:00 the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple. Preparation day + wedding night: arrive ${PREP_WEDDING_NIGHT_ARRIVAL} on the wedding day, get ready and come back for the night after the event, leave 13:00 the day after the wedding (one night), up to 3 overnight guests.`,
+              `Bride day: ${PREP_START}–15:30 on the day, no overnight stay. Night before + bride day: arrive ${NIGHT_BEFORE_CHECK_IN} the day before, leave 15:30 on the wedding day, up to 3 overnight guests. Wedding night: arrive after the event by arrangement, leave 13:00, for the couple. Preparation day + wedding night: arrive ${PREP_START} on the wedding day, get ready and come back for the night after the event, leave 13:00 the day after the wedding (one night), up to 3 overnight guests. On a Friday, preparation can also start at ${PREP_FRIDAY_START}, by arrangement. Before a preparation day that starts in the morning, the house stays empty of guests the night before; that night is not part of the stay and is not charged.`,
               'Bride-day packages host up to 5 people during the day, including the bride, her companions and the professionals.',
               'No pets.',
               'Smoking is allowed only in the courtyard and on the roof terrace, never indoors.',
