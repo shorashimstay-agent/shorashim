@@ -25,6 +25,9 @@ import {
   staySpan,
   nightsSpan,
   requestSpan,
+  storedSpan,
+  stayNights,
+  isRealDate,
   spanEvent,
   spanConflicts,
   spanIsFree,
@@ -201,8 +204,9 @@ test('wedding requests derive their range from the wedding date', () => {
 test('the prep day + wedding night package is one night, from 08:00 on the wedding day', () => {
   const res = validateRequest({ ...valid, stayType: 'bride_day_wedding_night', checkIn: '2026-10-10', checkOut: '', adults: 3, participants: 5 }, '2026-09-15', PRICES);
   assert.equal(res.ok, true);
-  assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-10', '2026-10-11', '2026-10-11', 1]);
-  assert.deepEqual(stayRange('bride_day_wedding_night', '2026-10-10', ''), { start: '2026-10-10', end: '2026-10-11' });
+  // Its event keeps the night before from guests and the wedding night; the guest stays one night.
+  assert.deepEqual([res.value.start, res.value.end, res.value.checkOut, res.value.nights], ['2026-10-09', '2026-10-11', '2026-10-11', 1]);
+  assert.deepEqual(stayRange('bride_day_wedding_night', '2026-10-10', ''), { start: '2026-10-09', end: '2026-10-11' });
   assert.equal(res.value.adults, 3, 'up to three overnight guests');
   assert.equal(res.value.participants, 5);
   assert.equal(res.value.estimate, 2750, 'a flat package price, whatever the nights or guests');
@@ -289,6 +293,23 @@ test('busy spans merge, cross the snapshot as text, and tell what fits', () => {
   assert.equal(spanIsFree(busy, staySpan('bride_night_day', '2026-11-13', '')), true, '17:30 on the 12th is clear');
   assert.equal(spanIsFree(busy, staySpan('couple', '2026-11-12', '2026-11-13')), false);
   assert.deepEqual(busySpans(events, '2026-11-13', '2026-11-20'), [], 'only what reaches the window');
+});
+
+test('the nights a guest stays, apart from the nights the event keeps', () => {
+  assert.equal(stayNights('bride_day', '2026-11-20', ''), 0);
+  assert.equal(stayNights('bride_night_day', '2026-11-20', ''), 1);
+  assert.equal(stayNights('bride_day_wedding_night', '2026-11-20', ''), 1);
+  assert.equal(stayNights('couple', '2026-11-20', '2026-11-23'), 3);
+  assert.equal(validateRequest({ ...valid, stayType: 'bride_day', checkIn: '2026-10-10', checkOut: '' }, '2026-09-15').value.nights, 0);
+  assert.equal(isRealDate('2026-02-31'), false);
+  assert.equal(isRealDate('2026-02-28'), true);
+});
+
+test('a phone booking of a bride package is entered over the night before and the wedding night', () => {
+  const phone = { kind: 'phone', name: 'דנה', phone: '0501234567', adults: 2 };
+  assert.equal(validateBlock({ ...phone, stayType: 'bride_night_day', start: '2026-11-20', end: '2026-11-22' }, '2026-09-15').ok, true);
+  assert.equal(validateBlock({ ...phone, stayType: 'bride_night_day', start: '2026-11-21', end: '2026-11-22' }, '2026-09-15').errors.end, 'wedding_range');
+  assert.equal(validateBlock({ ...phone, stayType: 'couple', start: '2026-11-21', end: '2026-11-22' }, '2026-09-15').ok, true);
 });
 
 test('a stored request without a usable stay type holds its nights as a couple stay', () => {

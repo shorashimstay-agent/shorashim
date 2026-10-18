@@ -393,9 +393,10 @@ test('G11: the prep day + wedding night package is one night from 08:00, keeps t
   await openBooking(page);
   const ref = await submitBooking(page, { stayType: 'bride_day_wedding_night', checkIn: wedding, adults: 3, participants: 5, name, phone: randomPhone() });
   const ev = await onlyRequestEvent(name);
-  expect([ev.start.date, ev.end.date]).toEqual([wedding, addDays(wedding, 1)]);
+  // The event keeps the night before from guests and the wedding night; the guest stays one night.
+  expect([ev.start.date, ev.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
   expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({
-    ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), adults: 3, participants: 5,
+    ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), nights: 1, adults: 3, participants: 5,
     estimate: pricesFile.prices.bride_day_wedding_night,
   });
   expect(ev.description).toContain('עד 13:00 (למחרת החתונה)');
@@ -411,11 +412,11 @@ test('G11: the prep day + wedding night package is one night from 08:00, keeps t
   // Approved, it is a booking over the same one night; cancelled from the console, it is free.
   expect(await api.decide('approve', ev.iCalUID)).toMatchObject({ ok: true, result: 'approved' });
   const booked = await waitFor('the approved booking', async () => (await bookingEvents(cfg, name))[0], 60_000, 3_000);
-  expect([booked.start.date, booked.end.date]).toEqual([wedding, addDays(wedding, 1)]);
+  expect([booked.start.date, booked.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
   const listed = (await api.console('overview')).bookings.find((x: any) => x.id === booked.iCalUID);
   expect(listed).toMatchObject({ cancellable: true, nights: 1, held: [addDays(wedding, -1), wedding] });
   const cancelled = await api.console('cancelBooking', { id: booked.iCalUID, args: { requestId: `${runTag}-g11`.replace(/[^\w-]/g, ''), by: 'us', notify: false, reason: '' } });
-  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ ok: true, result: 'cancelled', start: wedding, nights: 1 });
+  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ ok: true, result: 'cancelled', start: addDays(wedding, -1), nights: 1 });
   expect(await api.check(addDays(wedding, -1), addDays(wedding, 1))).toMatchObject({ ok: true, free: true, conflicts: [] });
 });
 

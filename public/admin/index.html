@@ -856,10 +856,11 @@
     var b = state.block, kinds = nightKinds();
     if (date < state.data.today) return announce('אי אפשר לסגור לילה שעבר');
     if (!b.start || b.end || date <= b.start) {
-      if (kinds[date]) return announce(he(date) + ' כבר תפוס. בחרי לילה פנוי להתחלה.');
+      // A taken night can still start a bride package's phone booking, which fits by its hours
+      // (a 17:30 check-in after a prep day); the panel offers it, and the server checks it.
       b.start = date;
       b.end = null;
-      announce('לילה ראשון: ' + he(date) + '. עכשיו לחצי על יום היציאה');
+      announce('לילה ראשון: ' + he(date) + (kinds[date] ? ' (תפוס)' : '') + '. עכשיו לחצי על יום היציאה');
     } else {
       b.end = date;
       announce(nightsText(daysBetweenDates(b.start, b.end)) + ' נבחרו, יציאה ' + he(date));
@@ -898,6 +899,7 @@
       el.innerHTML = '<div class="warnbox" role="alert"><b>אי אפשר לסגור את כל הטווח.</b>' + lines + '</div><div class="stack">' +
         (first > b.start ? '<button type="button" class="btn primary" data-block="trim">לסגור רק ' + range(b.start, first) + ' (' + nightsText(daysBetweenDates(b.start, first)) + ')</button>' : '') +
         (request ? '<button type="button" class="btn" data-block="open-request" data-id="' + esc(request.id) + '">לפתוח את הבקשה (אישור או דחייה)</button>' : '') +
+        (n === 2 ? '<button type="button" class="btn" data-block="continue-phone">הזמנה טלפונית של מסלול כלה (המערכת תבדוק לפי השעות)</button>' : '') +
         '<button type="button" class="btn quiet" data-block="restart">בחירה מחדש</button></div>';
       return;
     }
@@ -918,7 +920,7 @@
     var html = '<form class="panel blockform" id="block-form" novalidate><h3>' + range(b.start, b.end) + ' · ' + nightsText(n) + '</h3>' +
       '<p class="what">' + he(b.start) + ' עד ' + he(b.end) + ' (יציאה)</p>' +
       '<span class="label" id="bf-kind-l">מה זה</span><div class="choices kinds" role="group" aria-labelledby="bf-kind-l">' +
-      ['block', 'phone', 'hold'].map(function (k) { return b.replaceId && k !== 'phone' ? '' : choice('kind', k, f.kind, KIND_TEXT[k][0], '<small>' + KIND_TEXT[k][1] + '</small>'); }).join('') + '</div>';
+      ['block', 'phone', 'hold'].map(function (k) { return (b.replaceId || b.phoneOnly) && k !== 'phone' ? '' : choice('kind', k, f.kind, KIND_TEXT[k][0], '<small>' + KIND_TEXT[k][1] + '</small>'); }).join('') + '</div>';
     if (f.kind === 'block') {
       html += '<span class="label" id="bf-reason-l">סיבה</span><div class="choices" role="group" aria-labelledby="bf-reason-l">' +
         (state.data.blockReasons || []).map(function (r) { return choice('reason', r, f.reason, esc(r)); }).join('') + '</div>';
@@ -932,6 +934,7 @@
         input('phone', 'טלפון', 'tel', f.phone, e.phone, ' dir="ltr" autocomplete="off"') +
         '<span class="label" id="bf-stay-l">מסלול</span><div class="choices" role="group" aria-labelledby="bf-stay-l">' +
         STAY_CHOICES.map(function (s) { return choice('stayType', s[0], f.stayType, s[1]); }).join('') + '</div>' +
+        (e.stayType ? '<p class="fielderr" id="bf-stay-err" role="alert">' + esc(e.stayType) + '</p>' : '') +
         '<span class="label" id="bf-adults-l">מבוגרים</span><div class="choices" role="group" aria-labelledby="bf-adults-l">' +
         [1, 2, 3].map(function (a) { return choice('adults', a, f.adults, String(a)); }).join('') + '</div>' +
         input('price', 'מחיר מוסכם ב-₪' + (suggested ? ' (מחושב: ' + money(suggested) + ')' : ''), 'number', f.price === '' ? (suggested || '') : f.price, e.price, ' inputmode="numeric" min="0" step="1"') +
@@ -979,9 +982,12 @@
     try { return crypto.randomUUID(); } catch (e) { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   }
 
-  function checkForm(f) {
+  function checkForm(f, b) {
     var e = {};
     if (f.kind === 'phone') {
+      // As on the website, a bride package is booked over the night before and the wedding night.
+      if (WEDDING[f.stayType] && daysBetweenDates(b.start, b.end) !== 2) e.stayType = 'מסלול כלה נבחר על שני לילות: הלילה שלפני וליל החתונה.';
+      if (b.phoneOnly && !WEDDING[f.stayType]) e.stayType = 'הלילות תפוסים: אפשר רק מסלול כלה שמתאים לשעות.';
       if (f.name.trim().length < 2) e.name = 'צריך שם (לפחות 2 אותיות).';
       if (f.phone.replace(/\D/g, '').length < 9) e.phone = 'צריך מספר טלפון.';
       if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = 'המייל לא נראה תקין.';
@@ -1042,7 +1048,7 @@
     e.preventDefault();
     var b = state.block;
     if (!b || b.step !== 'form') return;
-    b.form.errors = checkForm(b.form);
+    b.form.errors = checkForm(b.form, b);
     b.error = '';
     if (Object.keys(b.form.errors).length) {
       renderCalendar();
@@ -1079,12 +1085,19 @@
       b.form = b.form || newForm('block');
       renderCalendar();
       focusFirst('#block-panel [data-choice="kind"][aria-pressed="true"]');
+    } else if (action === 'continue-phone') {
+      // Over taken nights only a bride package can fit, by its hours (shared/rules.js, "Spans").
+      b.step = 'form';
+      b.phoneOnly = true;
+      b.form = newForm('phone', { stayType: 'bride_night_day' });
+      renderCalendar();
+      focusFirst('#block-panel [data-choice="stayType"][aria-pressed="true"]');
     } else if (action === 'trim') {
       b.end = clashesOf(b, nightKinds())[0].date;
       renderCalendar();
       focusFirst('#block-panel [data-block="continue"]');
     } else if (action === 'restart') {
-      b.start = null; b.end = null;
+      b.start = null; b.end = null; b.phoneOnly = false;
       renderCalendar();
     } else if (action === 'open-request') {
       state.block = null;
