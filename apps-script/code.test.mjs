@@ -267,3 +267,13 @@ test('messages for the prep day + wedding night package give the wedding-day arr
     'משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): 5',
   ]);
 });
+
+test('the owner text for the prep day + wedding night package holds the wedding night only', () => {
+  const ctx = load();
+  ctx.heDate_ = (d) => d;
+  const lines = [...ctx.ownerLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-20', end: '2026-11-21', adults: 3, participants: 5, estimate: 2800, name: 'דנה', phone: '0501234567', ref: 'SH-T1' })];
+  assert.ok(lines.includes('שמור ביומן: ליל החתונה בלבד (לילה אחד)'));
+  assert.ok(!lines.some((l) => l.includes('הלילה שלפני')), 'the night before is not held');
+  const bride = [...ctx.ownerLines_({ stayType: 'bride_night_day', checkIn: '2026-11-20', start: '2026-11-19', end: '2026-11-21', adults: 2, name: 'דנה', phone: '0501234567', ref: 'SH-T2' })];
+  assert.ok(bride.includes('שמור ביומן: הלילה שלפני (2026-11-19) וליל החתונה'), 'the other wedding packages still hold the night before');
+});

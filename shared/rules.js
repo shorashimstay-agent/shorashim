@@ -38,7 +38,7 @@ export var STAY_TYPES = {
 export var WEDDING_NIGHT_CHECK_OUT = '13:00';
 // The night before stays open, and the stay on it may be a wedding night (or this package for the day
 // before), which leaves at WEDDING_NIGHT_CHECK_OUT, not at 11:00. Availability tracks nights only, so
-// the arrival must come after the latest check-out and the turnover; rules.test.mjs holds it to that.
+// the arrival must come after that check-out (rules.test.mjs holds it to that), leaving time to clean.
 // Pending the owner's answer on the ClickUp task z8r3fdvdp6.
 export var PREP_WEDDING_NIGHT_ARRIVAL = '14:00';
 
