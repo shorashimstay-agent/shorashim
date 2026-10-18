@@ -331,3 +331,14 @@ test('the console\'s held nights include the night before a morning preparation'
   assert.deepEqual(phone('bride_night_day', '2026-11-20', '2026-11-22'), { start: '2026-11-20T17:30', end: '2026-11-21T16:00' }, 'a phone booking holds its package\'s hours');
   assert.deepEqual(plain(ctx.closingSpan_({ kind: 'block', start: '2026-11-20', end: '2026-11-22' })), { start: '2026-11-20T15:00', end: '2026-11-22T11:00' });
 });
+
+test('the admin sheet and the console show a bride package\'s own hours, not the night before its event keeps', () => {
+  const ctx = load();
+  ctx.heDate_ = (d) => d;
+  const item = { start: { date: '2026-11-19' }, end: { date: '2026-11-21' }, extendedProperties: { shared: { request: JSON.stringify({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }) } } };
+  assert.deepEqual([...ctx.whenCells_(item)].map(String), [ctx.text_('2026-11-20 08:00'), ctx.text_('2026-11-21 13:00')].map(String));
+  assert.deepEqual(plain(ctx.stayOf_(item)), { start: '2026-11-20T08:00', end: '2026-11-21T13:00' });
+  assert.equal(ctx.stayedNights_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }, { nights: 2 }), 1);
+  assert.equal(ctx.stayedNights_({ stayType: 'bride_day', checkIn: '2026-11-20' }, { nights: 2 }), 0);
+  assert.equal(ctx.stayOf_({ start: { date: '2026-11-19' }, end: { date: '2026-11-21' } }), null, 'a closing has no stay hours');
+});

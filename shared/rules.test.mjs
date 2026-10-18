@@ -312,6 +312,23 @@ test('a phone booking of a bride package is entered over the night before and th
   assert.equal(validateBlock({ ...phone, stayType: 'couple', start: '2026-11-21', end: '2026-11-22' }, '2026-09-15').ok, true);
 });
 
+test('a stored stay follows its event when the owner moves, stretches or shortens it in Google Calendar', () => {
+  const couple = { stayType: 'couple', checkIn: '2026-11-20', checkOut: '2026-11-23' };
+  assert.deepEqual(storedSpan(couple, '2026-11-20', '2026-11-23'), { start: '2026-11-20T15:00', end: '2026-11-23T11:00' });
+  assert.deepEqual(storedSpan(couple, '2026-11-20', '2026-11-22'), { start: '2026-11-20T15:00', end: '2026-11-22T11:00' }, 'shortened: its last night is free');
+  assert.deepEqual(storedSpan(couple, '2026-11-21', '2026-11-23'), { start: '2026-11-21T15:00', end: '2026-11-23T11:00' }, 'a later check-in frees the first night and holds no other');
+  assert.deepEqual(storedSpan(couple, '2026-11-20', '2026-11-25'), { start: '2026-11-20T15:00', end: '2026-11-25T11:00' }, 'stretched');
+  const prep = { stayType: 'bride_day', checkIn: '2026-11-20' };
+  assert.deepEqual(storedSpan(prep, '2026-11-19', '2026-11-21'), { start: '2026-11-20T08:00', end: '2026-11-20T16:00' });
+  assert.deepEqual(storedSpan(prep, '2026-11-21', '2026-11-23'), { start: '2026-11-22T08:00', end: '2026-11-22T16:00' }, 'moved two days on');
+  assert.deepEqual(storedSpan(prep, '2026-11-20', '2026-11-21'), { start: '2026-11-20T08:00', end: '2026-11-20T16:00' }, 'the night before trimmed: its own hours');
+  assert.deepEqual(storedSpan(prep, '2026-11-19', '2026-11-20'), { start: '2026-11-19T15:00', end: '2026-11-20T11:00' }, 'its day trimmed away: the night left');
+  assert.deepEqual(storedSpan(prep, '2026-11-18', '2026-11-21'), { start: '2026-11-18T15:00', end: '2026-11-21T11:00' }, 'stretched: every night of the event, and its hours');
+  const night = { stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' };
+  assert.deepEqual(storedSpan(night, '2026-11-19', '2026-11-21'), { start: '2026-11-20T08:00', end: '2026-11-21T13:00' });
+  assert.deepEqual(storedSpan({ stayType: 'wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21' }, '2026-11-20', '2026-11-22'), { start: '2026-11-20T15:00', end: '2026-11-22T13:00' });
+});
+
 test('a stored request without a usable stay type holds its nights as a couple stay', () => {
   assert.deepEqual(requestSpan({ stayType: 'nope', start: '2026-11-10', end: '2026-11-12' }), { start: '2026-11-10T15:00', end: '2026-11-12T11:00' });
   assert.deepEqual(requestSpan({ stayType: 'couple', checkIn: '2026-11-10', start: '2026-11-10', end: '2026-11-12' }), { start: '2026-11-10T15:00', end: '2026-11-12T11:00' });

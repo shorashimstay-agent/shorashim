@@ -300,21 +300,30 @@ export function stayNights(stayType, checkIn, checkOut) {
 }
 
 /**
- * The span a stored stay occupies, given the dates its calendar event has now. Those are normally
- * its stayRange; when the owner moved or stretched the event in Google Calendar, the stay moves
- * with its first night, and a stretched one also keeps every night of the event.
+ * The span a stored stay occupies, given the dates its calendar event has now: normally its
+ * stayRange, but the owner may have moved, stretched or shortened the event in Google Calendar.
+ * - A couple stay or a wedding night takes the event's dates as its own.
+ * - A bride package keeps its wedding date while the event still covers that day, and moves with
+ *   the event when it no longer does. Stretched, it also keeps every night of the event; shortened
+ *   to one night, it keeps only its own hours (or that night, when its day is gone).
  * @param {{ stayType?: string, checkIn?: string, checkOut?: string }} req @param {string} start @param {string} end
  */
 export function storedSpan(req, start, end) {
   var type = req && STAY_TYPES[req.stayType];
-  if (!type || !isRealDate(req.checkIn) || (!type.wedding && !isRealDate(req.checkOut))) return nightsSpan(start, end);
-  var expected = stayRange(req.stayType, req.checkIn, req.checkOut);
-  if (expected.start === start && expected.end === end) return staySpan(req.stayType, req.checkIn, req.checkOut);
-  var shift = daysBetween(expected.start, start);
-  var moved = staySpan(req.stayType, addDays(req.checkIn, shift), type.wedding ? '' : addDays(req.checkOut, shift));
-  if (daysBetween(start, end) === daysBetween(expected.start, expected.end)) return moved;
-  var nights = nightsSpan(start, end);
-  return { start: moved.start < nights.start ? moved.start : nights.start, end: moved.end > nights.end ? moved.end : nights.end };
+  if (!type || !isRealDate(req.checkIn) || !isRealDate(start) || !isRealDate(end)) return nightsSpan(start, end);
+  if (!type.wedding) return staySpan(req.stayType, start, end);
+  var wedding = req.checkIn;
+  var covers = start < wedding && wedding < end;
+  var nights = daysBetween(start, end);
+  if (nights === 2) return staySpan(req.stayType, covers ? wedding : addDays(start, 1), '');
+  if (nights > 2) return hull(staySpan(req.stayType, covers ? wedding : addDays(start, 1), ''), nightsSpan(start, end));
+  // One night left: the wedding day's own hours if the event still starts on it, else that night.
+  return start === wedding ? staySpan(req.stayType, wedding, '') : nightsSpan(start, end);
+}
+
+/** The smallest span covering both. */
+function hull(a, b) {
+  return { start: a.start < b.start ? a.start : b.start, end: a.end > b.end ? a.end : b.end };
 }
 
 /** A 'YYYY-MM-DD' string that names a real date (not 2026-02-31). */
