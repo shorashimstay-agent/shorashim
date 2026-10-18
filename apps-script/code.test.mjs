@@ -225,14 +225,14 @@ test('cancelling a prep day + wedding night booking counts from 15:00 the day be
   ctx.findBooking_ = () => ({
     id: 'ev1',
     iCalUID: 'uid1',
-    start: { date: '2026-10-14' },
+    start: { date: '2026-10-15' },
     end: { date: '2026-10-16' },
     extendedProperties: { shared: { source: 'console', kind: 'phone', request: JSON.stringify({ stayType: 'bride_day_wedding_night', name: 'דנה', checkIn: '2026-10-15' }) } },
   });
   ctx.cancellationsLog_ = () => assert.fail('a refused cancellation writes nothing');
-  ctx.fmt_ = () => '2026-10-14T15:00';
+  ctx.fmt_ = () => '2026-10-15T12:00';
   assert.equal(ctx.cancelBooking_('uid1', { by: 'guest', notify: false }).error, 'started');
-  ctx.fmt_ = () => '2026-10-14T14:59';
+  ctx.fmt_ = () => '2026-10-15T11:59';
   ctx.cancellationsLog_ = () => {
     throw new Error('reached the log');
   };
@@ -247,21 +247,21 @@ test('the live check refuses bad ranges', () => {
   assert.equal(asked.length, 0);
 });
 
-test('the short dates for the prep day + wedding night package carry the arrival and the 13:00 departure', () => {
+test('the short dates for the prep day + wedding night package carry the wedding-day arrival and the 13:00 departure', () => {
   const ctx = load();
   ctx.heDate_ = (d) => d;
-  assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }), 'חתונה 2026-11-20 · הגעה 2026-11-19 15:00 · יציאה 2026-11-21 עד 13:00');
+  assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20' }), 'חתונה 2026-11-20 · הגעה 2026-11-20 12:00 · יציאה 2026-11-21 עד 13:00');
   assert.equal(ctx.stayDatesShort_({ stayType: 'bride_day', checkIn: '2026-11-20' }), 'חתונה 2026-11-20', 'the other packages are unchanged');
 });
 
-test('messages for the prep day + wedding night package give the arrival and the 13:00 departure', () => {
+test('messages for the prep day + wedding night package give the wedding-day arrival and the 13:00 departure', () => {
   const ctx = load();
   ctx.heDate_ = (d) => d;
-  const lines = ctx.stayLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-19', end: '2026-11-21', adults: 3, participants: 5 });
+  const lines = ctx.stayLines_({ stayType: 'bride_day_wedding_night', checkIn: '2026-11-20', checkOut: '2026-11-21', start: '2026-11-20', end: '2026-11-21', adults: 3, participants: 5 });
   assert.deepEqual([...lines], [
     'סוג האירוח: יום התארגנות + ליל כלולות',
     'תאריך החתונה: 2026-11-20',
-    'הגעה: 2026-11-19 מ-15:00 (יום לפני החתונה)',
+    'הגעה: 2026-11-20 מ-12:00 (יום החתונה)',
     'עזיבה: 2026-11-21 עד 13:00 (למחרת החתונה)',
     'מספר אורחים: 3',
     'משתתפי יום (כולל הכלה, מלוות ואנשי מקצוע): 5',

@@ -1871,7 +1871,7 @@ function stayLines_(req) {
   var lines = ['סוג האירוח: ' + STAY_TYPES[req.stayType].label];
   if (req.stayType === 'bride_day_wedding_night') {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
-    lines.push('הגעה: ' + heDate_(req.start) + ' מ-15:00 (יום לפני החתונה)');
+    lines.push('הגעה: ' + heDate_(req.checkIn) + ' מ-' + PREP_WEDDING_NIGHT_ARRIVAL + ' (יום החתונה)');
     lines.push('עזיבה: ' + heDate_(req.end) + ' עד ' + WEDDING_NIGHT_CHECK_OUT + ' (למחרת החתונה)');
   } else if (STAY_TYPES[req.stayType].wedding) {
     lines.push('תאריך החתונה: ' + heDate_(req.checkIn));
@@ -1887,7 +1887,9 @@ function stayLines_(req) {
 
 function ownerLines_(req) {
   var lines = stayLines_(req);
-  if (STAY_TYPES[req.stayType].wedding) {
+  if (req.stayType === 'bride_day_wedding_night') {
+    lines.push('שמור ביומן: ליל החתונה בלבד (לילה אחד)');
+  } else if (STAY_TYPES[req.stayType].wedding) {
     lines.push('שמור ביומן: הלילה שלפני (' + heDate_(req.start) + ') וליל החתונה');
   }
   lines.push('הערכת מחיר: ' + (req.estimate ? '₪' + Number(req.estimate).toLocaleString('en-US') : 'לא חושבה (אין מחירים זמינים) — לתמחר ידנית'));
@@ -1912,7 +1914,7 @@ function waLink_(phone, text) {
 
 function stayDatesShort_(req) {
   if (req.stayType === 'bride_day_wedding_night') {
-    return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(addDays(req.checkIn, -1)) + ' 15:00 · יציאה ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT;
+    return 'חתונה ' + heDate_(req.checkIn) + ' · הגעה ' + heDate_(req.checkIn) + ' ' + PREP_WEDDING_NIGHT_ARRIVAL + ' · יציאה ' + heDate_(addDays(req.checkIn, 1)) + ' עד ' + WEDDING_NIGHT_CHECK_OUT;
   }
   if (STAY_TYPES[req.stayType].wedding) return 'חתונה ' + heDate_(req.checkIn);
   return heDate_(req.checkIn) + '–' + heDate_(req.checkOut);

@@ -6,6 +6,7 @@ import {
   MAX_DAY_PARTICIPANTS,
   MAX_NIGHTS,
   NOTES_MAX,
+  PREP_WEDDING_NIGHT_ARRIVAL,
   STAY_TYPES,
   addDays,
   daysBetween,
@@ -19,7 +20,7 @@ import { getPrices } from './prices';
 
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
 
-export { DAY_PARTICIPANT_TYPES, MAX_DAY_PARTICIPANTS, MAX_NIGHTS, NOTES_MAX, STAY_TYPES, addDays, daysBetween, findAlternatives, nightsOf, stayRange, validateRequest };
+export { DAY_PARTICIPANT_TYPES, MAX_DAY_PARTICIPANTS, MAX_NIGHTS, NOTES_MAX, PREP_WEDDING_NIGHT_ARRIVAL, STAY_TYPES, addDays, daysBetween, findAlternatives, nightsOf, stayRange, validateRequest };
 
 export { getPrices, getPricesVersion, usePrices } from './prices';
 

@@ -24,9 +24,10 @@ export var MAX_DAY_PARTICIPANTS = 5;
 export var DAY_PARTICIPANT_TYPES = ['bride_day', 'bride_night_day', 'bride_day_wedding_night'];
 export var NOTES_MAX = 450;
 
-// Wedding-type stays are keyed by the wedding date and block the night before and the wedding night.
-// bride_day_wedding_night is both: arrival at 15:00 the day before, the bride's preparation on the
-// day, and back for the wedding night, leaving by WEDDING_NIGHT_CHECK_OUT the morning after.
+// Wedding-type stays are keyed by the wedding date and block the night before and the wedding night,
+// except bride_day_wedding_night: one night only. Arrival at PREP_WEDDING_NIGHT_ARRIVAL on the
+// wedding day, the bride's preparation, and back for the wedding night, leaving by
+// WEDDING_NIGHT_CHECK_OUT the morning after. The night before stays open to other guests.
 export var STAY_TYPES = {
   couple: { label: 'אירוח זוגי בוטיק', wedding: false },
   wedding_night: { label: 'ליל כלולות זוגי', wedding: false },
@@ -35,6 +36,9 @@ export var STAY_TYPES = {
   bride_day_wedding_night: { label: 'יום התארגנות + ליל כלולות', wedding: true },
 };
 export var WEDDING_NIGHT_CHECK_OUT = '13:00';
+// After the night before's check-out (11:00), so a guest staying that night never overlaps the bride.
+// Pending the owner's answer on the ClickUp task z8r3fdvdp6.
+export var PREP_WEDDING_NIGHT_ARRIVAL = '12:00';
 
 // Prices are not in the code. They live in the owner's prices spreadsheet (one row per key, see
 // pricesFromRows), which the site reads as a public CSV and the web app reads directly, so a price
@@ -136,6 +140,7 @@ export function daysBetween(a, b) {
  * @returns {{ start: string, end: string }}
  */
 export function stayRange(stayType, checkIn, checkOut) {
+  if (stayType === 'bride_day_wedding_night') return { start: checkIn, end: addDays(checkIn, 1) };
   if (STAY_TYPES[stayType] && STAY_TYPES[stayType].wedding) {
     return { start: addDays(checkIn, -1), end: addDays(checkIn, 1) };
   }
@@ -464,15 +469,17 @@ export var BRIDE_DAY_START_MINUTES = 8 * 60;
 
 /**
  * When a stay starts, as a local 'YYYY-MM-DDTHH:mm', from its first blocked night, by the house
- * rules: check-in at 15:00 on the first night, including the packages with the night before
- * (bride_night_day, and bride_day_wedding_night, whose guests arrive the day before too). A bride
- * day blocks the night before only to keep the suite ready; it starts at 08:00 on the wedding day.
+ * rules: check-in at 15:00 on the first night, including bride_night_day, whose guests arrive the
+ * day before. A bride day blocks the night before only to keep the suite ready; it starts at 08:00
+ * on the wedding day. A prep day + wedding night starts on the wedding day, its first and only
+ * night, at PREP_WEDDING_NIGHT_ARRIVAL.
  * A wedding night's arrival is "after the event, by arrangement", so its check-in hour, the earliest
  * it can be, stands in for it.
  * @param {StayType} stayType @param {string} start @returns {string}
  */
 export function stayStartsAt(stayType, start) {
   if (stayType === 'bride_day') return addDays(start, 1) + 'T' + hhmm(BRIDE_DAY_START_MINUTES);
+  if (stayType === 'bride_day_wedding_night') return start + 'T' + PREP_WEDDING_NIGHT_ARRIVAL;
   return start + 'T' + hhmm(CHECK_IN_MINUTES);
 }
 
