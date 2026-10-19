@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
 import dotenv from 'dotenv';
 
@@ -16,7 +17,7 @@ const testPricesCsv = Object.entries(testPrices).map(([key, price]) => `"${key}"
 
 // Locally (WSL) the bundled Chromium never runs IntersectionObserver; see playwright.config.ts.
 // CI always uses the bundled browser.
-dotenv.config({ path: '.env', quiet: true });
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '.env'), quiet: true });
 const executablePath = (!process.env.CI && process.env.E2E_CHROME) || undefined;
 
 export default defineConfig({
