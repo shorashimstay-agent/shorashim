@@ -44,8 +44,9 @@ SHARED = ROOT / "shared"
 
 
 def load_dotenv(path=ROOT / ".env"):
-    """KEY=value lines from the project's git-ignored .env, read as dotenv reads them: an optional
-    `export `, a quoted value, or an unquoted one up to a ` #` comment. Variables already set win."""
+    """KEY=value lines from the project's git-ignored .env, a subset of what dotenv reads: an optional
+    `export `, a value in single or double quotes (no escapes), or an unquoted one up to a ` #`
+    comment. Variables already set win."""
     if not path.exists():
         return
     for line in path.read_text().splitlines():
