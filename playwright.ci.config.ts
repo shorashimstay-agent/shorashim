@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
+import dotenv from 'dotenv';
 
 // Checks that run in GitHub Actions on every design push (tests/ci), before it can go live. They need
 // no accounts or backend: the site is built against a fake booking API that the tests answer
@@ -15,8 +15,9 @@ const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 
 const testPricesCsv = Object.entries(testPrices).map(([key, price]) => `"${key}","","${price}"`).join('\n');
 
 // Locally (WSL) the bundled Chromium never runs IntersectionObserver; see playwright.config.ts.
-const localChrome = path.join(os.homedir(), '<local path>');
-const executablePath = process.env.E2E_CHROME || (!process.env.CI && fs.existsSync(localChrome) ? localChrome : undefined);
+// CI always uses the bundled browser.
+dotenv.config({ path: '.env', quiet: true });
+const executablePath = (!process.env.CI && process.env.E2E_CHROME) || undefined;
 
 export default defineConfig({
   testDir: 'tests/ci',

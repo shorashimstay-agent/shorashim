@@ -15,9 +15,9 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONT = path.join(ROOT, '.front-2');
@@ -28,7 +28,9 @@ const GH_USER = 'shorashimstay-agent';
 const INITIAL_BASE = 'c4f2afb';
 const TRAILER = 'Front-2-Sync';
 const REVERTED_TRAILER = 'Front-2-Sync-Reverted';
-const GITLEAKS = process.env.GITLEAKS || [path.join(os.homedir(), '<local path>'), 'gitleaks'].find((p) => p === 'gitleaks' || fs.existsSync(p));
+dotenv.config({ path: path.join(ROOT, '.env'), quiet: true });
+// GITLEAKS (set in .env) when given, else gitleaks on the PATH.
+const GITLEAKS = process.env.GITLEAKS || 'gitleaks';
 
 let STATE_DIR = '';
 const stateDir = () => (STATE_DIR ||= path.join(git(['rev-parse', '--absolute-git-dir']), 'front-sync'));
@@ -148,7 +150,7 @@ function lastSyncedSha() {
 
 function gitleaks(args) {
   if (!GITLEAKS || (GITLEAKS !== 'gitleaks' && !fs.existsSync(GITLEAKS))) {
-    fail('gitleaks is not installed. Install it to <local path> (https://github.com/gitleaks/gitleaks/releases).');
+    fail('gitleaks is not installed. Put it on the PATH or set GITLEAKS in .env (https://github.com/gitleaks/gitleaks/releases).');
   }
   const report = path.join(stateDir(), `gitleaks-${crypto.randomUUID()}.json`);
   fs.mkdirSync(stateDir(), { recursive: true });

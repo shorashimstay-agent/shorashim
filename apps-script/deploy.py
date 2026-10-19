@@ -21,13 +21,15 @@ is the new version released, so the live web app never runs with unauthorized sc
 The booking rules come from shared/rules.js, the same module the website imports; the `export `
 keyword is stripped on the way up so Apps Script sees plain globals.
 
-IDs and secrets live in <local path> (production) and
-<local path> (staging), never in this public repo. They are written into a generated
-Config.js file that exists only inside the Apps Script project. The first run creates the project
+IDs and secrets live in each environment's booking config, a local file outside this public repo
+(SHORASHIM_PROD_CONFIG / SHORASHIM_STAGING_CONFIG in the project's git-ignored .env; .env.example
+lists the keys). They are written into a generated Config.js file that exists only inside the
+Apps Script project. The first run creates the project
 and a web app deployment whose URL then stays fixed.
 """
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -39,13 +41,33 @@ from google.oauth2.credentials import Credentials
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 SHARED = ROOT / "shared"
-SECRETS = pathlib.Path.home() / "<local path>"
+
+
+def load_dotenv(path=ROOT / ".env"):
+    """KEY=value lines from the project's git-ignored .env. Variables already set win."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        key, sep, value = line.partition("=")
+        key = key.strip()
+        if sep and key and not key.startswith("#"):
+            os.environ.setdefault(key, value.strip().strip("\"'"))
+
+
+def local_file(key):
+    """A local file named by a .env key, so no machine path is ever committed."""
+    value = os.environ.get(key)
+    if not value:
+        sys.exit(f"{key} is not set. Add it to .env (see .env.example).")
+    return pathlib.Path(value).expanduser()
+
+
+load_dotenv()
 # Each environment runs as its own Google account, so test runs never use production's daily Gmail
-# quota: production as shorashimstay@gmail.com (token.json), staging as shorashimzichron@gmail.com
-# (<local path>, made by authorize-staging.py next to it).
+# quota: production as shorashimstay@gmail.com, staging as shorashimzichron@gmail.com.
 ENVS = {
-    "production": {"config": SECRETS / "shorashimstay@gmail.com/shorashim-booking/booking-config.json", "token": SECRETS / "shorashimstay@gmail.com/google/token.json", "title": "Shorashim Booking"},
-    "staging": {"config": SECRETS / "shorashimzichron@gmail.com/shorashim-booking/booking-config.staging.json", "token": SECRETS / "shorashimzichron@gmail.com/google/token-staging.json", "title": "Shorashim Booking (staging)"},
+    "production": {"config": "SHORASHIM_PROD_CONFIG", "token": "SHORASHIM_PROD_TOKEN", "title": "Shorashim Booking"},
+    "staging": {"config": "SHORASHIM_STAGING_CONFIG", "token": "SHORASHIM_STAGING_TOKEN", "title": "Shorashim Booking (staging)"},
 }
 BACKEND_PATHS = ("apps-script", "shared")
 API = "https://script.googleapis.com/v1"
@@ -66,7 +88,7 @@ def e2e_passed(tree):
 
 
 def session(env):
-    creds = Credentials.from_authorized_user_file(str(ENVS[env]["token"]))
+    creds = Credentials.from_authorized_user_file(str(local_file(ENVS[env]["token"])))
     creds.refresh(Request())
     return AuthorizedSession(creds)
 
@@ -115,7 +137,7 @@ def push_version(s, cfg, description):
 def status():
     for env, spec in ENVS.items():
         s = session(env)
-        cfg = json.loads(spec["config"].read_text())
+        cfg = json.loads(local_file(spec["config"]).read_text())
         dep = call(s, "GET", f"{API}/projects/{cfg['scriptId']}/deployments/{cfg['deploymentId']}")
         version = dep["deploymentConfig"].get("versionNumber")
         desc = next(
@@ -137,10 +159,9 @@ def set_console_password(env):
     import getpass
     import hashlib
     import hmac
-    import os
     import secrets
 
-    path = ENVS[env]["config"]
+    path = local_file(ENVS[env]["config"])
     cfg = json.loads(path.read_text())
     password = os.environ.get("CONSOLE_PASSWORD") or getpass.getpass(f"Console password for {env}: ")
     if len(password) < 8:
@@ -179,12 +200,13 @@ def main():
     label = f"{sha}{'-dirty' if dirty else ''} {args.description}"
 
     spec = ENVS[args.env]
-    cfg = json.loads(spec["config"].read_text())
+    config_path = local_file(spec["config"])
+    cfg = json.loads(config_path.read_text())
     s = session(args.env)
 
     if not cfg.get("scriptId"):
         cfg["scriptId"] = call(s, "POST", f"{API}/projects", json={"title": spec["title"]})["scriptId"]
-        save(spec["config"], cfg)
+        save(config_path, cfg)
 
     if not cfg.get("deploymentId"):
         version = push_version(s, cfg, "initial")
@@ -199,7 +221,7 @@ def main():
             (p["webApp"]["url"] for p in dep.get("entryPoints", []) if "webApp" in p),
             f"https://script.google.com/macros/s/{dep['deploymentId']}/exec",
         )
-        save(spec["config"], cfg)
+        save(config_path, cfg)
 
     if args.content_only:
         call(s, "PUT", f"{API}/projects/{cfg['scriptId']}/content", json={"files": project_files(cfg)})

@@ -14,13 +14,13 @@ Tests never write to production. There is one backend codebase and two deploymen
 |---|---|---|
 | Google account | shorashimstay@gmail.com | shorashimzichron@gmail.com, so test runs never use production's daily Gmail quota (about 11 recipients a run) |
 | Apps Script project | "Shorashim Booking" | "Shorashim Booking (staging)" — same code, different `Config.js` |
-| Config file | `<local path>` | `<local path>` |
+| Config file | `SHORASHIM_PROD_CONFIG` in `.env` | `SHORASHIM_STAGING_CONFIG` in `.env` |
 | Calendars | שורשים – הזמנות / בקשות / ערוצים | בדיקות – הזמנות / בקשות / ערוצים, in the staging account |
 | Sheets | ניהול הזמנות, זמינות לאתר, מחירים | the same three, named "בדיקות – …", in the staging account |
 | Owner notifications | the owner's address | the staging account's `+test` alias (the suite deletes these emails when it finishes); nothing reaches the real owner inbox except guest A's invites |
 | Test hooks | off | on (`testHooks: true`) |
 | Website under test | https://shorashimstay.com | the current working tree, built with the staging endpoints and served on `localhost` (an allowed reCAPTCHA domain) |
-| Browser | — | Chrome 147 (`<local path>` or `E2E_CHROME`): Playwright's bundled Chromium 153 renders no frames under WSL here, so IntersectionObserver never fires and reCAPTCHA never loads |
+| Browser | — | Chrome 147 (`E2E_CHROME` in `.env`): Playwright's bundled Chromium 153 renders no frames under WSL here, so IntersectionObserver never fires and reCAPTCHA never loads |
 
 Production only gets a **read-only smoke run** (§5).
 
@@ -38,13 +38,13 @@ Google's trigger dispatch. The suite checks separately, through signed `diag`, t
 
 | Role | Account | How the suite acts as it |
 |---|---|---|
-| Owner | the staging account (shorashimzichron@gmail.com), which the staging backend runs as | OAuth token in `<local path>`: reads the notification emails, edits the admin sheet, checks the calendars |
-| Guest A | the main Shorashim account (shorashimstay@gmail.com) | its OAuth token (`token.json`): receives the calendar invite (Gmail + Calendar). Receiving uses no sending quota |
+| Owner | the staging account (shorashimzichron@gmail.com), which the staging backend runs as | OAuth token `SHORASHIM_STAGING_TOKEN`: reads the notification emails, edits the admin sheet, checks the calendars |
+| Guest A | the main Shorashim account (shorashimstay@gmail.com) | its OAuth token (`E2E_GUEST_A_TOKEN`): receives the calendar invite (Gmail + Calendar). Receiving uses no sending quota |
 | Guest B | the main account's `+guestb` alias | the same token; its mail is told apart by the `To:` address |
 | Website visitor | headless Chromium (Playwright) | fills in and submits the real booking form |
 
-The account addresses and token paths live in `<local path>`, never
-in this public repo.
+The account addresses and token paths live in the project's git-ignored `.env` (keys `E2E_GUEST_A_*`,
+`E2E_GUEST_B_*` and `SHORASHIM_*`; see `.env.example`), never in this public repo.
 
 ## 3. Test data
 
