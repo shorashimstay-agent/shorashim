@@ -14,7 +14,7 @@ Tests never write to production. There is one backend codebase and two deploymen
 |---|---|---|
 | Google account | shorashimstay@gmail.com | shorashimzichron@gmail.com, so test runs never use production's daily Gmail quota (about 11 recipients a run) |
 | Apps Script project | "Shorashim Booking" | "Shorashim Booking (staging)" — same code, different `Config.js` |
-| Config file | `~/.config/gcloud/shorashim/booking-config.json` | `~/.config/gcloud/shorashim/booking-config.staging.json` |
+| Config file | `~/.config/secrets/shorashimstay@gmail.com/shorashim-booking/booking-config.json` | `~/.config/secrets/shorashimzichron@gmail.com/shorashim-booking/booking-config.staging.json` |
 | Calendars | שורשים – הזמנות / בקשות / ערוצים | בדיקות – הזמנות / בקשות / ערוצים, in the staging account |
 | Sheets | ניהול הזמנות, זמינות לאתר, מחירים | the same three, named "בדיקות – …", in the staging account |
 | Owner notifications | the owner's address | the staging account's `+test` alias (the suite deletes these emails when it finishes); nothing reaches the real owner inbox except guest A's invites |
@@ -38,12 +38,12 @@ Google's trigger dispatch. The suite checks separately, through signed `diag`, t
 
 | Role | Account | How the suite acts as it |
 |---|---|---|
-| Owner | the staging account (shorashimzichron@gmail.com), which the staging backend runs as | OAuth token in `~/.config/gcloud/shorashim/token-staging.json`: reads the notification emails, edits the admin sheet, checks the calendars |
+| Owner | the staging account (shorashimzichron@gmail.com), which the staging backend runs as | OAuth token in `~/.config/secrets/shorashimzichron@gmail.com/google/token-staging.json`: reads the notification emails, edits the admin sheet, checks the calendars |
 | Guest A | the main Shorashim account (shorashimstay@gmail.com) | its OAuth token (`token.json`): receives the calendar invite (Gmail + Calendar). Receiving uses no sending quota |
 | Guest B | the main account's `+guestb` alias | the same token; its mail is told apart by the `To:` address |
 | Website visitor | headless Chromium (Playwright) | fills in and submits the real booking form |
 
-The account addresses and token paths live in `~/.config/gcloud/shorashim/e2e-config.json`, never
+The account addresses and token paths live in `~/.config/secrets/shorashimstay@gmail.com/shorashim-booking/e2e-config.json`, never
 in this public repo.
 
 ## 3. Test data
