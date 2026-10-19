@@ -22,7 +22,7 @@ The booking rules come from shared/rules.js, the same module the website imports
 keyword is stripped on the way up so Apps Script sees plain globals.
 
 IDs and secrets live in <local path> (production) and
-booking-config.staging.json, never in this public repo. They are written into a generated
+<local path> (staging), never in this public repo. They are written into a generated
 Config.js file that exists only inside the Apps Script project. The first run creates the project
 and a web app deployment whose URL then stays fixed.
 """
@@ -39,13 +39,13 @@ from google.oauth2.credentials import Credentials
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 SHARED = ROOT / "shared"
-CRED_DIR = pathlib.Path.home() / "<local path>"
+SECRETS = pathlib.Path.home() / "<local path>"
 # Each environment runs as its own Google account, so test runs never use production's daily Gmail
 # quota: production as shorashimstay@gmail.com (token.json), staging as shorashimzichron@gmail.com
-# (token-staging.json, made by authorize_staging.py in the same directory).
+# (<local path>, made by authorize-staging.py next to it).
 ENVS = {
-    "production": {"config": CRED_DIR / "booking-config.json", "token": CRED_DIR / "token.json", "title": "Shorashim Booking"},
-    "staging": {"config": CRED_DIR / "booking-config.staging.json", "token": CRED_DIR / "token-staging.json", "title": "Shorashim Booking (staging)"},
+    "production": {"config": SECRETS / "shorashimstay@gmail.com/shorashim-booking/booking-config.json", "token": SECRETS / "shorashimstay@gmail.com/google/token.json", "title": "Shorashim Booking"},
+    "staging": {"config": SECRETS / "shorashimzichron@gmail.com/shorashim-booking/booking-config.staging.json", "token": SECRETS / "shorashimzichron@gmail.com/google/token-staging.json", "title": "Shorashim Booking (staging)"},
 }
 BACKEND_PATHS = ("apps-script", "shared")
 API = "https://script.googleapis.com/v1"

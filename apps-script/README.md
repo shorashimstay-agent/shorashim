@@ -151,7 +151,7 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
   so they can be filtered on. The rest (dates, outcome, timings, commit) is in the `data` map, which
   is exempt from indexing: default indexes made each event about 3.4 KB instead of about 1. A new
   database needs that exemption too:
-  `gcloud --configuration=shorashim firestore indexes fields update data --collection-group=events --disable-indexes --project=<project>`.
+  `CLOUDSDK_CONFIG=<local path> gcloud --configuration=shorashim firestore indexes fields update data --collection-group=events --disable-indexes --project=<project>`.
 - **No personal data.** An event keeps only allowlisted fields (`LOG_FIELDS`): the booking ref, the
   calendar event ID, dates, nights, the outcome, who acted (`guest`, `email`, `console`, `sheet`,
   `system`), timings, and the deployed commit. Never a name, phone, email, note, reason or WhatsApp
@@ -180,15 +180,15 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
 - **Rotate the key** (leaked, or routine):
   ```
   P=shorashim-log   # or shorashim-log-staging
-  C=<local path>   # or booking-config.staging.json
-  gcloud --configuration=shorashim iam service-accounts keys create /tmp/k.json --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  C=<local path>   # or <local path>
+  CLOUDSDK_CONFIG=<local path> gcloud --configuration=shorashim iam service-accounts keys create /tmp/k.json --iam-account=event-log-writer@$P.iam.gserviceaccount.com
   # The config uses camelCase names; with the key file's own names the log silently turns off.
   python3 -c 'import json,sys; k=json.load(open("/tmp/k.json")); c=json.load(open(sys.argv[1]));
   c["firestore"]={"projectId":k["project_id"],"clientEmail":k["client_email"],"privateKeyId":k["private_key_id"],"privateKey":k["private_key"]};
   json.dump(c,open(sys.argv[1],"w"),ensure_ascii=False,indent=2)' "$C" && shred -u /tmp/k.json
   python3 apps-script/deploy.py "rotate event log key"     # staging: --env staging
-  gcloud --configuration=shorashim iam service-accounts keys list --iam-account=event-log-writer@$P.iam.gserviceaccount.com
-  gcloud --configuration=shorashim iam service-accounts keys delete <old key id> --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  CLOUDSDK_CONFIG=<local path> gcloud --configuration=shorashim iam service-accounts keys list --iam-account=event-log-writer@$P.iam.gserviceaccount.com
+  CLOUDSDK_CONFIG=<local path> gcloud --configuration=shorashim iam service-accounts keys delete <old key id> --iam-account=event-log-writer@$P.iam.gserviceaccount.com
   ```
 
 ## Development
@@ -210,7 +210,7 @@ npm run test:smoke                         # read-only checks of the live site a
 python3 apps-script/deploy.py --status     # which commit each environment is running
 ```
 
-- **`deploy.py`** uses each environment's OAuth token in `<local path>`: `token.json` (shorashimstay@gmail.com) for production and `token-staging.json` (shorashimzichron@gmail.com, made by `authorize_staging.py`) for staging. Each backend runs as its own account, so the staging suite's emails come out of the staging account's daily Gmail quota, never production's. It reads IDs and secrets from `<local path>` (production) or `booking-config.staging.json`: calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
+- **`deploy.py`** uses each environment's OAuth token: `<local path>` for production and `<local path>` (made by `authorize-staging.py` next to it) for staging. Each backend runs as its own account, so the staging suite's emails come out of the staging account's daily Gmail quota, never production's. It reads IDs and secrets from `<local path>` (production) or `<local path>` (staging): calendar IDs, the HMAC key that signs approve/decline links, the reCAPTCHA secret, and the script and deployment IDs. It writes them into a generated `Config.js` that exists only inside the Apps Script project. This repo is public, so never commit those values.
 - **Every version is labelled with its commit** (`a1b2c3d note`, or `-dirty` for `--allow-dirty` staging tries), so `--status` shows what is live. **Rolling back** means pointing the deployment at an earlier version number.
 - **The pre-push hook** lives in `.githooks/` (enable it in a fresh clone with `git config core.hooksPath .githooks`). It only blocks pushes to `main` that change the site, backend or tests. Emergency bypasses: `git push --no-verify`, `deploy.py --force`.
 - **The web app URL stays the same** across deploys. It goes in `src/data/bookingConfig.ts`.
