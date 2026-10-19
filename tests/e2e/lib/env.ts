@@ -1,8 +1,12 @@
 // Local settings for the regression suite. Everything account-specific lives outside this public
-// repo, in ~/.config/secrets/shorashimstay@gmail.com/shorashim-booking/e2e-config.json (see tests/e2e/PLAN.md).
+// repo: the project's git-ignored .env names the files and accounts (.env.example lists the keys).
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+dotenv.config({ path: path.join(ROOT, '.env'), quiet: true });
 
 export interface Guest {
   email: string;
@@ -38,13 +42,32 @@ interface E2EConfig {
   productionConfig: string;
 }
 
-const CONFIG_FILE = path.join(os.homedir(), '.config/secrets/shorashimstay@gmail.com/shorashim-booking/e2e-config.json');
+function setting(key: string): string {
+  const value = process.env[key];
+  if (!value) throw new Error(`${key} is not set. Add it to .env (see .env.example).`);
+  return value;
+}
+
+function guest(prefix: string): Guest {
+  return {
+    email: setting(`${prefix}_EMAIL`),
+    token: process.env[`${prefix}_TOKEN`] || null,
+    calendar: process.env[`${prefix}_CALENDAR`] === 'true',
+  };
+}
 
 function readJson<T>(file: string): T {
   return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
 }
 
-export const e2e = readJson<E2EConfig>(CONFIG_FILE);
+export const e2e: E2EConfig = {
+  // The owner is the staging account, which the staging backend runs as.
+  owner: { token: setting('SHORASHIM_STAGING_TOKEN') },
+  guestA: guest('E2E_GUEST_A'),
+  guestB: guest('E2E_GUEST_B'),
+  stagingConfig: setting('SHORASHIM_STAGING_CONFIG'),
+  productionConfig: setting('SHORASHIM_PROD_CONFIG'),
+};
 export const staging = readJson<BackendConfig>(e2e.stagingConfig);
 export const production = readJson<BackendConfig>(e2e.productionConfig);
 
