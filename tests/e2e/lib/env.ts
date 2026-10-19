@@ -1,5 +1,5 @@
 // Local settings for the regression suite. Everything account-specific lives outside this public
-// repo, in ~/.config/gcloud/shorashim/e2e-config.json (see tests/e2e/PLAN.md).
+// repo, in ~/.config/secrets/shorashimstay@gmail.com/shorashim-booking/e2e-config.json (see tests/e2e/PLAN.md).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,7 +38,7 @@ interface E2EConfig {
   productionConfig: string;
 }
 
-const CONFIG_FILE = path.join(os.homedir(), '.config/gcloud/shorashim/e2e-config.json');
+const CONFIG_FILE = path.join(os.homedir(), '.config/secrets/shorashimstay@gmail.com/shorashim-booking/e2e-config.json');
 
 function readJson<T>(file: string): T {
   return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
