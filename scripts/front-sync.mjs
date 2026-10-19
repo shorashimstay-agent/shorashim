@@ -149,7 +149,7 @@ function lastSyncedSha() {
 // ---- Secret scanning
 
 function gitleaks(args) {
-  if (!GITLEAKS || (GITLEAKS !== 'gitleaks' && !fs.existsSync(GITLEAKS))) {
+  if (GITLEAKS !== 'gitleaks' && !fs.existsSync(GITLEAKS)) {
     fail('gitleaks is not installed. Put it on the PATH or set GITLEAKS in .env (https://github.com/gitleaks/gitleaks/releases).');
   }
   const report = path.join(stateDir(), `gitleaks-${crypto.randomUUID()}.json`);

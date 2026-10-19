@@ -1,6 +1,7 @@
 // Local settings for the regression suite. Everything account-specific lives outside this public
 // repo: the project's git-ignored .env names the files and accounts (.env.example lists the keys).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
@@ -48,10 +49,15 @@ function setting(key: string): string {
   return value;
 }
 
+/** A local file named by a .env key. A leading ~ means the home folder, as in deploy.py. */
+function localFile(key: string): string {
+  return setting(key).replace(/^~(?=\/|$)/, os.homedir());
+}
+
 function guest(prefix: string): Guest {
   return {
     email: setting(`${prefix}_EMAIL`),
-    token: process.env[`${prefix}_TOKEN`] || null,
+    token: process.env[`${prefix}_TOKEN`] ? localFile(`${prefix}_TOKEN`) : null,
     calendar: process.env[`${prefix}_CALENDAR`] === 'true',
   };
 }
@@ -62,11 +68,11 @@ function readJson<T>(file: string): T {
 
 export const e2e: E2EConfig = {
   // The owner is the staging account, which the staging backend runs as.
-  owner: { token: setting('SHORASHIM_STAGING_TOKEN') },
+  owner: { token: localFile('SHORASHIM_STAGING_TOKEN') },
   guestA: guest('E2E_GUEST_A'),
   guestB: guest('E2E_GUEST_B'),
-  stagingConfig: setting('SHORASHIM_STAGING_CONFIG'),
-  productionConfig: setting('SHORASHIM_PROD_CONFIG'),
+  stagingConfig: localFile('SHORASHIM_STAGING_CONFIG'),
+  productionConfig: localFile('SHORASHIM_PROD_CONFIG'),
 };
 export const staging = readJson<BackendConfig>(e2e.stagingConfig);
 export const production = readJson<BackendConfig>(e2e.productionConfig);

@@ -44,14 +44,20 @@ SHARED = ROOT / "shared"
 
 
 def load_dotenv(path=ROOT / ".env"):
-    """KEY=value lines from the project's git-ignored .env. Variables already set win."""
+    """KEY=value lines from the project's git-ignored .env, read as dotenv reads them: an optional
+    `export `, a quoted value, or an unquoted one up to a ` #` comment. Variables already set win."""
     if not path.exists():
         return
     for line in path.read_text().splitlines():
-        key, sep, value = line.partition("=")
-        key = key.strip()
-        if sep and key and not key.startswith("#"):
-            os.environ.setdefault(key, value.strip().strip("\"'"))
+        key, sep, value = line.strip().removeprefix("export ").partition("=")
+        key, value = key.strip(), value.strip()
+        if not sep or not key or key.startswith("#"):
+            continue
+        if value[:1] in ("'", '"') and value[0] in value[1:]:
+            value = value[1:value.index(value[0], 1)]
+        else:
+            value = value.split(" #", 1)[0].strip()
+        os.environ.setdefault(key, value)
 
 
 def local_file(key):
