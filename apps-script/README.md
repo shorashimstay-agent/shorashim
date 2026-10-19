@@ -180,7 +180,7 @@ expired holds, sheet rebuilds, errors, and counts of rejected requests (`apps-sc
   and the production smoke test checks it.
 - **Rotate the key** (leaked, or routine):
   ```
-  set -a; . ./.env; set +a   # CLOUDSDK_CONFIG and the config paths
+  set -a; . ./.env; set +a   # from the project root: CLOUDSDK_CONFIG and the config paths (this overrides the shell's own values)
   P=shorashim-log   # or shorashim-log-staging
   C=$SHORASHIM_PROD_CONFIG   # or $SHORASHIM_STAGING_CONFIG
   gcloud --configuration=shorashim iam service-accounts keys create /tmp/k.json --iam-account=event-log-writer@$P.iam.gserviceaccount.com
