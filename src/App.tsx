@@ -18,18 +18,22 @@ import BackToTop from './components/BackToTop';
 import BridalPage from './components/BridalPage';
 
 export default function App() {
-  const [bridalPage, setBridalPage] = useState(() => window.location.pathname.replace(/\/$/, '') === '/bride' || window.location.hash === '#bride-page');
+  const isBridalRoute = /^\/bride(?:\/index\.html|\/)?$/.test(window.location.pathname);
+  const [legacyBridalView, setLegacyBridalView] = useState(() => window.location.hash === '#bride-page');
   useEffect(() => {
-    const update = () => { const isBridal = window.location.hash === '#bride-page'; setBridalPage(isBridal); if (isBridal) { setSelectedStayType('bride_day'); window.scrollTo(0, 0); } };
+    if (isBridalRoute) return;
+    const update = () => {
+      const isBridal = window.location.hash === '#bride-page';
+      setLegacyBridalView(isBridal);
+      if (isBridal) {
+        setSelectedStayType('bride_day');
+        window.scrollTo(0, 0);
+      }
+    };
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
-  }, []);
-  const [audience, setAudience] = useState<'holiday' | 'bride'>(() => window.location.hash === '#bride' ? 'bride' : 'holiday');
-  useEffect(() => {
-    const showBride = () => { setAudience('bride'); setSelectedStayType('bride_day'); };
-    window.addEventListener('shorashim:show-bride', showBride);
-    return () => window.removeEventListener('shorashim:show-bride', showBride);
-  }, []);
+  }, [isBridalRoute]);
+  const [audience] = useState<'holiday' | 'bride'>(() => window.location.hash === '#bride' ? 'bride' : 'holiday');
   const [selectedStayType, setSelectedStayType] = useState<
     'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night'
   >(() => window.location.hash === '#bride' ? 'bride_day' : 'couple');
@@ -50,7 +54,7 @@ export default function App() {
     }
   };
 
-  if (bridalPage) return <div className="audience-bride" dir="rtl" lang="he">
+  if (isBridalRoute || legacyBridalView) return <div className="audience-bride" dir="rtl" lang="he">
     <a href="#main" className="skip-link">דלגו לתוכן העיקרי</a>
     <Header isHomepage={false} onOpenBooking={scrollToBooking} />
     <main id="main" tabIndex={-1}><BridalPage stayType={selectedStayType} onStayTypeChange={setSelectedStayType} /><FaqSection /></main>
