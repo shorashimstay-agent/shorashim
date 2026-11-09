@@ -9,11 +9,10 @@ export default defineConfig(() => {
     base: '/',
     plugins: [react(), tailwindcss()],
     build: {
-      // Besides the home page, each legal page is its own HTML file, so /terms/ and friends work as
-      // real URLs on GitHub Pages.
+      // Emit an HTML file for each direct URL served by GitHub Pages.
       rollupOptions: {
         input: Object.fromEntries(
-          ['index.html', ...['terms', 'privacy', 'accessibility'].flatMap((p) => [`${p}/index.html`, `en/${p}/index.html`])].map((f) => [
+          ['index.html', 'bride/index.html', ...['terms', 'privacy', 'accessibility'].flatMap((p) => [`${p}/index.html`, `en/${p}/index.html`])].map((f) => [
             f.replace(/\/?index\.html$/, '') || 'home',
             path.resolve(__dirname, f),
           ])

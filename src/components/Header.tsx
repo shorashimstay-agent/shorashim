@@ -62,7 +62,7 @@ export default function Header({ isHomepage }: HeaderProps) {
   const navLinks = [
     { label: 'הבית', href: '#house' },
     { label: 'הסיפור', href: '#story' },
-    { label: 'כלה בשורשים', href: '#bride' },
+    { label: 'כלה בשורשים', href: '/bride/' },
     { label: 'זכרון יעקב', href: '#zichron' },
     { label: 'גלריה', href: '#gallery' },
     { label: 'שאלות', href: '#faq' },
@@ -155,7 +155,7 @@ export default function Header({ isHomepage }: HeaderProps) {
             <a
               href={link.href}
               key={link.label}
-              onClick={(event) => { event.preventDefault(); handleLinkClick(link.href); }}
+              onClick={link.href.startsWith('#') ? (event) => { event.preventDefault(); handleLinkClick(link.href); } : undefined}
               className={`text-[14px] lg:text-[15px] font-sans tracking-wide transition-colors duration-200 cursor-pointer py-1 font-normal ${
                 isSolid
                   ? 'text-[#665548] hover:text-[#40362F]'
@@ -198,7 +198,7 @@ export default function Header({ isHomepage }: HeaderProps) {
               <a
                 href={link.href}
                 key={link.label}
-                onClick={(event) => { event.preventDefault(); handleLinkClick(link.href); }}
+                onClick={link.href.startsWith('#') ? (event) => { event.preventDefault(); handleLinkClick(link.href); } : undefined}
                 className="text-right text-lg font-sans text-[#40362F] hover:text-[#665548] cursor-pointer py-1 font-medium"
               >
                 {link.label}

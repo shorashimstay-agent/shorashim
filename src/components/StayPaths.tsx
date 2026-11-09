@@ -1,6 +1,5 @@
 import Picture from './Picture';
 import { IMAGES } from '../data/shorashimData';
-import { navigateTo } from './navigate';
 export default function StayPaths({ onSelectCouple }: { onSelectCouple: () => void }) {
   return <section id="stay-paths" tabIndex={-1} className="stay-paths">
     <div className="max-w-7xl mx-auto px-6 sm:px-10">
@@ -13,7 +12,7 @@ export default function StayPaths({ onSelectCouple }: { onSelectCouple: () => vo
         </article>
         <article className="stay-path">
           <Picture image={IMAGES.bride_dress} alt="שמלת כלה תלויה בחדר השינה בשורשים" className="w-full aspect-[16/9] object-cover" />
-          <div className="p-5 sm:p-7"><h3 className="font-serif text-2xl sm:text-3xl mb-2">כלה בשורשים</h3><p>ארבעה מסלולים לבחירה: התארגנות בלבד, לילה לפני עם התארגנות, לילה אחרי החתונה, או התארגנות עם חזרה לליל כלולות.</p><p className="stay-meta">עד 5 משתתפים בהתארגנות, כולל הכלה ואנשי המקצוע</p><a href="#bride" className="secondary-action mt-4" onClick={event => { event.preventDefault(); navigateTo('bride'); }}>השוואת מסלולי כלה</a></div>
+          <div className="p-5 sm:p-7"><h3 className="font-serif text-2xl sm:text-3xl mb-2">כלה בשורשים</h3><p>ארבעה מסלולים לבחירה: התארגנות בלבד, לילה לפני עם התארגנות, לילה אחרי החתונה, או התארגנות עם חזרה לליל כלולות.</p><p className="stay-meta">עד 5 משתתפים בהתארגנות, כולל הכלה ואנשי המקצוע</p><a href="/bride/" className="secondary-action mt-4">השוואת מסלולי כלה</a></div>
         </article>
       </div>
     </div>

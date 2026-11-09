@@ -101,9 +101,7 @@ export default function Hero({ audience = 'holiday' }: { audience?: 'holiday' | 
 
         </div>
       </div>
-      <button type="button" className="hero-bride-text" onClick={() => {
-        window.location.assign('/#bride-page');
-      }}><span>מתארגנת לחתונה?</span><span>גלי את מסלולי הכלה בשורשים <span aria-hidden="true">←</span></span></button>
+      <a href="/bride/" className="hero-bride-text"><span>מתארגנת לחתונה?</span><span>גלי את מסלולי הכלה בשורשים <span aria-hidden="true">←</span></span></a>
     </section>
   );
 }
