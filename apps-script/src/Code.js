@@ -21,7 +21,7 @@ var PRICES_REFETCH_KEY = 'prices:refetched';
 var PRICES_LAST_GOOD_KEY = 'pricesLastGood';
 var PRICES_OVERRIDE_KEY = 'pricesOverride';
 var ADDRESS = 'משק פויזנר, המייסדים 71, זכרון יעקב';
-var CONTACT_PHONE = '052-322-4220';
+var CONTACT_PHONE = '051-500-6613';
 // The owner console. The owner email's button opens it on the request, not the web app's decision
 // page: on Android the Drive app claims script.google.com links and fails to open them. Staging
 // emails link here too; the suite opens the console against staging itself.
