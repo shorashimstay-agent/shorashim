@@ -179,8 +179,8 @@ test('holds expire after 24 hours', () => {
 });
 
 test('whatsapp numbers use the Israeli country code', () => {
-  assert.equal(whatsappNumber('052-322-4220'), '972523224220');
-  assert.equal(whatsappNumber('+972 52 322 4220'), '972523224220');
+  assert.equal(whatsappNumber('051-500-6613'), '972515006613');
+  assert.equal(whatsappNumber('+972 51 500 6613'), '972515006613');
 });
 
 const valid = { stayType: 'couple', checkIn: '2026-10-01', checkOut: '2026-10-03', adults: 2, name: 'ישראל ישראלי', phone: '050-0000000' };

@@ -27,8 +27,8 @@ const SITE_TOOL_NAMES = {
   he: SITE_TOOLS.map((t) => t.brand).join(', '),
   en: SITE_TOOLS.map((t) => t.brand).join(', '),
 };
-const CONTACT_HE = ['טלפון ו-WhatsApp: 052-322-4220', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
-const CONTACT_EN = ['Phone and WhatsApp: +972-52-322-4220', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
+const CONTACT_HE = ['טלפון ו-WhatsApp: 051-500-6613', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
+const CONTACT_EN = ['Phone and WhatsApp: +972-51-500-6613', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
 
 export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
   terms: {
