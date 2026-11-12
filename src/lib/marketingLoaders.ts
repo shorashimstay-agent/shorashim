@@ -1,5 +1,6 @@
 // Starts the site's marketing tools (src/consent/tools.ts) after consent, and stops them when it is
-// withdrawn. Imported only by App, so the legal pages never bundle a tool's loader.
+// withdrawn. Imported only by src/main.tsx (the main and bride pages), so the legal pages never
+// bundle a tool's loader.
 //
 // Meta documents fbq('consent','revoke') only as a pause, and may send queued events on 'grant', so
 // a loaded tool is never re-granted: withdrawing stops it at once and reloads the page (asking first

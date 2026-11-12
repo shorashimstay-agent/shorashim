@@ -30,7 +30,8 @@ export default function ConsentBanner() {
     window.addEventListener(OPEN_SETTINGS_EVENT, reopen);
     // A choice made in another tab hides this banner too.
     const off = onConsentChange((choice, source) => {
-      if (source === 'external' && choice) setOpen(false);
+      // A choice made elsewhere hides the banner; a cleared or expired one shows it again.
+      if (source === 'external') setOpen(choice === null);
     });
     return () => {
       window.removeEventListener(OPEN_SETTINGS_EVENT, reopen);
@@ -73,8 +74,8 @@ export default function ConsentBanner() {
     const back = opener.current;
     opener.current = null;
     setOpen(false);
-    setStatus('ההעדפה נשמרה');
-    setMarketingConsent(choice);
+    const { saved } = setMarketingConsent(choice);
+    setStatus(saved ? 'ההעדפה נשמרה' : 'הדפדפן חוסם שמירה, הבחירה תחול רק על הדף הזה');
     requestAnimationFrame(() => {
       if (back && back.isConnected) back.focus();
       else if (keyboard) document.getElementById('main')?.focus({ preventScroll: true });

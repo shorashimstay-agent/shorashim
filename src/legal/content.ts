@@ -228,7 +228,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'רק אם אישרתם: כדי למדוד ולשפר את המודעות שלנו, כולל הצגתן לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות פרסום',
             ],
             'לא נשלח לכם הודעות שיווקיות בדוא"ל, ב-SMS או בטלפון, ולא נמכור את המידע.',
-            'לתושבי האיחוד האירופי: הבסיס החוקי לכלי השיווק והפרסום הוא הסכמתכם; לטיפול בבקשת ההזמנה – ביצוע ההזמנה וחובות לפי דין; למניעת ספאם – האינטרס הלגיטימי שלנו.',
+            'לתושבי האיחוד האירופי: הבסיס החוקי לכלי השיווק והפרסום הוא הסכמתכם; לטיפול בבקשת ההזמנה – צעדים לקראת ההזמנה לבקשתכם וביצועה, וחובות לפי דין; למניעת ספאם – האינטרס הלגיטימי שלנו בהגנה על הטופס.',
           ],
         },
         {
@@ -335,7 +335,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'Only if you agreed: to measure and improve our ads, including showing them to people with similar characteristics, and to show you relevant ads on advertising platforms',
             ],
             'We will not send you marketing messages by email, SMS or phone, and we will not sell your information.',
-            'For EU residents: the legal basis for the marketing and advertising tools is your consent; for handling a booking request, performing the booking and our legal obligations; for spam prevention, our legitimate interest.',
+            'For EU residents: the legal basis for the marketing and advertising tools is your consent; for handling a booking request – taking steps at your request before a booking and performing it (contract), and our legal obligations; for spam prevention – our legitimate interest in protecting the form.',
           ],
         },
         {
@@ -362,13 +362,13 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           id: 'marketing',
           heading: 'Marketing and advertising',
           body: [
-            'Only with your consent ("Accept" in the cookie banner) do we run tools of the advertising platforms listed at the end of this section.',
+            'Only with your consent ("Accept" ("מאשרים") in the cookie banner) do we run tools of the advertising platforms listed at the end of this section.',
             'These tools collect which pages you visited and what you did on the site (for example checking availability or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type. They do not collect the details you type into the forms.',
             'The purposes: to measure which of our ads and campaigns bring enquiries, to improve how our ads are shown, including to people with similar characteristics, and to show you relevant ads on these platforms.',
             'The platform collects this information for us or jointly with us, and is solely responsible for its own uses of it; contact us with any request.',
             `These platforms (including ${SITE_TOOL_NAMES.en}) and other third parties may use cookies, pixels and other storage technologies to collect or receive information from our site and elsewhere on the internet, and use it to provide measurement services and targeted ads. You can limit this in each platform’s settings (links in the list) and at https://optout.aboutads.info and https://www.youronlinechoices.eu`,
             'The cookies stay in your browser for the period shown in the list. A visitor stays in our site audiences on the platform for up to 180 days from their last visit on which they consented. Your choice is kept in your browser for 6 months, then we ask again.',
-            'None of this runs unless you chose "Accept". You can change or withdraw your choice at any time in "Cookie settings" (at the bottom of the site and in this section). Withdrawing stops new collection and deletes the tools’ cookies from our domain, but does not delete information already sent. Cookies on the platform’s own domain are managed in its settings.',
+            'None of this runs unless you chose "Accept" ("מאשרים"). You can change or withdraw your choice at any time in "Cookie settings" ("הגדרות עוגיות") (at the bottom of the site and in this section). Withdrawing stops new collection and deletes the tools’ cookies from our domain, but does not delete information already sent. Cookies on the platform’s own domain are managed in its settings.',
             { slot: 'consentControls' },
             'The tools we use now:',
             { slot: 'marketingTools' },
@@ -387,7 +387,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'Under the Israeli Protection of Privacy Law, 5741-1981, you may access the information we hold about you, ask us to correct it, and ask us to delete it, subject to our legal obligations.',
             'To exercise a right, write to us by email. We may ask for details to confirm your identity before we answer, and we will reply within 30 days.',
-            'You can withdraw any consent you gave at any time, in "Cookie settings".',
+            'You can withdraw any consent you gave at any time, in "Cookie settings" ("הגדרות עוגיות").',
             'You can complain to the Israeli Privacy Protection Authority. EU residents may also ask us to restrict processing, object to processing and receive their information in a portable format, and complain to the supervisory authority in their country.',
           ],
         },
@@ -453,7 +453,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'בפינת המסך נמצא כפתור הנגישות. התפריט מאפשר:',
             ['הגדלת טקסט בשתי דרגות', 'ניגודיות גבוהה (שחור על לבן)', 'הדגשת קישורים וכפתורים', 'גופן קריא', 'עצירת אנימציות'],
             'ההתאמות נשמרות בדפדפן שלכם ונשארות גם בכניסה הבאה. כפתור האיפוס מחזיר את התצוגה הרגילה.',
-            'באנר העוגיות אינו חוסם את הדף ואינו לוכד את המיקוד. הוא מופיע ראשון בסדר הניווט במקלדת (גם כשהוא מוצג בתחתית המסך), שני הכפתורים בו זהים, והודעה על שמירת הבחירה מוקראת בקוראי מסך. אפשר לפתוח אותו שוב בכל עת ב"הגדרות עוגיות" בתחתית האתר.',
+            'באנר העוגיות אינו חוסם את הדף ואינו לוכד את המיקוד. הוא מופיע מיד אחרי הקישור "דלגו לתוכן העיקרי" בסדר הניווט במקלדת (גם כשהוא מוצג בתחתית המסך), שני הכפתורים בו זהים, והודעה על שמירת הבחירה מוקראת בקוראי מסך. אפשר לפתוח אותו שוב בכל עת ב"הגדרות עוגיות" בתחתית האתר.',
           ],
         },
         {
@@ -524,7 +524,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'An accessibility button sits in the corner of the screen. Its menu offers:',
             ['Two levels of larger text', 'High contrast (black on white)', 'Highlighted links and buttons', 'A readable font', 'Stopping animations'],
             'Your choices are saved in your browser for your next visit. The reset button restores the default display.',
-            'The cookie banner does not block the page or trap focus. It comes first in keyboard order (even when shown at the bottom of the screen), its two buttons are identical, and screen readers announce when your choice is saved. You can reopen it at any time with "הגדרות עוגיות" (cookie settings) at the bottom of the site.',
+            'The cookie banner does not block the page or trap focus. It comes right after the "skip to main content" link in keyboard order (even when shown at the bottom of the screen), its two buttons are identical, and screen readers announce when your choice is saved. You can reopen it at any time with "הגדרות עוגיות" (cookie settings) at the bottom of the site.',
           ],
         },
         {
