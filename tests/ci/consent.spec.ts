@@ -522,14 +522,16 @@ test('in the #booking form the send button can be scrolled clear of the banner',
   await openBooking(page);
   await expect(banner(page)).toBeVisible();
   const send = page.locator('#submit-booking-request');
-  await send.scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, 400));
-  await send.evaluate((el) => el.scrollIntoView({ block: 'end' }));
-  expect(await send.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return hit === el || el.contains(hit);
-  }), 'the send button must not hide under the banner').toBe(true);
+  // The page scrolls smoothly; scroll instantly so the check doesn't race the animation.
+  await send.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
+  const where = () =>
+    send.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const bar = document.querySelector('.consent-banner')?.getBoundingClientRect();
+      return { clear: hit === el || el.contains(hit), hit: hit ? `${hit.tagName}.${hit.className}` : 'none', button: [r.top, r.bottom], banner: bar ? [bar.top, bar.bottom] : null };
+    });
+  await expect.poll(async () => (await where()).clear, { message: 'the send button must not hide under the banner', timeout: 5000 }).toBe(true);
 });
 
 test('the privacy page controls pass the accessibility scan', async ({ page, context }) => {
