@@ -18,7 +18,7 @@
   color: #1e1d1a;
   border-top: 1px solid #ded5c8;
   box-shadow: 0 -6px 24px #241e1a1f;
-  font-size: 15px;
+  font-size: 0.9375rem; /* rem, so the accessibility menu's text sizes apply */
   line-height: 1.55;
 }
 .consent-text { flex: 1 1 320px; margin: 0; max-width: 760px; }
@@ -54,7 +54,7 @@
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: 0.9375rem;
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
