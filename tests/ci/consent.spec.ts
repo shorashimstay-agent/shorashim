@@ -107,7 +107,7 @@ test('first visit: the banner shows two equal buttons, and nothing loads until a
   await fakeBackend(context);
   await page.goto('/');
   await expect(banner(page), 'the cookie banner must show on a first visit').toBeVisible();
-  await expect(banner(page)).toContainText('פלטפורמות פרסום ימדדו וישפרו את המודעות שלנו');
+  await expect(banner(page)).toContainText('פלטפורמות פרסום (כיום Meta) ימדדו וישפרו את המודעות שלנו');
   await expect(banner(page).getByRole('link', { name: 'פרטים' })).toHaveAttribute('href', '/privacy/#marketing');
   const [yes, no] = [banner(page).locator('[data-consent="granted"]'), banner(page).locator('[data-consent="denied"]')];
   const style = (l: typeof yes) =>
@@ -283,10 +283,12 @@ test('when storage is blocked, the banner asks on every page and an accept lasts
   });
   await page.goto('/');
   await expect(banner(page)).toBeVisible();
-  await banner(page).getByRole('button', { name: 'מאשרים', exact: true }).click();
-  await expect(banner(page)).toHaveCount(0);
+  await accept(page);
+  await page.evaluate(() => sessionStorage.removeItem('__fbq'));
   await page.reload();
   await expect(banner(page), 'nothing was saved, so it asks again').toBeVisible();
+  await page.waitForTimeout(500);
+  expect(tracks(await fbqCalls(page), 'PageView'), 'the accept lasted only that page').toEqual([]);
 });
 
 test('the privacy page shows the tools and its own controls, and never loads the pixel', async ({ page, context }) => {
@@ -339,11 +341,17 @@ test('a page restored from the back-forward cache honours a withdrawal made mean
     page.waitForEvent('load'),
     page.evaluate((key) => {
       localStorage.setItem(key, JSON.stringify({ v: 1, marketing: 'denied', at: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date()) }));
-      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      // Dispatched after evaluate returns, so the reload it causes can't cut the call short.
+      setTimeout(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })), 0);
     }, CONSENT_KEY),
   ]);
   expect((await fbqCalls(page)).some((c) => c[0] === 'consent' && c[1] === 'revoke')).toBe(true);
   expect(await cookieNames(context)).not.toContain('_fbp');
+  // After the reload nothing loads, and a booking sends no Lead.
+  await page.evaluate(() => sessionStorage.removeItem('__fbq'));
+  await openBooking(page);
+  await submitBooking(page, guest(addDays(israelToday(), 40)));
+  expect(tracks(await fbqCalls(page), 'Lead')).toEqual([]);
 });
 
 test('on a 320 px screen the banner covers nothing and the page does not scroll sideways', async ({ page, context }) => {
@@ -405,4 +413,132 @@ test('existing suites start with a saved decline and never see the banner', asyn
   await expect(banner(page)).toHaveCount(0);
   expect(seen.scripts).toBe(0);
   await context.close();
+});
+
+test('the bride page has the banner, and accepting there loads the pixel', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await page.goto('/bride/');
+  await accept(page);
+});
+
+test('new dates count as a new InitiateCheckout; the WhatsApp buttons send no Lead', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await openBooking(page);
+  await accept(page);
+  const booking = page.locator('#booking');
+  const checkIn = addDays(israelToday(), 40);
+  await submitBooking(page, guest(checkIn));
+  await page.evaluate(() => sessionStorage.removeItem('__fbq'));
+  await context.route('https://wa.me/**', (route) => route.fulfill({ body: 'whatsapp' }));
+  await page.locator('#floating-whatsapp-btn').click();
+  await page.waitForTimeout(500);
+  expect(tracks(await fbqCalls(page), 'Lead'), 'a WhatsApp click is not a lead').toEqual([]);
+  // A second request for other dates is a new funnel: one more InitiateCheckout and one more Lead.
+  await context.unroute(`${FAKE_API}**`);
+  await fakeBackend(context, { ok: true, ref: 'SH-CI001', holdHours: 24 });
+  await openBooking(page);
+  await submitBooking(page, guest(addDays(checkIn, 7)));
+  const order = (await fbqCalls(page)).filter((c) => c[0] === 'track').map((c) => c[1]);
+  expect(order).toEqual(['PageView', 'InitiateCheckout', 'Lead']);
+  await expect(booking).toBeVisible();
+});
+
+test('withdrawing with text in the booking form asks before reloading; "later" sends nothing more', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await openBooking(page);
+  await accept(page);
+  await page.locator('#booking input[name="guest-name"]').fill('בדיקה');
+  let asked = '';
+  page.once('dialog', (d) => {
+    asked = d.message();
+    void d.dismiss();
+  });
+  await page.getByRole('button', { name: 'הגדרות עוגיות' }).click();
+  await banner(page).getByRole('button', { name: 'לא מאשרים' }).click();
+  await expect.poll(() => asked, 'the visitor must be asked before losing typed text').toContain('לרענן עכשיו?');
+  await expect(page.locator('#booking input[name="guest-name"]'), 'saying "later" keeps the page and the text').toHaveValue('בדיקה');
+  expect((await fbqCalls(page)).some((c) => c[0] === 'consent' && c[1] === 'revoke'), 'the pixel stops at once anyway').toBe(true);
+  const before = (await fbqCalls(page)).length;
+  await submitBooking(page, guest(addDays(israelToday(), 40)));
+  expect((await fbqCalls(page)).length, 'after a withdrawal nothing more is sent').toBe(before);
+});
+
+test('declining on a page where nothing loaded does not reload it', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await page.goto('/');
+  let reloaded = false;
+  page.on('framenavigated', (f) => f === page.mainFrame() && (reloaded = true));
+  await banner(page).getByRole('button', { name: 'לא מאשרים' }).click();
+  await page.waitForTimeout(800);
+  expect(reloaded).toBe(false);
+});
+
+test('short screens and the largest text: the banner joins the page, and the drawer and buttons stay usable', async ({ page, context }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  await stubMeta(context);
+  await fakeBackend(context);
+  await page.addInitScript(() => localStorage.setItem('shorashim:a11y', JSON.stringify(['textLarger', 'contrast'])));
+  await page.setViewportSize({ width: 320, height: 256 });
+  await page.goto('/');
+  const bar = banner(page).locator('xpath=.');
+  await expect(bar).toBeVisible();
+  expect(await bar.evaluate((el) => getComputedStyle(el).position), 'below 420 px of height the banner is in the page flow').toBe('static');
+  for (const consent of ['granted', 'denied']) {
+    const button = banner(page).locator(`[data-consent="${consent}"]`);
+    await button.scrollIntoViewIfNeeded();
+    expect(await button.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return hit === el || el.contains(hit);
+    }), `the ${consent} button must be clickable at 400% zoom`).toBe(true);
+  }
+  const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(scan.violations.map((v) => v.id), 'large text + high contrast with the banner').toEqual([]);
+  // A normal phone: the open menu drawer is above the banner, and back-to-top clears it.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('#mobile-menu-toggle-btn').click();
+  const drawerLink = page.locator('#mobile-nav-drawer a').last();
+  await expect(drawerLink).toBeVisible();
+  await page.locator('#mobile-menu-toggle-btn').click();
+  await page.evaluate(() => window.scrollTo(0, 2000));
+  const top = page.locator('.back-to-top');
+  await expect(top).toBeVisible();
+  expect(await top.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit === el || el.contains(hit);
+  }), 'back-to-top must not be covered by the banner').toBe(true);
+});
+
+test('in the #booking form the send button can be scrolled clear of the banner', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await page.setViewportSize({ width: 375, height: 700 });
+  await openBooking(page);
+  await expect(banner(page)).toBeVisible();
+  const send = page.locator('#submit-booking-request');
+  await send.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 400));
+  await send.evaluate((el) => el.scrollIntoView({ block: 'end' }));
+  expect(await send.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit === el || el.contains(hit);
+  }), 'the send button must not hide under the banner').toBe(true);
+});
+
+test('the privacy page controls pass the accessibility scan', async ({ page, context }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  await stubMeta(context);
+  await page.goto('/privacy/#marketing');
+  await expect(page.getByRole('group', { name: 'הגדרות עוגיות' })).toBeVisible();
+  const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(scan.violations.map((v) => v.id)).toEqual([]);
+  await page.goto('/en/privacy/#marketing');
+  await expect(page.getByRole('group', { name: 'Cookie settings' })).toBeVisible();
 });

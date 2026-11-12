@@ -19,7 +19,7 @@ function sourceFiles(dir) {
     // Forward slashes on every OS, as git and CODEOWNERS write paths (path.join gives \ on Windows).
     const rel = path.posix.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(rel));
-    else if (/\.(tsx?|css|html)$/.test(entry.name)) out.push(rel);
+    else if (/\.(tsx?|jsx?|mjs|cjs|css|html)$/.test(entry.name)) out.push(rel);
   }
   return out;
 }
@@ -110,7 +110,7 @@ function contractProblems() {
 }
 
 /** Script and beacon hosts of tracking tools (never a bare facebook.com: the privacy page links there). */
-const TRACKER_HOSTS = ['connect.facebook.net', 'facebook.com/tr', 'google-analytics.com', 'googletagmanager.com', 'doubleclick.net', 'hotjar.com', 'analytics.tiktok.com', 'clarity.ms'];
+const TRACKER_HOSTS = ['connect.facebook.net', 'facebook.com/tr', 'google-analytics.com', 'googletagmanager.com', 'googleadservices.com', 'googlesyndication.com', 'doubleclick.net', 'hotjar.com', 'analytics.tiktok.com', 'clarity.ms', 'snap.licdn.com', 'analytics.twitter.com'];
 
 /** The legal pages' built scripts must not contain any tracker (they never load a marketing tool). */
 function legalTrackerProblems(distDir) {

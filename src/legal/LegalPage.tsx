@@ -34,7 +34,12 @@ export default function LegalPage({ page, lang }: { page: PageId; lang: Lang }) 
 
   // The page is drawn after load, so the browser may not find #marketing by itself.
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
+    let id = '';
+    try {
+      id = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return; // a malformed hash: stay at the top
+    }
     if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
   }, []);
 

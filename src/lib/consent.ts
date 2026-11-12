@@ -36,9 +36,10 @@ export function canStoreChoice(): boolean {
 
 /** The valid choice, or null when the visitor hasn't chosen (or the choice expired). */
 export function getMarketingConsent(): Choice | null {
+  // The in-memory choice stands in only when storage is blocked: a cleared or expired record means
+  // no choice, even if this page accepted earlier.
   const stored = readStored();
-  if (stored.ok && stored.choice) return stored.choice;
-  return memoryChoice;
+  return stored.ok ? stored.choice : memoryChoice;
 }
 
 /** Deletes the first-party cookies every site tool may have set. */

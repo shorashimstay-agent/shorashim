@@ -24,6 +24,8 @@ declare global {
   }
 }
 
+// Set when the loader stub is installed, not when Meta's script arrives: with an ad blocker the
+// script never loads, and a withdrawal then reloads (or asks) for nothing. Harmless.
 let loaded = false;
 let revoked = false;
 
@@ -62,13 +64,22 @@ export function loadMetaPixel(): void {
 export function revokeMetaPixel(): void {
   if (!loaded || revoked) return;
   revoked = true;
-  window.fbq?.('consent', 'revoke');
+  try {
+    window.fbq?.('consent', 'revoke');
+  } catch {
+    // Our own track() check already sends nothing once revoked.
+  }
 }
 
 /** Sends a standard event if the pixel is loaded, live and still consented to; true when sent. */
-export function trackMeta(event: string, params: Record<string, unknown>, eventID?: string): boolean {
+export function trackMeta(event: string, params: Record<string, unknown>, eventID?: () => string): boolean {
   if (!loaded || revoked || !window.fbq || getMarketingConsent() !== 'granted') return false;
-  if (eventID) window.fbq('track', event, params, { eventID });
-  else window.fbq('track', event, params);
-  return true;
+  // Marketing must never break the page: any failure here is swallowed.
+  try {
+    if (eventID) window.fbq('track', event, params, { eventID: eventID() });
+    else window.fbq('track', event, params);
+    return true;
+  } catch {
+    return false;
+  }
 }

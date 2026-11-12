@@ -255,8 +255,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           id: 'marketing',
           heading: 'שיווק ופרסום',
           body: [
-            'בהסכמתכם בלבד (כפתור "מאשרים" בבאנר העוגיות), אנחנו מפעילים באתר כלים של פלטפורמות פרסום, כמו רשתות חברתיות ומנועי חיפוש.',
-            'הכלים אוספים אילו עמודים ביקרתם ואילו פעולות עשיתם באתר (למשל פתיחת בקשת הזמנה או שליחתה, וסוג האירוח שבחרתם), ומזהים טכניים: עוגיות, כתובת IP, סוג הדפדפן והמכשיר. הם אינם אוספים את הפרטים שאתם מקלידים בטפסים.',
+            'בהסכמתכם בלבד (כפתור "מאשרים" בבאנר העוגיות), אנחנו מפעילים באתר כלים של פלטפורמות הפרסום המפורטות ברשימה שבסוף סעיף זה.',
+            'הכלים אוספים אילו עמודים ביקרתם ואילו פעולות עשיתם באתר (למשל בדיקת זמינות או שליחת בקשת הזמנה, וסוג האירוח שבחרתם), ומזהים טכניים: עוגיות, כתובת IP, סוג הדפדפן והמכשיר. הם אינם אוספים את הפרטים שאתם מקלידים בטפסים.',
             'המטרות: למדוד אילו מודעות וקמפיינים שלנו מביאים פניות, לשפר את הצגת המודעות שלנו, כולל לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות אלה.',
             'הפלטפורמה אוספת את המידע עבורנו או יחד איתנו, ולשימושיה שלה היא אחראית לבדה; לכל בקשה פנו אלינו.',
             `פלטפורמות אלה (כולל ${SITE_TOOL_NAMES.he}) וגורמים שלישיים אחרים עשויים להשתמש בעוגיות, בפיקסלים ובטכנולוגיות אחסון אחרות כדי לאסוף או לקבל מידע מהאתר שלנו וממקומות אחרים באינטרנט, ולהשתמש בו כדי לספק שירותי מדידה ולהציג מודעות ממוקדות. אפשר להגביל זאת בהגדרות של כל פלטפורמה (קישורים ברשימה) וגם ב-https://optout.aboutads.info וב-https://www.youronlinechoices.eu`,
@@ -362,8 +362,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           id: 'marketing',
           heading: 'Marketing and advertising',
           body: [
-            'Only with your consent ("Accept" in the cookie banner) do we run tools of advertising platforms on the site, such as social networks and search engines.',
-            'These tools collect which pages you visited and what you did on the site (for example opening or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type. They do not collect the details you type into the forms.',
+            'Only with your consent ("Accept" in the cookie banner) do we run tools of the advertising platforms listed at the end of this section.',
+            'These tools collect which pages you visited and what you did on the site (for example checking availability or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type. They do not collect the details you type into the forms.',
             'The purposes: to measure which of our ads and campaigns bring enquiries, to improve how our ads are shown, including to people with similar characteristics, and to show you relevant ads on these platforms.',
             'The platform collects this information for us or jointly with us, and is solely responsible for its own uses of it; contact us with any request.',
             `These platforms (including ${SITE_TOOL_NAMES.en}) and other third parties may use cookies, pixels and other storage technologies to collect or receive information from our site and elsewhere on the internet, and use it to provide measurement services and targeted ads. You can limit this in each platform’s settings (links in the list) and at https://optout.aboutads.info and https://www.youronlinechoices.eu`,

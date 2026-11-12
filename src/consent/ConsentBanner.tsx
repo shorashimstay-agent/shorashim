@@ -3,10 +3,11 @@
 // Not a dialog: it doesn't block the page or trap focus, and it is first in keyboard order.
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { getMarketingConsent, onConsentChange, OPEN_SETTINGS_EVENT, setMarketingConsent, type Choice } from '../lib/consent';
+import { SITE_TOOLS } from './tools';
 import './consent.css';
 
-export const BANNER_TEXT =
-  'נשתמש בעוגיות ובמידע על הגלישה באתר כדי שפלטפורמות פרסום ימדדו וישפרו את המודעות שלנו ויציגו לכם מודעות מותאמות. אפשר לשנות בכל עת.';
+// The platforms are named from the registry (tools.ts), so adding a tool updates the banner too.
+export const BANNER_TEXT = `נשתמש בעוגיות ובמידע על הגלישה באתר כדי שפלטפורמות פרסום (כיום ${SITE_TOOLS.map((t) => t.brand).join(', ')}) ימדדו וישפרו את המודעות שלנו ויציגו לכם מודעות מותאמות. אפשר לשנות בכל עת.`;
 
 const CURRENT: Record<Choice, string> = { granted: 'כרגע: מאשרים', denied: 'כרגע: לא מאשרים' };
 
