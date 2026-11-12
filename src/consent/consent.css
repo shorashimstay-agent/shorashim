@@ -1,0 +1,61 @@
+/* The cookie banner and the privacy page's controls. Both buttons look exactly alike: declining must
+   be as easy and as visible as accepting. */
+.consent-banner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 45; /* above the floating buttons (40), below the header and its drawer (50) */
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 14px 20px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  background: #faf7f2;
+  color: #1e1d1a;
+  border-top: 1px solid #ded5c8;
+  box-shadow: 0 -6px 24px #241e1a1f;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.consent-text { flex: 1 1 320px; margin: 0; max-width: 760px; }
+.consent-text a { color: #57432f; text-decoration: underline; text-underline-offset: 3px; }
+.consent-current { color: #57432f; font-weight: 600; }
+.consent-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.consent-button {
+  min-width: 120px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid #57432f;
+  border-radius: 2px;
+  background: #57432f;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.consent-button:hover { background: #3f3022; }
+.consent-button:focus-visible { outline: 3px solid #1e1d1a; outline-offset: 3px; }
+@media (max-height: 420px) {
+  /* Short windows and 400% zoom: the banner joins the page flow at the top, below the fixed header. */
+  .consent-banner { position: static; max-height: none; margin-top: var(--header-height); box-shadow: none; }
+}
+.consent-controls { margin: 8px 0 16px; padding: 16px; border: 1px solid #e8e1d7; background: #fffdf9; }
+.consent-controls p { margin: 0 0 12px; }
+.cookie-settings-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

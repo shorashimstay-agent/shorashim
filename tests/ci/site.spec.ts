@@ -276,7 +276,10 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
     });
 
     test('after a prep day, the calendar offers the next bride at 17:30 but no couple stay that evening', async ({ page }) => {
-      const prep = addDays(israelToday(), 50);
+      // A weekday prep day: Friday's and Saturday's prep days have their own hours (shared/rules.js),
+      // so a date 50 days out that lands on one made this test depend on the day it ran.
+      let prep = addDays(israelToday(), 50);
+      while ([5, 6].includes(new Date(`${prep}T12:00:00Z`).getUTCDay())) prep = addDays(prep, 1);
       const sent = await fakeBackend(page, { booked: [{ stayType: 'bride_day', checkIn: prep }] });
       // A couple cannot check in on the prep day's evening, nor stay the night before it.
       await openBar(page);

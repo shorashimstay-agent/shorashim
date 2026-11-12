@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 import { snapshotCsvUrl, staging } from './tests/e2e/lib/env';
+import { consentState } from './tests/e2e/lib/consent';
 
 // Two targets (tests/e2e/PLAN.md):
 // - staging: the working tree, built against the staging backend and served on localhost;
@@ -39,12 +40,14 @@ export default defineConfig({
     {
       name: 'staging',
       testMatch: ['a11y.spec.ts', 'booking.spec.ts', 'console.spec.ts', 'eventlog.spec.ts'],
-      use: { baseURL: `http://localhost:${PORT}` },
+      // A saved "decline" keeps the cookie banner away (tests/e2e/lib/consent.ts).
+      use: { baseURL: `http://localhost:${PORT}`, storageState: consentState([`http://localhost:${PORT}`]) },
     },
     {
       name: 'smoke',
       testMatch: 'smoke.spec.ts',
-      use: { baseURL: 'https://shorashimstay.com' },
+      // Smoke never accepts the banner, so it never sends events to Meta.
+      use: { baseURL: 'https://shorashimstay.com', storageState: consentState(['https://shorashimstay.com', 'https://www.shorashimstay.com']) },
     },
   ],
   webServer: smoke

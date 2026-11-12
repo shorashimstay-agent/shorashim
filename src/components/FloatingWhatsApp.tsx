@@ -8,7 +8,7 @@ export default function FloatingWhatsApp() {
   };
 
   return (
-    <aside aria-label="יצירת קשר ב-WhatsApp" style={{ bottom: 'max(20px, env(safe-area-inset-bottom))' }} className="fixed bottom-5 left-5 z-40">
+    <aside aria-label="יצירת קשר ב-WhatsApp" style={{ bottom: 'calc(max(20px, env(safe-area-inset-bottom)) + var(--consent-offset, 0px))' }} className="fixed bottom-5 left-5 z-40">
       <button
         type="button"
         id="floating-whatsapp-btn"
