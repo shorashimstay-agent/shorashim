@@ -59,3 +59,5 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+/* In the footer, it looks like the links beside it. */
+.footer-links .cookie-settings-button { color: #5c5449; font-size: 0.875rem; }

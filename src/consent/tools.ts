@@ -44,7 +44,7 @@ export const MARKETING_TOOLS: MarketingTool[] = [
     id: 'meta',
     brand: 'Meta',
     name: { he: 'Meta (פייסבוק ואינסטגרם)', en: 'Meta (Facebook and Instagram)' },
-    provider: 'Meta Platforms Ireland Ltd. / Meta Platforms, Inc.',
+    provider: 'Meta Platforms Ireland Ltd. (EU/EEA) / Meta Platforms, Inc.',
     uses: ['site'],
     cookies: [
       { name: '_fbp', lifetime: NINETY_DAYS, firstParty: true },
