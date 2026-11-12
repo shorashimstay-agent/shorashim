@@ -107,7 +107,7 @@ test('first visit: the banner shows two equal buttons, and nothing loads until a
   await fakeBackend(context);
   await page.goto('/');
   await expect(banner(page), 'the cookie banner must show on a first visit').toBeVisible();
-  await expect(banner(page)).toContainText('פלטפורמות פרסום (כיום Meta) ימדדו וישפרו את המודעות שלנו');
+  await expect(banner(page)).toContainText('ובפרטי הקשר שתמסרו (מוצפנים) כדי שפלטפורמות פרסום (כיום Meta) ימדדו וישפרו את המודעות שלנו');
   await expect(banner(page).getByRole('link', { name: 'פרטים' })).toHaveAttribute('href', '/privacy/#marketing');
   const [yes, no] = [banner(page).locator('[data-consent="granted"]'), banner(page).locator('[data-consent="denied"]')];
   const style = (l: typeof yes) =>
