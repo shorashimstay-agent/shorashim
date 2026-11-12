@@ -8,7 +8,8 @@ desktop instead of front-2. She says "push to git"; everything else happens on i
 2. `.github/workflows/design.yml` runs the checks: a gitleaks scan of the new commits, the unit
    tests, `tsc`, `tests/ci` (the page loads without errors, the booking form sends a complete request
    to a fake backend, axe WCAG 2.1 AA, the legal pages build) and `scripts/design-contract.mjs` (the
-   form wiring, the accessibility hooks, no hard-coded ₪ price, no new script tag).
+   form wiring, the accessibility hooks, no hard-coded ₪ price, no new script tag, the cookie
+   banner and its footer button kept, and no tracking code outside the owner's `src/lib/metaPixel.ts`).
 3. It opens a pull request from `design` to `main`. When no file in it is in `.github/CODEOWNERS`, it
    rebase-merges it and starts `deploy.yml`, which publishes to Pages and checks the live site
    (`scripts/live-check.mjs`). `ship.mjs` waits for all of it and tells Codex the result.

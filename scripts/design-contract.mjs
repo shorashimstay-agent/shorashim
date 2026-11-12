@@ -61,6 +61,14 @@ function contractProblems() {
   if (!app.includes('href="#main"')) problems.push('App.tsx must keep the skip link to #main.');
   if (!/<main[^>]*id="main"/.test(app)) problems.push('App.tsx must keep <main id="main">.');
   if (!app.includes('<AccessibilityMenu')) problems.push('App.tsx must render <AccessibilityMenu />.');
+  // The cookie banner is a legal requirement: first in keyboard order, on both page layouts.
+  const bannerAfterSkip = app.match(/className="skip-link"[^]*?<\/a>\s*<ConsentBanner \/>/g) ?? [];
+  if (bannerAfterSkip.length < 2) problems.push('App.tsx must render <ConsentBanner /> right after the skip link, in both layouts.');
+  if (!read('src/components/Footer.tsx').includes('<CookieSettingsButton')) problems.push('Footer.tsx must keep <CookieSettingsButton /> (the way back to the cookie choice).');
+  if (!read('src/components/FloatingWhatsApp.tsx').includes('var(--consent-offset, 0px)')) problems.push('FloatingWhatsApp.tsx must add var(--consent-offset, 0px) to its bottom, so the cookie banner never covers it.');
+  const css = read('src/index.css');
+  if (!/\.back-to-top\s*\{[^}]*var\(--consent-offset, 0px\)/.test(css)) problems.push('index.css: .back-to-top must add var(--consent-offset, 0px) to its bottom.');
+  if (!/\bbody\s*\{[^}]*padding-bottom:\s*var\(--consent-offset, 0px\)/.test(css)) problems.push('index.css: body must keep padding-bottom: var(--consent-offset, 0px).');
 
   const components = sourceFiles('src/components').map(read).join('\n');
   for (const link of ['/terms/', '/privacy/', '/accessibility/']) {
@@ -68,6 +76,14 @@ function contractProblems() {
   }
   for (const id of ['gallery', 'mobile-menu-toggle-btn', 'mobile-nav-drawer']) {
     if (!components.includes(`id="${id}"`)) problems.push(`A component must keep id="${id}" (the tests use it).`);
+  }
+
+  // Tracking runs only behind the cookie banner, from the owner's loader.
+  const trackerFiles = [...sourceFiles('src'), ...sourceFiles('public').filter((f) => !f.startsWith('public/admin/')), ...sourceFiles('bride'), 'index.html'];
+  for (const file of trackerFiles) {
+    if (file === 'src/lib/metaPixel.ts') continue;
+    const host = TRACKER_HOSTS.find((h) => read(file).includes(h));
+    if (host) problems.push(`${file} loads a tracker (${host}); marketing tools run only behind the cookie banner, from src/lib/metaPixel.ts.`);
   }
 
   const designFiles = [...sourceFiles('src'), 'index.html'];
@@ -89,6 +105,26 @@ function contractProblems() {
   const mainScripts = new Set(mainIndex.match(/<script\b[^>]*>/g) ?? []);
   for (const tag of read('index.html').match(/<script\b[^>]*>/g) ?? []) {
     if (!mainScripts.has(tag)) problems.push(`index.html has a new script tag, which needs the owner: ${tag}`);
+  }
+  return problems;
+}
+
+/** Script and beacon hosts of tracking tools (never a bare facebook.com: the privacy page links there). */
+const TRACKER_HOSTS = ['connect.facebook.net', 'facebook.com/tr', 'google-analytics.com', 'googletagmanager.com', 'doubleclick.net', 'hotjar.com', 'analytics.tiktok.com', 'clarity.ms'];
+
+/** The legal pages' built scripts must not contain any tracker (they never load a marketing tool). */
+function legalTrackerProblems(distDir) {
+  const problems = [];
+  for (const page of ['privacy', 'terms', 'accessibility'].flatMap((p) => [p, `en/${p}`])) {
+    const html = path.join(distDir, page, 'index.html');
+    if (!fs.existsSync(html)) continue;
+    const refs = [...fs.readFileSync(html, 'utf8').matchAll(/<(?:script[^>]*\ssrc|link[^>]*rel="modulepreload"[^>]*\shref)="\/([^"]+\.js)"/g)].map((m) => m[1]);
+    for (const ref of refs) {
+      const file = path.join(distDir, ref);
+      if (!fs.existsSync(file)) continue;
+      const host = TRACKER_HOSTS.find((h) => fs.readFileSync(file, 'utf8').includes(h));
+      if (host) problems.push(`The ${page} page's script ${ref} contains a tracker (${host}); the legal pages must never load a marketing tool.`);
+    }
   }
   return problems;
 }
@@ -120,7 +156,7 @@ function priceProblems(distDir) {
 }
 
 const dist = process.argv[2];
-const problems = [...new Set([...contractProblems(), ...(dist ? priceProblems(path.resolve(ROOT, dist)) : [])])];
+const problems = [...new Set([...contractProblems(), ...(dist ? [...priceProblems(path.resolve(ROOT, dist)), ...legalTrackerProblems(path.resolve(ROOT, dist))] : [])])];
 if (problems.length) {
   console.error(`The design change breaks ${problems.length} rule(s) the site depends on:\n- ${problems.join('\n- ')}`);
   process.exit(1);

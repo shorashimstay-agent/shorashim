@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { BRAND_DATA } from '../data/shorashimData';
 import { bookingApiEnabled, checkDates, fetchAvailability, submitBookingRequest, type Availability } from '../lib/bookingApi';
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
+import { trackInitiateCheckout, trackLead } from '../lib/marketingEvents';
 import {
   addDays,
   DAY_PARTICIPANT_TYPES,
@@ -267,6 +268,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       return { ...prev, blocked, busy };
     });
     if (result?.free && !taken.length) {
+      // Marketing (only with consent): the first verified-free result for these dates.
+      trackInitiateCheckout(key, stayType);
       if (opts.beforeSend) setGate({ state: 'free', key, verified: true });
       else showGate({ state: 'free', key, verified: true });
       return 'free';
@@ -410,6 +413,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
 
     if (result.ok) {
       const { ref, holdHours } = result;
+      // Marketing (only with consent): once per accepted request; never for the honeypot's fake success.
+      if (!website) trackLead(ref, stayType);
       setSubmission({ state: 'sent', ref, holdHours });
       setAnnouncement('');
       // The success panel replaces the form; move focus to it so nobody is left on a vanished button.

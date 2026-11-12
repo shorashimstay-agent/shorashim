@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
 import dotenv from 'dotenv';
+import { consentState } from './tests/e2e/lib/consent';
 
 // Checks that run in GitHub Actions on every design push (tests/ci), before it can go live. They need
 // no accounts or backend: the site is built against a fake booking API that the tests answer
@@ -29,6 +30,8 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['github']] : [['list']],
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // A saved "decline" keeps the cookie banner away; tests/ci/consent.spec.ts clears it.
+    storageState: consentState([`http://localhost:${PORT}`]),
     locale: 'he-IL',
     timezoneId: 'Asia/Jerusalem',
     launchOptions: { executablePath },
@@ -43,6 +46,10 @@ export default defineConfig({
       VITE_AVAILABILITY_SNAPSHOT_URL: '',
       VITE_RECAPTCHA_SITE_KEY: FAKE_SITE_KEY,
       VITE_PRICES_CSV_URL: `data:text/csv;charset=utf-8,${encodeURIComponent(testPricesCsv)}`,
+      // The pixel may load here (localhost) for tests/ci/consent.spec.ts, which serves a stub
+      // instead of Meta's script; nothing reaches Meta.
+      VITE_META_PIXEL_HOSTS: 'localhost',
+      VITE_META_PIXEL_ID: '000000000000000',
     },
   },
 });

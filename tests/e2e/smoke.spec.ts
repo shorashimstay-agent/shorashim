@@ -113,3 +113,16 @@ test('the live home page passes the axe accessibility scan', async ({ page }) =>
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).exclude('iframe[src*="recaptcha"]').analyze();
   expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`)).toEqual([]);
 });
+
+test('a first visit shows the cookie banner and sends nothing to Meta before a choice', async ({ browser }) => {
+  // A fresh context without the saved decline; smoke never accepts, so nothing is ever sent.
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  const meta: string[] = [];
+  page.on('request', (r) => /connect\.facebook\.net|facebook\.com\/tr/.test(r.url()) && meta.push(r.url()));
+  await page.goto('https://shorashimstay.com/');
+  await expect(page.getByRole('region', { name: 'עוגיות' })).toBeVisible();
+  await page.waitForTimeout(3000);
+  expect(meta, 'nothing may reach Meta before the visitor accepts').toEqual([]);
+  await context.close();
+});

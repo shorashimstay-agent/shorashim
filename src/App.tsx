@@ -16,6 +16,7 @@ import { GALLERY_ITEMS } from './data/shorashimData';
 import { navigateTo } from './components/navigate';
 import BackToTop from './components/BackToTop';
 import BridalPage from './components/BridalPage';
+import ConsentBanner from './consent/ConsentBanner';
 
 export default function App() {
   const isBridalRoute = /^\/bride(?:\/index\.html|\/)?$/.test(window.location.pathname);
@@ -56,6 +57,7 @@ export default function App() {
 
   if (isBridalRoute || legacyBridalView) return <div className="audience-bride" dir="rtl" lang="he">
     <a href="#main" className="skip-link">דלגו לתוכן העיקרי</a>
+    <ConsentBanner />
     <Header isHomepage={false} onOpenBooking={scrollToBooking} />
     <main id="main" tabIndex={-1}><BridalPage stayType={selectedStayType} onStayTypeChange={setSelectedStayType} /><FaqSection /></main>
     <Footer onOpenBooking={scrollToBooking} /><FloatingWhatsApp /><BackToTop /><AccessibilityMenu />
@@ -66,6 +68,7 @@ export default function App() {
       <a href="#main" className="skip-link">
         דלגו לתוכן העיקרי
       </a>
+      <ConsentBanner />
 
       {/* 00 | Header — Quiet, uncrowded, editorial navigation */}
       <Header onOpenBooking={scrollToBooking} />

@@ -1,20 +1,32 @@
 // Text of the legal pages. Everything here describes how the site and the booking system actually
 // work (apps-script/, src/); change it together with them.
-// A body item is a paragraph (string) or a bulleted list (string[]). URLs, emails and phone numbers
+// A body item is a paragraph (string), a bulleted list (string[]) or a component slot. URLs, emails and phone numbers
 // in the text become links.
 import { NIGHT_BEFORE_CHECK_IN, PREP_FRIDAY_START, PREP_START } from '../../shared/rules.js';
+import { SITE_TOOLS } from '../consent/tools';
 
 export type Lang = 'he' | 'en';
 export type PageId = 'terms' | 'privacy' | 'accessibility';
+
+/** A part of a page drawn by a component: the cookie choice, or the marketing tools list. */
+export interface Slot {
+  slot: 'consentControls' | 'marketingTools';
+}
 
 export interface LegalDoc {
   title: string;
   updated: string;
   intro: string;
-  sections: { heading: string; body: (string | string[])[] }[];
+  sections: { id?: string; heading: string; body: (string | string[] | Slot)[] }[];
 }
 
 const UPDATED = { he: 'עודכן לאחרונה: 18.10.2026', en: 'Last updated: 18 October 2026' };
+const UPDATED_PRIVACY_A11Y = { he: 'עודכן לאחרונה: 12.11.2026', en: 'Last updated: 12 November 2026' };
+/** The site tools' names, for the sentence Meta's Business Tools Terms require (src/consent/tools.ts). */
+const SITE_TOOL_NAMES = {
+  he: SITE_TOOLS.map((t) => t.brand).join(', '),
+  en: SITE_TOOLS.map((t) => t.brand).join(', '),
+};
 const CONTACT_HE = ['טלפון ו-WhatsApp: 052-322-4220', 'דוא"ל: shorashimstay@gmail.com', 'כתובת: משק פויזנר, המייסדים 71, זכרון יעקב'];
 const CONTACT_EN = ['Phone and WhatsApp: +972-52-322-4220', 'Email: shorashimstay@gmail.com', 'Address: Poisner Farm, 71 HaMeyasdim St., Zichron Ya’akov, Israel'];
 
@@ -191,7 +203,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
   privacy: {
     he: {
       title: 'מדיניות פרטיות',
-      updated: UPDATED.he,
+      updated: UPDATED_PRIVACY_A11Y.he,
       intro:
         'מדיניות זו מסבירה איזה מידע אנחנו אוספים באתר shorashimstay.com, למה, איפה הוא נשמר ומה הזכויות שלכם לגביו. האחראית על המידע היא "שורשים" – בית בוטיק לאירוח, משק פויזנר, זכרון יעקב.',
       sections: [
@@ -200,7 +212,9 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'כשאתם שולחים בקשת הזמנה, אנחנו מקבלים את הפרטים שמילאתם בטופס:',
             ['שם מלא ומספר טלפון (חובה)', 'כתובת דוא"ל (לא חובה)', 'סוג האירוח, התאריכים, מספר האורחים ובמסלולי יום הכלה גם מספר משתתפי היום', 'הערות או בקשות מיוחדות שכתבתם'],
-            'איננו מבקשים ואיננו שומרים פרטי תשלום. האתר אינו משתמש בכלי מעקב, סטטיסטיקה או פרסום.',
+            'אין חובה חוקית למסור לנו מידע. בלי שם ומספר טלפון לא נוכל לטפל בבקשת ההזמנה.',
+            'איננו מבקשים ואיננו שומרים פרטי תשלום.',
+            'אם תאשרו זאת בבאנר העוגיות, נאסף גם מידע על השימוש באתר באמצעות כלי שיווק ופרסום (ראו "שיווק ופרסום"). בלי אישורכם, כלים אלה אינם מופעלים.',
           ],
         },
         {
@@ -211,18 +225,22 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'כדי לשלוח לכם זימון ליומן לאחר אישור ההזמנה, אם מסרתם כתובת דוא"ל',
               'כדי למנוע ספאם ושימוש לרעה בטופס',
               'כדי לעמוד בחובות שלנו לפי דין',
+              'רק אם אישרתם: כדי למדוד ולשפר את המודעות שלנו, כולל הצגתן לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות פרסום',
             ],
-            'לא נשתמש במידע לדיוור שיווקי ולא נמכור אותו.',
+            'לא נשלח לכם הודעות שיווקיות בדוא"ל, ב-SMS או בטלפון, ולא נמכור את המידע.',
+            'לתושבי האיחוד האירופי: הבסיס החוקי לכלי השיווק והפרסום הוא הסכמתכם; לטיפול בבקשת ההזמנה – ביצוע ההזמנה וחובות לפי דין; למניעת ספאם – האינטרס הלגיטימי שלנו.',
           ],
         },
         {
           heading: 'איפה המידע נשמר ומי מקבל אותו',
           body: [
-            'בקשות ההזמנה וההזמנות נשמרות בחשבון Google של שורשים: ביומן Google, בגיליון Google פרטי ובתיבת הדוא"ל שלנו, שם אנחנו מקבלים הודעה על כל בקשה. Google מעבדת את המידע עבורנו, ושרתיה עשויים להימצא מחוץ לישראל.',
+            'בקשות ההזמנה וההזמנות נשמרות בחשבון Google של שורשים: ביומן Google, בגיליון Google פרטי ובתיבת הדוא"ל שלנו, שם אנחנו מקבלים הודעה על כל בקשה. Google מעבדת את המידע עבורנו.',
             'לצורך הגנה מפני ספאם, הטופס משתמש ב-Google reCAPTCHA, שאוסף מידע על המכשיר והדפדפן לפי מדיניות הפרטיות של Google: https://policies.google.com/privacy',
-            'האתר מאוחסן ב-GitHub Pages, שמקבל, כמו כל שרת אתרים, את כתובת ה-IP של הדפדפן. הגופנים נטענים מ-Google Fonts.',
+            'האתר מאוחסן אצל ספק אחסון, והגופנים נטענים מ-Google Fonts; כמו כל שרת אתרים, הם מקבלים את כתובת ה-IP של הדפדפן.',
             'לחיצה על קישור WhatsApp, אינסטגרם או טלפון מעבירה אתכם לשירות החיצוני, והמידע שתמסרו שם כפוף למדיניות שלו.',
-            'לא נעביר את המידע לגורמים אחרים, אלא אם נידרש לכך על פי דין.',
+            'בהסכמתכם בלבד, מידע מועבר גם לפלטפורמות פרסום (ראו "שיווק ופרסום").',
+            'חלק מהמידע עשוי להיות מעובד מחוץ לישראל, כולל בארה"ב, על בסיס החלטות הלימות (כגון EU-U.S. Data Privacy Framework) או סעיפים חוזיים תקניים; לעותק פנו אלינו.',
+            'מלבד זאת לא נעביר את המידע לגורמים אחרים, אלא אם נידרש לכך על פי דין.',
           ],
         },
         {
@@ -230,18 +248,40 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'בקשה שנדחתה נמחקת מהיומן מיד עם הדחייה. בקשה שאושרה הופכת להזמנה ביומן, ונשמרת כל עוד היא נדרשת לניהול האירוח ולחובותינו לפי דין, למשל לצורכי הנהלת חשבונות.',
             'לצורך מניעת ספאם, מספר הטלפון נשמר זמנית במערכת עד 6 שעות לאחר שליחת הבקשה. פרטי ההחלטה על בקשה (שם, טלפון ותאריכים) מוצגים בגיליון הניהול שלנו עד 3 ימים.',
+            'תקופות השמירה של כלי השיווק והפרסום מפורטות בסעיף שלהם.',
           ],
         },
         {
+          id: 'marketing',
+          heading: 'שיווק ופרסום',
+          body: [
+            'בהסכמתכם בלבד (כפתור "מאשרים" בבאנר העוגיות), אנחנו מפעילים באתר כלים של פלטפורמות פרסום, כמו רשתות חברתיות ומנועי חיפוש.',
+            'הכלים אוספים אילו עמודים ביקרתם ואילו פעולות עשיתם באתר (למשל פתיחת בקשת הזמנה או שליחתה, וסוג האירוח שבחרתם), ומזהים טכניים: עוגיות, כתובת IP, סוג הדפדפן והמכשיר. הם אינם אוספים את הפרטים שאתם מקלידים בטפסים.',
+            'המטרות: למדוד אילו מודעות וקמפיינים שלנו מביאים פניות, לשפר את הצגת המודעות שלנו, כולל לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות אלה.',
+            'הפלטפורמה אוספת את המידע עבורנו או יחד איתנו, ולשימושיה שלה היא אחראית לבדה; לכל בקשה פנו אלינו.',
+            `פלטפורמות אלה (כולל ${SITE_TOOL_NAMES.he}) וגורמים שלישיים אחרים עשויים להשתמש בעוגיות, בפיקסלים ובטכנולוגיות אחסון אחרות כדי לאסוף או לקבל מידע מהאתר שלנו וממקומות אחרים באינטרנט, ולהשתמש בו כדי לספק שירותי מדידה ולהציג מודעות ממוקדות. אפשר להגביל זאת בהגדרות של כל פלטפורמה (קישורים ברשימה) וגם ב-https://optout.aboutads.info וב-https://www.youronlinechoices.eu`,
+            'העוגיות נשמרות בדפדפן לתקופה המפורטת ברשימה. מבקר נשאר בקהלי האתר שלנו בפלטפורמה עד 180 יום מהביקור האחרון שבו הסכים לכך. הבחירה שלכם נשמרת בדפדפן 6 חודשים, ואז נשאל שוב.',
+            'שום דבר מאלה לא פועל אם לא בחרתם "מאשרים". אפשר לשנות או לבטל את הבחירה בכל עת ב"הגדרות עוגיות" (בתחתית האתר ובסעיף זה). הביטול עוצר איסוף חדש ומוחק את העוגיות של הכלים מהדומיין שלנו, אך אינו מוחק מידע שכבר נמסר. עוגיות בדומיין של הפלטפורמה מנוהלות בהגדרות שלה.',
+            { slot: 'consentControls' },
+            'הכלים שבהם אנו משתמשים כעת:',
+            { slot: 'marketingTools' },
+          ],
+        },
+        {
+          id: 'cookies',
           heading: 'עוגיות ואחסון בדפדפן',
           body: [
-            'האתר עצמו אינו משתמש בעוגיות. אם תבחרו התאמות בתפריט הנגישות, הן יישמרו בדפדפן שלכם בלבד (localStorage), כדי שיישארו גם בכניסה הבאה. Google reCAPTCHA עשוי להשתמש בעוגיות משלו.',
+            'האתר עצמו אינו מגדיר עוגיות, מלבד עוגיות של כלי השיווק והפרסום שנשמרות בדומיין שלנו רק אם אישרתם (ראו "שיווק ופרסום"). הבחירה שלכם בבאנר נשמרת בדפדפן שלכם.',
+            'אם תבחרו התאמות בתפריט הנגישות, הן יישמרו בדפדפן שלכם בלבד (localStorage), כדי שיישארו גם בכניסה הבאה. Google reCAPTCHA עשוי להשתמש בעוגיות משלו.',
           ],
         },
         {
           heading: 'הזכויות שלכם',
           body: [
-            'לפי חוק הגנת הפרטיות, התשמ"א-1981, אתם רשאים לעיין במידע שלכם שנמצא אצלנו, לבקש לתקן אותו ולבקש למחוק אותו, בכפוף לחובות שלנו לפי דין. לכל בקשה פנו אלינו בפרטים שבסוף העמוד, ונשיב בהקדם.',
+            'לפי חוק הגנת הפרטיות, התשמ"א-1981, אתם רשאים לעיין במידע שלכם שנמצא אצלנו, לבקש לתקן אותו ולבקש למחוק אותו, בכפוף לחובות שלנו לפי דין.',
+            'כדי לממש זכות, פנו אלינו בכתב בדוא"ל. ייתכן שנבקש פרטים לאימות זהותכם לפני המענה, ונשיב תוך 30 יום.',
+            'אפשר לבטל בכל עת הסכמה שנתתם, ב"הגדרות עוגיות".',
+            'אפשר להגיש תלונה לרשות להגנת הפרטיות. תושבי האיחוד האירופי רשאים גם לבקש הגבלת עיבוד, להתנגד לעיבוד ולקבל את המידע בפורמט נייד, ולהתלונן לרשות הפיקוח במדינתם.',
           ],
         },
         {
@@ -270,7 +310,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
     },
     en: {
       title: 'Privacy Policy',
-      updated: UPDATED.en,
+      updated: UPDATED_PRIVACY_A11Y.en,
       intro:
         'This policy explains what information we collect on shorashimstay.com, why, where it is kept and what your rights are. The data controller is Shorashim, a boutique guesthouse at the Poisner Farm, Zichron Ya’akov, Israel. The Hebrew version of this policy prevails.',
       sections: [
@@ -279,7 +319,9 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'When you send a booking request, we receive the details you entered in the form:',
             ['Full name and phone number (required)', 'Email address (optional)', 'Type of stay, dates, number of guests and, for bride-day packages, the number of people present during the day', 'Any notes or special requests you wrote'],
-            'We do not ask for or store payment details. The site uses no tracking, analytics or advertising tools.',
+            'You have no legal duty to give us any information. Without a name and phone number we cannot handle a booking request.',
+            'We do not ask for or store payment details.',
+            'If you accept it in the cookie banner, information about your use of the site is also collected by marketing and advertising tools (see "Marketing and advertising"). Without your consent, these tools do not run.',
           ],
         },
         {
@@ -290,18 +332,22 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'To send you a calendar invitation once the booking is confirmed, if you gave an email address',
               'To prevent spam and abuse of the form',
               'To meet our legal obligations',
+              'Only if you agreed: to measure and improve our ads, including showing them to people with similar characteristics, and to show you relevant ads on advertising platforms',
             ],
-            'We will not use your information for marketing and will not sell it.',
+            'We will not send you marketing messages by email, SMS or phone, and we will not sell your information.',
+            'For EU residents: the legal basis for the marketing and advertising tools is your consent; for handling a booking request, performing the booking and our legal obligations; for spam prevention, our legitimate interest.',
           ],
         },
         {
           heading: 'Where it is kept and who receives it',
           body: [
-            'Booking requests and bookings are kept in Shorashim’s Google account: in Google Calendar, in a private Google Sheet and in our email inbox, where we are notified of each request. Google processes this information on our behalf, and its servers may be outside Israel.',
+            'Booking requests and bookings are kept in Shorashim’s Google account: in Google Calendar, in a private Google Sheet and in our email inbox, where we are notified of each request. Google processes this information on our behalf.',
             'To protect against spam, the form uses Google reCAPTCHA, which collects device and browser information under Google’s privacy policy: https://policies.google.com/privacy',
-            'The site is hosted on GitHub Pages, which, like any web server, receives your browser’s IP address. Fonts are loaded from Google Fonts.',
+            'The site is hosted by a hosting provider, and fonts are loaded from Google Fonts; like any web server, they receive your browser’s IP address.',
             'Clicking a WhatsApp, Instagram or phone link takes you to that external service, whose own policy covers what you share there.',
-            'We do not pass your information to anyone else unless the law requires us to.',
+            'Only with your consent, information also goes to advertising platforms (see "Marketing and advertising").',
+            'Some information may be processed outside Israel, including in the United States, on the basis of adequacy decisions (such as the EU-U.S. Data Privacy Framework) or standard contractual clauses; contact us for a copy.',
+            'Otherwise we do not pass your information to anyone, unless the law requires us to.',
           ],
         },
         {
@@ -309,18 +355,40 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           body: [
             'A declined request is deleted from our calendar as soon as it is declined. An approved request becomes a booking in our calendar and is kept for as long as we need it to manage the stay and to meet our legal obligations, such as accounting.',
             'To prevent spam, your phone number is kept temporarily for up to 6 hours after you send a request. The details of a decision on a request (name, phone and dates) are shown in our admin sheet for up to 3 days.',
+            'How long the marketing and advertising tools keep information is set out in their section.',
           ],
         },
         {
+          id: 'marketing',
+          heading: 'Marketing and advertising',
+          body: [
+            'Only with your consent ("Accept" in the cookie banner) do we run tools of advertising platforms on the site, such as social networks and search engines.',
+            'These tools collect which pages you visited and what you did on the site (for example opening or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type. They do not collect the details you type into the forms.',
+            'The purposes: to measure which of our ads and campaigns bring enquiries, to improve how our ads are shown, including to people with similar characteristics, and to show you relevant ads on these platforms.',
+            'The platform collects this information for us or jointly with us, and is solely responsible for its own uses of it; contact us with any request.',
+            `These platforms (including ${SITE_TOOL_NAMES.en}) and other third parties may use cookies, pixels and other storage technologies to collect or receive information from our site and elsewhere on the internet, and use it to provide measurement services and targeted ads. You can limit this in each platform’s settings (links in the list) and at https://optout.aboutads.info and https://www.youronlinechoices.eu`,
+            'The cookies stay in your browser for the period shown in the list. A visitor stays in our site audiences on the platform for up to 180 days from their last visit on which they consented. Your choice is kept in your browser for 6 months, then we ask again.',
+            'None of this runs unless you chose "Accept". You can change or withdraw your choice at any time in "Cookie settings" (at the bottom of the site and in this section). Withdrawing stops new collection and deletes the tools’ cookies from our domain, but does not delete information already sent. Cookies on the platform’s own domain are managed in its settings.',
+            { slot: 'consentControls' },
+            'The tools we use now:',
+            { slot: 'marketingTools' },
+          ],
+        },
+        {
+          id: 'cookies',
           heading: 'Cookies and browser storage',
           body: [
-            'The site itself sets no cookies. If you choose adjustments in the accessibility menu, they are saved only in your browser (localStorage) so they apply on your next visit. Google reCAPTCHA may use its own cookies.',
+            'The site itself sets no cookies, except the marketing and advertising tools’ cookies, which are stored on our domain only if you accepted (see "Marketing and advertising"). Your banner choice is saved in your browser.',
+            'If you choose adjustments in the accessibility menu, they are saved only in your browser (localStorage) so they apply on your next visit. Google reCAPTCHA may use its own cookies.',
           ],
         },
         {
           heading: 'Your rights',
           body: [
-            'Under the Israeli Protection of Privacy Law, 5741-1981, you may access the information we hold about you, ask us to correct it, and ask us to delete it, subject to our legal obligations. Contact us using the details at the end of this page and we will reply promptly.',
+            'Under the Israeli Protection of Privacy Law, 5741-1981, you may access the information we hold about you, ask us to correct it, and ask us to delete it, subject to our legal obligations.',
+            'To exercise a right, write to us by email. We may ask for details to confirm your identity before we answer, and we will reply within 30 days.',
+            'You can withdraw any consent you gave at any time, in "Cookie settings".',
+            'You can complain to the Israeli Privacy Protection Authority. EU residents may also ask us to restrict processing, object to processing and receive their information in a portable format, and complain to the supervisory authority in their country.',
           ],
         },
         {
@@ -352,7 +420,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
   accessibility: {
     he: {
       title: 'הצהרת נגישות',
-      updated: UPDATED.he,
+      updated: UPDATED_PRIVACY_A11Y.he,
       intro:
         'בשורשים חשוב לנו שכל אחד ואחת יוכלו לגלוש באתר, לבדוק זמינות ולשלוח בקשת הזמנה בקלות ובעצמאות. הצהרה זו מתארת את נגישות האתר ואת נגישות המקום עצמו.',
       sections: [
@@ -385,6 +453,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'בפינת המסך נמצא כפתור הנגישות. התפריט מאפשר:',
             ['הגדלת טקסט בשתי דרגות', 'ניגודיות גבוהה (שחור על לבן)', 'הדגשת קישורים וכפתורים', 'גופן קריא', 'עצירת אנימציות'],
             'ההתאמות נשמרות בדפדפן שלכם ונשארות גם בכניסה הבאה. כפתור האיפוס מחזיר את התצוגה הרגילה.',
+            'באנר העוגיות אינו חוסם את הדף ואינו לוכד את המיקוד. הוא מופיע ראשון בסדר הניווט במקלדת (גם כשהוא מוצג בתחתית המסך), שני הכפתורים בו זהים, והודעה על שמירת הבחירה מוקראת בקוראי מסך. אפשר לפתוח אותו שוב בכל עת ב"הגדרות עוגיות" בתחתית האתר.',
           ],
         },
         {
@@ -397,7 +466,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'מגבלות ידועות',
           body: [
             [
-              'רכיבים של צד שלישי אינם בשליטתנו המלאה: Google reCAPTCHA, ו-WhatsApp ואינסטגרם שהאתר מקשר אליהם.',
+              'רכיבים של צד שלישי אינם בשליטתנו המלאה: Google reCAPTCHA, כלי הפרסום שפועלים רק אם אישרתם אותם בבאנר העוגיות, ו-WhatsApp ואינסטגרם שהאתר מקשר אליהם.',
               'בחירת תאריכים בלוח נעשית בלחיצה על יום. לחלופין, אפשר תמיד לשלוח את הפרטים ב-WhatsApp או בטלפון, ונשריין עבורכם.',
             ],
             'אם נתקלתם בקושי, נשמח לשמוע ולתקן.',
@@ -422,7 +491,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
     },
     en: {
       title: 'Accessibility Statement',
-      updated: UPDATED.en,
+      updated: UPDATED_PRIVACY_A11Y.en,
       intro:
         'At Shorashim we want everyone to be able to browse the site, check availability and send a booking request easily and independently. This statement covers the accessibility of the site and of the premises.',
       sections: [
@@ -455,6 +524,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'An accessibility button sits in the corner of the screen. Its menu offers:',
             ['Two levels of larger text', 'High contrast (black on white)', 'Highlighted links and buttons', 'A readable font', 'Stopping animations'],
             'Your choices are saved in your browser for your next visit. The reset button restores the default display.',
+            'The cookie banner does not block the page or trap focus. It comes first in keyboard order (even when shown at the bottom of the screen), its two buttons are identical, and screen readers announce when your choice is saved. You can reopen it at any time with "הגדרות עוגיות" (cookie settings) at the bottom of the site.',
           ],
         },
         {
@@ -467,7 +537,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'Known limitations',
           body: [
             [
-              'Third-party components are not fully under our control: Google reCAPTCHA, and WhatsApp and Instagram, which the site links to.',
+              'Third-party components are not fully under our control: Google reCAPTCHA, the advertising tools that run only if you accept them in the cookie banner, and WhatsApp and Instagram, which the site links to.',
               'Dates are chosen by selecting days in the calendar. You can always send your details by WhatsApp or phone instead, and we will book for you.',
             ],
             'If you run into any difficulty, please tell us and we will fix it.',

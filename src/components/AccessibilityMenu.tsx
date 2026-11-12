@@ -66,6 +66,7 @@ export default function AccessibilityMenu({ lang = 'he' }: { lang?: 'he' | 'en' 
         aria-haspopup="dialog"
         aria-label={t.open}
         title={t.open}
+        style={{ bottom: 'calc(1.5rem + var(--consent-offset, 0px))' }}
         className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-12 h-12 rounded-full bg-[#1F3A5F] hover:bg-[#162B47] text-white shadow-xl cursor-pointer"
       >
         <Accessibility className="w-6 h-6" />

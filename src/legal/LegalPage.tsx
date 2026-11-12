@@ -1,6 +1,8 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useEffect, type ReactNode } from 'react';
 import AccessibilityMenu from '../components/AccessibilityMenu';
-import { DOCS, type Lang, type PageId } from './content';
+import { DOCS, type Lang, type PageId, type Slot } from './content';
+import ConsentControls from '../consent/ConsentControls';
+import ToolsList from '../consent/ToolsList';
 
 const PAGES: PageId[] = ['terms', 'privacy', 'accessibility'];
 
@@ -29,6 +31,15 @@ export default function LegalPage({ page, lang }: { page: PageId; lang: Lang }) 
   const doc = DOCS[page][lang];
   const t = NAV[lang];
   const otherLang: Lang = lang === 'he' ? 'en' : 'he';
+
+  // The page is drawn after load, so the browser may not find #marketing by itself.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, []);
+
+  const renderSlot = (item: Slot) =>
+    item.slot === 'consentControls' ? <ConsentControls lang={lang} /> : <ToolsList lang={lang} />;
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2C2926]">
@@ -59,13 +70,15 @@ export default function LegalPage({ page, lang }: { page: PageId; lang: Lang }) 
         <p className="text-base leading-relaxed mb-10">{linkify(doc.intro)}</p>
 
         {doc.sections.map((section) => (
-          <section key={section.heading} className="mb-9">
+          <section key={section.heading} id={section.id} className="mb-9 scroll-mt-6">
             <h2 className="font-serif text-2xl font-medium mb-3">{section.heading}</h2>
             {section.body.map((item, i) =>
               typeof item === 'string' ? (
                 <p key={i} className="text-base leading-relaxed mb-3">
                   {linkify(item)}
                 </p>
+              ) : !Array.isArray(item) ? (
+                <Fragment key={i}>{renderSlot(item)}</Fragment>
               ) : (
                 <ul key={i} className="list-disc ps-6 space-y-1.5 mb-3 text-base leading-relaxed">
                   {item.map((li) => (

@@ -52,6 +52,12 @@ files.
   colour from the site's own palette that passes.
 - Keep the ids `gallery`, `mobile-menu-toggle-btn` and `mobile-nav-drawer`, and the footer links to
   `/terms/`, `/privacy/` and `/accessibility/`.
+- **The cookie banner** (`src/consent/`, owner's files) is a legal requirement: keep
+  `<ConsentBanner />` right after the skip link in both layouts of `src/App.tsx`, the footer's
+  `<CookieSettingsButton />`, and the `var(--consent-offset, 0px)` that moves the floating WhatsApp
+  button (its inline `bottom`) and `.back-to-top` / `body` (in `src/index.css`) clear of the banner.
+- No tracking or advertising code anywhere outside the owner's files (no Meta, Google Analytics,
+  Tag Manager, TikTok, Hotjar and so on): marketing tools run only behind the cookie banner.
 - Photos: put master photos in `src/assets/images/` as **JPEG** (`.jpg`; convert PNGs) named
   `shorashim_<name>_<digits>.jpg`, and render them with `Picture`; the build makes the web sizes
   (`npm run images`). A new photo with the same `<name>` as an old one replaces it: delete the old

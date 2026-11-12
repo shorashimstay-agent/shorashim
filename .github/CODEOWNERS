@@ -24,6 +24,10 @@
 /en/ @shorashimstay-agent @am-consulting-code-agent
 /src/components/AccessibilityMenu.tsx @shorashimstay-agent @am-consulting-code-agent
 
+# The cookie banner and consent controls: their wording, equal buttons and easy withdrawal are legal
+# requirements, so a design push must not change them on its own
+/src/consent/ @shorashimstay-agent @am-consulting-code-agent
+
 # The pipeline itself: workflows, these rules, tests and build setup
 /.github/ @shorashimstay-agent @am-consulting-code-agent
 /.githooks/ @shorashimstay-agent @am-consulting-code-agent
