@@ -214,7 +214,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             ['שם מלא ומספר טלפון (חובה)', 'כתובת דוא"ל (לא חובה)', 'סוג האירוח, התאריכים, מספר האורחים ובמסלולי יום הכלה גם מספר משתתפי היום', 'הערות או בקשות מיוחדות שכתבתם'],
             'אין חובה חוקית למסור לנו מידע. בלי שם ומספר טלפון לא נוכל לטפל בבקשת ההזמנה.',
             'איננו מבקשים ואיננו שומרים פרטי תשלום.',
-            'אם תאשרו זאת בבאנר העוגיות, נאסף גם מידע על השימוש באתר באמצעות כלי שיווק ופרסום (ראו "שיווק ופרסום"). בלי אישורכם, כלים אלה אינם מופעלים.',
+            'אם תאשרו זאת בבאנר העוגיות, נאסף גם מידע על השימוש באתר, ופרטי הקשר שמסרתם יכולים לעבור בצורה מגובבת, באמצעות כלי שיווק ופרסום (ראו "שיווק ופרסום"). בלי אישורכם, כלים אלה אינם מופעלים.',
           ],
         },
         {
@@ -256,7 +256,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'שיווק ופרסום',
           body: [
             'בהסכמתכם בלבד (כפתור "מאשרים" בבאנר העוגיות), אנחנו מפעילים באתר כלים של פלטפורמות הפרסום המפורטות ברשימה שבסוף סעיף זה.',
-            'הכלים אוספים אילו עמודים ביקרתם ואילו פעולות עשיתם באתר (למשל בדיקת זמינות או שליחת בקשת הזמנה, וסוג האירוח שבחרתם), ומזהים טכניים: עוגיות, כתובת IP, סוג הדפדפן והמכשיר. הם אינם אוספים את הפרטים שאתם מקלידים בטפסים.',
+            'הכלים אוספים אילו עמודים ביקרתם ואילו פעולות עשיתם באתר (למשל בדיקת זמינות או שליחת בקשת הזמנה, וסוג האירוח שבחרתם), ומזהים טכניים: עוגיות, כתובת IP, סוג הדפדפן והמכשיר.',
+            'כשאתם ממלאים את טופס ההזמנה, הכלים עשויים לקבל גם פרטי קשר שמסרתם בו (כמו שם, טלפון ודוא"ל) בצורה מגובבת (מקודדת חד-כיוונית), כך שאינם נמסרים בטקסט גלוי. הפלטפורמה משתמשת בהם כדי לזהות אם יש לכם חשבון אצלה, ולמדוד ולשפר את המודעות שלנו.',
             'המטרות: למדוד אילו מודעות וקמפיינים שלנו מביאים פניות, לשפר את הצגת המודעות שלנו, כולל לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות אלה.',
             'הפלטפורמה אוספת את המידע עבורנו או יחד איתנו, ולשימושיה שלה היא אחראית לבדה; לכל בקשה פנו אלינו.',
             `פלטפורמות אלה (כולל ${SITE_TOOL_NAMES.he}) וגורמים שלישיים אחרים עשויים להשתמש בעוגיות, בפיקסלים ובטכנולוגיות אחסון אחרות כדי לאסוף או לקבל מידע מהאתר שלנו וממקומות אחרים באינטרנט, ולהשתמש בו כדי לספק שירותי מדידה ולהציג מודעות ממוקדות. אפשר להגביל זאת בהגדרות של כל פלטפורמה (קישורים ברשימה) וגם ב-https://optout.aboutads.info וב-https://www.youronlinechoices.eu`,
@@ -321,7 +322,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             ['Full name and phone number (required)', 'Email address (optional)', 'Type of stay, dates, number of guests and, for bride-day packages, the number of people present during the day', 'Any notes or special requests you wrote'],
             'You have no legal duty to give us any information. Without a name and phone number we cannot handle a booking request.',
             'We do not ask for or store payment details.',
-            'If you accept it in the cookie banner, information about your use of the site is also collected by marketing and advertising tools (see "Marketing and advertising"). Without your consent, these tools do not run.',
+            'If you accept it in the cookie banner, information about your use of the site is also collected, and the contact details you gave may be passed on in hashed form, by marketing and advertising tools (see "Marketing and advertising"). Without your consent, these tools do not run.',
           ],
         },
         {
@@ -363,7 +364,8 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'Marketing and advertising',
           body: [
             'Only with your consent ("Accept" ("מאשרים") in the cookie banner) do we run tools of the advertising platforms listed at the end of this section.',
-            'These tools collect which pages you visited and what you did on the site (for example checking availability or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type. They do not collect the details you type into the forms.',
+            'These tools collect which pages you visited and what you did on the site (for example checking availability or sending a booking request, and the type of stay you chose), and technical identifiers: cookies, IP address, browser and device type.',
+            'When you fill in the booking form, the tools may also receive contact details you gave there (such as name, phone and email) in hashed (one-way encoded) form, so they are never sent as readable text. The platform uses them to recognise whether you have an account with it, and to measure and improve our ads.',
             'The purposes: to measure which of our ads and campaigns bring enquiries, to improve how our ads are shown, including to people with similar characteristics, and to show you relevant ads on these platforms.',
             'The platform collects this information for us or jointly with us, and is solely responsible for its own uses of it; contact us with any request.',
             `These platforms (including ${SITE_TOOL_NAMES.en}) and other third parties may use cookies, pixels and other storage technologies to collect or receive information from our site and elsewhere on the internet, and use it to provide measurement services and targeted ads. You can limit this in each platform’s settings (links in the list) and at https://optout.aboutads.info and https://www.youronlinechoices.eu`,

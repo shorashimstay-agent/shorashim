@@ -7,7 +7,7 @@ import { SITE_TOOLS } from './tools';
 import './consent.css';
 
 // The platforms are named from the registry (tools.ts), so adding a tool updates the banner too.
-export const BANNER_TEXT = `נשתמש בעוגיות ובמידע על הגלישה באתר כדי שפלטפורמות פרסום (כיום ${SITE_TOOLS.map((t) => t.brand).join(', ')}) ימדדו וישפרו את המודעות שלנו ויציגו לכם מודעות מותאמות. אפשר לשנות בכל עת.`;
+export const BANNER_TEXT = `נשתמש בעוגיות, במידע על הגלישה באתר ובפרטי הקשר שתמסרו (מוצפנים) כדי שפלטפורמות פרסום (כיום ${SITE_TOOLS.map((t) => t.brand).join(', ')}) ימדדו וישפרו את המודעות שלנו ויציגו לכם מודעות מותאמות. אפשר לשנות בכל עת.`;
 
 const CURRENT: Record<Choice, string> = { granted: 'כרגע: מאשרים', denied: 'כרגע: לא מאשרים' };
 
