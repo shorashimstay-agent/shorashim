@@ -828,7 +828,9 @@ function setup() {
 // the פעולה column and then ticking ביצוע (the tick is the confirmation, and works on phones).
 
 var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: 'ערוצים', cancellations: 'ביטולים' };
-// 'מקור' (the ad campaign) comes after the hidden ID column, so ID_COL and ACTION_COL stay put.
+// 'מקור' (the ad campaign) comes after the hidden ID column, so ID_COL and ACTION_COL stay put. A
+// pending request shows the full label (source / campaign / ad); once decided, only the source,
+// which is all the size-limited decisions list keeps.
 var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה', 'מקור'];
 var BOOKING_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות', 'מקור', 'סוג אירוח', 'אורחים', 'טלפון', 'אימייל', 'הערות', 'מספר', 'WhatsApp'];
 var CHANNEL_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות'];

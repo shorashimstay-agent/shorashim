@@ -26,9 +26,9 @@ import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, 
 
 const api = webApp(cfg);
 
-// Every scenario gets its own nights, 5 days apart, starting at a random day 250–289 days ahead, so
-// the last slot (14) and its nights stay inside the 365-day booking window.
-const base = addDays(israelToday(), 250 + Math.floor(Math.random() * 40));
+// Every scenario gets its own nights, 5 days apart, starting at a random day 245–280 days ahead, so
+// the last slot (15) and its nights stay inside the 365-day booking window (at most day 360).
+const base = addDays(israelToday(), 245 + Math.floor(Math.random() * 36));
 const LAST_SLOT = 15;
 const slot = (i: number) => {
   if (i > LAST_SLOT) throw new Error(`slot ${i} is past LAST_SLOT; raise it only if it stays within the booking window`);
