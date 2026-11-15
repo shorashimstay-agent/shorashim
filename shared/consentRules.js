@@ -90,12 +90,13 @@ export function matchingKeys(contact) {
   if (phone.startsWith('00')) phone = phone.slice(2);
   if (phone.startsWith('0')) phone = `972${phone.slice(1)}`;
   if (phone.startsWith('9720')) phone = `972${phone.slice(4)}`;
-  // An Israeli mobile or 07x number typed without its leading 0 (the form accepts 9 digits).
-  if (/^[57]\d{8}$/.test(phone)) phone = `972${phone}`;
+  // An Israeli mobile (5x) or 07x number typed without its leading 0 (the form accepts 9 digits).
+  if (/^(5\d{8}|7[2-9]\d{7})$/.test(phone)) phone = `972${phone}`;
   if (phone) keys.ph = phone;
   // Meta strips whitespace and ASCII punctuation from names before hashing; ours are hashed here, so
   // we do the same (Hebrew letters and other scripts stay).
-  // Also typographic apostrophes and Hebrew punctuation (maqaf, geresh, gershayim).
+  // Beyond Meta's own rule (ASCII only), also typographic apostrophes and Hebrew punctuation (maqaf,
+  // geresh, gershayim): a deliberate extension, since Meta's servers likely normalise these too.
   const strip = (/** @type {string} */ w) => w.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’־׳״]/g, '');
   const words = String(contact?.name || '')
     .toLowerCase()

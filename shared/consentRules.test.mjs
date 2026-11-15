@@ -82,4 +82,5 @@ test('contact details are normalised for matching, empty ones left out', async (
   assert.deepEqual(matchingKeys({ phone: '72-2345678' }), { ph: '972722345678', country: 'il' });
   // Other 9-digit numbers are left alone.
   assert.equal(matchingKeys({ phone: '412345678' }).ph, '412345678');
+  assert.equal(matchingKeys({ phone: '712345678' }).ph, '712345678');
 });
