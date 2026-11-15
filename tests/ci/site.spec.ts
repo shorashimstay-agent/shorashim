@@ -125,6 +125,25 @@ test('the booking form still sends a complete request', async ({ page }) => {
   });
 });
 
+test('a campaign tag on the landing link goes with the request, and only the utm_ fields', async ({ page }) => {
+  const sent = await fakeBackend(page);
+  await page.goto(`/?t=${Date.now()}&utm_source=meta&utm_medium=paid&utm_campaign=${encodeURIComponent('כלות אוקטובר')}&utm_content=video&fbclid=abc#booking`);
+  await page.locator('#booking').evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+  await expect(page.locator('#booking').getByText('הבחירה שלכם', { exact: true })).toBeVisible();
+  const checkIn = addDays(israelToday(), 40);
+  await submitBooking(page, { stayType: 'couple', checkIn, checkOut: addDays(checkIn, 2), adults: 2, name: 'בדיקה', phone: '0501234567' });
+  expect(sent.body?.campaign, 'the ad campaign must be sent with the request').toEqual({ source: 'meta', medium: 'paid', campaign: 'כלות אוקטובר', content: 'video' });
+  expect(JSON.stringify(sent.body)).not.toContain('abc');
+});
+
+test('without a campaign tag, the request carries none', async ({ page }) => {
+  const sent = await fakeBackend(page);
+  await openBooking(page);
+  const checkIn = addDays(israelToday(), 40);
+  await submitBooking(page, { stayType: 'couple', checkIn, checkOut: addDays(checkIn, 2), adults: 2, name: 'בדיקה', phone: '0501234567' });
+  expect(sent.body).not.toHaveProperty('campaign');
+});
+
 test('the page passes the accessibility scan', async ({ page }) => {
   const { AxeBuilder } = await import('@axe-core/playwright');
   await fakeBackend(page);

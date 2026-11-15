@@ -150,6 +150,8 @@ export interface BookingRequest {
   notes: string;
   website: string;
   recaptchaToken: string;
+  /** The ad campaign from the landing link (src/lib/campaign.ts); left out when there is none. */
+  campaign?: import('./campaign').Campaign;
 }
 
 export interface BookingRequestSuccess {

@@ -539,6 +539,8 @@ export function validateRequest(input, today, prices) {
       notes: notes,
       estimate: estimatePrice(stayType, stayed, adults, prices || null, range.start),
     },
+    // The ad campaign's tag stays outside `value`: it is stored as its own calendar property.
+    campaign: cleanCampaign(input.campaign),
   };
 }
 
@@ -627,6 +629,42 @@ export function validateBlock(input, today) {
 
   if (Object.keys(errors).length) return { ok: false, errors: errors };
   return { ok: true, value: value };
+}
+
+/** The campaign tag's fields, in the order they are kept when the whole tag is too long. */
+export var CAMPAIGN_FIELDS = ['source', 'medium', 'campaign', 'content'];
+
+/**
+ * The ad link's campaign tag (utm_source, utm_medium, utm_campaign, utm_content), cleaned rather than
+ * refused: control characters, line breaks, < > " ' ` are dropped, spaces collapsed, each value cut
+ * to 40 characters, and the whole tag to 120 (from the last field). Hebrew, emoji and other
+ * punctuation stay. Null when nothing is left; never an error.
+ * @param {unknown} input @returns {Record<string, string> | null}
+ */
+export function cleanCampaign(input) {
+  if (!input || typeof input !== 'object') return null;
+  /** @type {Record<string, string>} */
+  var out = {};
+  var total = 0;
+  CAMPAIGN_FIELDS.forEach(function (field) {
+    var raw = /** @type {Record<string, unknown>} */ (input)[field];
+    if (typeof raw !== 'string') return;
+    var value = Array.from(raw.replace(/[\u0000-\u001f\u007f<>"'`]/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 40).join('').trim();
+    if (!value) return;
+    var room = 120 - total;
+    if (room <= 0) return;
+    value = Array.from(value).slice(0, room).join('').trim();
+    if (!value) return;
+    out[field] = value;
+    total += Array.from(value).length;
+  });
+  return Object.keys(out).length ? out : null;
+}
+
+/** A campaign tag as one short line, for the owner: "meta / כלות אוקטובר / וידאו". */
+export function campaignLabel(campaign) {
+  if (!campaign) return '';
+  return [campaign.source, campaign.campaign, campaign.content].filter(Boolean).join(' / ') || campaign.medium || '';
 }
 
 // Cancelling a booking from the owner console. The terms (src/legal/content.ts, "ביטול ושינוי

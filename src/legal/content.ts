@@ -22,6 +22,7 @@ export interface LegalDoc {
 
 const UPDATED = { he: 'עודכן לאחרונה: 18.10.2026', en: 'Last updated: 18 October 2026' };
 const UPDATED_PRIVACY_A11Y = { he: 'עודכן לאחרונה: 12.11.2026', en: 'Last updated: 12 November 2026' };
+const UPDATED_PRIVACY = { he: 'עודכן לאחרונה: 15.11.2026', en: 'Last updated: 15 November 2026' };
 /** The site tools' names, for the sentence Meta's Business Tools Terms require (src/consent/tools.ts). */
 const SITE_TOOL_NAMES = {
   he: SITE_TOOLS.map((t) => t.brand).join(', '),
@@ -203,7 +204,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
   privacy: {
     he: {
       title: 'מדיניות פרטיות',
-      updated: UPDATED_PRIVACY_A11Y.he,
+      updated: UPDATED_PRIVACY.he,
       intro:
         'מדיניות זו מסבירה איזה מידע אנחנו אוספים באתר shorashimstay.com, למה, איפה הוא נשמר ומה הזכויות שלכם לגביו. האחראית על המידע היא "שורשים" – בית בוטיק לאירוח, משק פויזנר, זכרון יעקב.',
       sections: [
@@ -215,6 +216,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'אין חובה חוקית למסור לנו מידע. בלי שם ומספר טלפון לא נוכל לטפל בבקשת ההזמנה.',
             'איננו מבקשים ואיננו שומרים פרטי תשלום.',
             'אם תאשרו זאת בבאנר העוגיות, נאסף גם מידע על השימוש באתר, ופרטי הקשר שמסרתם יכולים לעבור בצורה מגובבת, באמצעות כלי שיווק ופרסום (ראו "שיווק ופרסום"). בלי אישורכם, כלים אלה אינם מופעלים.',
+            'אם הגעתם אלינו מקישור של מודעה או קמפיין, מזהי הקמפיין שבקישור נשמרים עם בקשת ההזמנה, בלי קשר לבחירת העוגיות. הם נשארים אצלנו ואינם מועברים לאיש.',
           ],
         },
         {
@@ -226,9 +228,10 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'כדי למנוע ספאם ושימוש לרעה בטופס',
               'כדי לעמוד בחובות שלנו לפי דין',
               'רק אם אישרתם: כדי למדוד ולשפר את המודעות שלנו, כולל הצגתן לאנשים בעלי מאפיינים דומים, ולהציג לכם מודעות מותאמות בפלטפורמות פרסום',
+              'כדי לדעת אילו מהקמפיינים שלנו מביאים פניות',
             ],
             'לא נשלח לכם הודעות שיווקיות בדוא"ל, ב-SMS או בטלפון, ולא נמכור את המידע.',
-            'לתושבי האיחוד האירופי: הבסיס החוקי לכלי השיווק והפרסום הוא הסכמתכם; לטיפול בבקשת ההזמנה – צעדים לקראת ההזמנה לבקשתכם וביצועה, וחובות לפי דין; למניעת ספאם – האינטרס הלגיטימי שלנו בהגנה על הטופס.',
+            'לתושבי האיחוד האירופי: הבסיס החוקי לכלי השיווק והפרסום הוא הסכמתכם; לטיפול בבקשת ההזמנה – צעדים לקראת ההזמנה לבקשתכם וביצועה, וחובות לפי דין; למניעת ספאם – האינטרס הלגיטימי שלנו בהגנה על הטופס; למזהי הקמפיין – האינטרס הלגיטימי שלנו לדעת אילו קמפיינים מביאים פניות.',
           ],
         },
         {
@@ -283,6 +286,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'כדי לממש זכות, פנו אלינו בכתב בדוא"ל. ייתכן שנבקש פרטים לאימות זהותכם לפני המענה, ונשיב תוך 30 יום.',
             'אפשר לבטל בכל עת הסכמה שנתתם, ב"הגדרות עוגיות".',
             'אפשר להגיש תלונה לרשות להגנת הפרטיות. תושבי האיחוד האירופי רשאים גם לבקש הגבלת עיבוד, להתנגד לעיבוד ולקבל את המידע בפורמט נייד, ולהתלונן לרשות הפיקוח במדינתם.',
+            'במקום שבו אנו נשענים על האינטרס הלגיטימי שלנו (מזהי הקמפיין), תושבי האיחוד האירופי רשאים להתנגד; פנו אלינו ונסיר אותם מהבקשה שלכם.',
           ],
         },
         {
@@ -311,7 +315,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
     },
     en: {
       title: 'Privacy Policy',
-      updated: UPDATED_PRIVACY_A11Y.en,
+      updated: UPDATED_PRIVACY.en,
       intro:
         'This policy explains what information we collect on shorashimstay.com, why, where it is kept and what your rights are. The data controller is Shorashim, a boutique guesthouse at the Poisner Farm, Zichron Ya’akov, Israel. The Hebrew version of this policy prevails.',
       sections: [
@@ -323,6 +327,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'You have no legal duty to give us any information. Without a name and phone number we cannot handle a booking request.',
             'We do not ask for or store payment details.',
             'If you accept it in the cookie banner, information about your use of the site is also collected, and the contact details you gave may be passed on in hashed form, by marketing and advertising tools (see "Marketing and advertising"). Without your consent, these tools do not run.',
+            'If you reached us through a link from an ad or campaign, the campaign identifiers in that link are saved with your booking request, whatever your cookie choice. They stay with us and are never passed on.',
           ],
         },
         {
@@ -334,9 +339,10 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
               'To prevent spam and abuse of the form',
               'To meet our legal obligations',
               'Only if you agreed: to measure and improve our ads, including showing them to people with similar characteristics, and to show you relevant ads on advertising platforms',
+              'To know which of our campaigns bring enquiries',
             ],
             'We will not send you marketing messages by email, SMS or phone, and we will not sell your information.',
-            'For EU residents: the legal basis for the marketing and advertising tools is your consent; for handling a booking request – taking steps at your request before a booking and performing it (contract), and our legal obligations; for spam prevention – our legitimate interest in protecting the form.',
+            'For EU residents: the legal basis for the marketing and advertising tools is your consent; for handling a booking request – taking steps at your request before a booking and performing it (contract), and our legal obligations; for spam prevention – our legitimate interest in protecting the form; for the campaign identifiers – our legitimate interest in knowing which campaigns bring enquiries.',
           ],
         },
         {
@@ -391,6 +397,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'To exercise a right, write to us by email. We may ask for details to confirm your identity before we answer, and we will reply within 30 days.',
             'You can withdraw any consent you gave at any time, in "Cookie settings" ("הגדרות עוגיות").',
             'You can complain to the Israeli Privacy Protection Authority. EU residents may also ask us to restrict processing, object to processing and receive their information in a portable format, and complain to the supervisory authority in their country.',
+            'Where we rely on our legitimate interest (the campaign identifiers), EU residents may object; contact us and we will remove them from your request.',
           ],
         },
         {

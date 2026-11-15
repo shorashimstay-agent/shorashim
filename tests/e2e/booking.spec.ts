@@ -29,7 +29,7 @@ const api = webApp(cfg);
 // Every scenario gets its own nights, 5 days apart, starting at a random day 250–289 days ahead, so
 // the last slot (14) and its nights stay inside the 365-day booking window.
 const base = addDays(israelToday(), 250 + Math.floor(Math.random() * 40));
-const LAST_SLOT = 14;
+const LAST_SLOT = 15;
 const slot = (i: number) => {
   if (i > LAST_SLOT) throw new Error(`slot ${i} is past LAST_SLOT; raise it only if it stays within the booking window`);
   return addDays(base, i * 5);
@@ -223,6 +223,34 @@ test('R + E: guest books on the site, owner is emailed and approves from the ema
     expect(await api.decide('approve', id)).toMatchObject({ ok: true, result: 'approved' });
     expect(await api.decide('decline', id)).toMatchObject({ ok: false, error: 'not_found' });
   });
+});
+
+test('C1: a request from an ad keeps its campaign tag apart, shows it to the owner, and the booking keeps guest data private', async ({ page }) => {
+  const name = guestName('קמפיין');
+  const [checkIn, checkOut] = [slot(15), addDays(slot(15), 1)];
+  await openBooking(page);
+  const campaign = { source: 'meta', medium: 'paid', campaign: 'כלות אוקטובר', content: 'וידאו' };
+  const res = await api.post({ action: 'request', requestId: `e2e-utm-${runTag}`, recaptchaToken: await recaptchaToken(page, cfg.recaptchaSiteKey), stayType: 'couple', checkIn, checkOut, adults: 2, name, phone: randomPhone(), campaign });
+  expect(res).toMatchObject({ ok: true });
+  const [ev] = await waitFor('the request event', async () => {
+    const found = await requestEvents(cfg, name);
+    return found.length ? found : null;
+  });
+  const shared = ev.extendedProperties?.shared ?? {};
+  expect(JSON.parse(shared.campaign), 'the tag is its own property').toEqual(campaign);
+  expect(JSON.parse(shared.request).campaign, 'and never inside the request').toBeUndefined();
+  const { mail } = await ownerNotification(cfg, res.ref);
+  expect(mail.text, 'the owner sees where the request came from').toContain('מקור: meta / כלות אוקטובר / וידאו');
+  expect(await api.decide('approve', ev.iCalUID)).toMatchObject({ ok: true, result: 'approved' });
+  const [booking] = await waitFor('the booking event', async () => {
+    const found = await bookingEvents(cfg, name);
+    return found.length ? found : null;
+  });
+  const bShared = booking.extendedProperties?.shared ?? {};
+  const bPrivate = booking.extendedProperties?.private ?? {};
+  expect(bShared.request, 'guest data is not in the properties attendees can see').toBeUndefined();
+  expect(JSON.parse(bPrivate.request).name).toBe(name);
+  expect(JSON.parse(bPrivate.campaign)).toEqual(campaign);
 });
 
 test('D: owner declines from the email; the nights open again and the guest gets nothing', async ({ page }) => {
