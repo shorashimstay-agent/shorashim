@@ -194,7 +194,8 @@ test('the #booking flow sends one InitiateCheckout, then one Lead with a random 
     ph: sha('972501234567'),
     fn: sha('בדיקה'),
     ln: sha('אוטומטית'),
-    country: sha('il'),
+    // The country goes as is: Meta's pixel normalises and hashes it before sending.
+    country: 'il',
   });
   expect(calls[leadAt - 1][0], 'the contact details are given right before the Lead').toBe('init');
   expect(calls.slice(0, leadAt - 1).some((c) => c[0] === 'init' && c[2]), 'no contact details before the request is sent').toBe(false);
@@ -202,6 +203,9 @@ test('the #booking flow sends one InitiateCheckout, then one Lead with a random 
   for (const secret of ['SH-CI000', '0501234567', '972501234567', '050-123', 'ci@example.com', 'בדיקה אוטומטית', 'בדיקה', 'אוטומטית']) expect(text, `${secret} must never reach Meta in readable form`).not.toContain(secret);
   // A second guest on the same page: Meta's script would keep the first guest's details, so nothing
   // more is sent until the page reloads.
+  // A new request number, so only the seal (not the once-per-number rule) can stop this Lead.
+  await context.unroute(`${FAKE_API}**`);
+  await fakeBackend(context, { ok: true, ref: 'SH-CI001', holdHours: 24 });
   await page.getByRole('button', { name: 'שליחת בקשה נוספת' }).click();
   await submitBooking(page, { ...guest(addDays(israelToday(), 60)), name: 'אורח שני', phone: '0527654321', email: 'second@example.com' });
   const after = await fbqCalls(page);
@@ -565,4 +569,25 @@ test('the privacy page controls pass the accessibility scan', async ({ page, con
   expect(scan.violations.map((v) => v.id)).toEqual([]);
   await page.goto('/en/privacy/#marketing');
   await expect(page.getByRole('group', { name: 'Cookie settings' })).toBeVisible();
+});
+
+test('a Lead sent without matching does not stop the next one from being matched', async ({ page, context }) => {
+  await stubMeta(context);
+  await fakeBackend(context);
+  await openBooking(page);
+  // No choice yet: the first request goes without the pixel, so nothing is matched or sealed.
+  await submitBooking(page, guest(addDays(israelToday(), 40)));
+  expect(await fbqCalls(page)).toEqual([]);
+  await accept(page);
+  // A new request number for the second request (a Lead counts once per number).
+  await context.unroute(`${FAKE_API}**`);
+  await fakeBackend(context, { ok: true, ref: 'SH-CI002', holdHours: 24 });
+  await page.getByRole('button', { name: 'שליחת בקשה נוספת' }).click();
+  await submitBooking(page, { ...guest(addDays(israelToday(), 60)), name: 'אורח שני', phone: '501234567', email: 'second@example.com' });
+  const calls = await fbqCalls(page);
+  expect(tracks(calls, 'Lead'), 'the second request is a Lead').toHaveLength(1);
+  const matching = calls.filter((c) => c[0] === 'init' && c[2]);
+  expect(matching, 'and it is matched').toHaveLength(1);
+  // A mobile typed without its leading 0 still goes with the country code.
+  expect((matching[0][2] as Record<string, string>).ph).toBe(createHash('sha256').update('972501234567').digest('hex'));
 });

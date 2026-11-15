@@ -75,4 +75,11 @@ test('contact details are normalised for matching, empty ones left out', async (
   assert.deepEqual(matchingKeys({ name: 'Dana', phone: '', email: '' }), { fn: 'dana' });
   assert.deepEqual(matchingKeys({ name: "Anne-Marie O'Neil Cohen", phone: '0501234567' }), { fn: 'annemarie', ln: 'oneilcohen', ph: '972501234567', country: 'il' });
   assert.deepEqual(matchingKeys({ name: 'שרה בן-דוד', phone: '+44 7700 900123' }), { fn: 'שרה', ln: 'בןדוד', ph: '447700900123' });
+  // Typographic apostrophes and Hebrew punctuation are stripped too.
+  assert.deepEqual(matchingKeys({ name: 'O’Neil בן־דוד צ׳רלי' }), { fn: 'oneil', ln: 'בןדודצרלי' });
+  // An Israeli number typed without its leading 0 still gets the country code.
+  assert.deepEqual(matchingKeys({ phone: '501234567' }), { ph: '972501234567', country: 'il' });
+  assert.deepEqual(matchingKeys({ phone: '72-2345678' }), { ph: '972722345678', country: 'il' });
+  // Other 9-digit numbers are left alone.
+  assert.equal(matchingKeys({ phone: '412345678' }).ph, '412345678');
 });
