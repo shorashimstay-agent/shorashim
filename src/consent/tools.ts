@@ -7,10 +7,11 @@
 //   bump in shared/consentRules.js (re-asks everyone) and the policy's UPDATED date (content.ts);
 // - a list-only recipient (uses 'lists', customer-list uploads): one entry and the UPDATED date.
 // The policy's prose is generic (advertising platforms; pages and actions on the site; cookies and
-// device identifiers; measuring, improving and tailoring ads). It needs an edit, and an independent
-// legal-review round, when a tool goes beyond that: sending details the visitor typed (email or
-// phone: Advanced Matching, Conversions API, customer lists), session recording or heatmaps, a new
-// purpose, or a category that isn't advertising (e.g. analytics).
+// device identifiers; contact details from the booking form, hashed, such as name, phone and email;
+// measuring, improving and tailoring ads). It needs an edit, and an independent legal-review round,
+// when a tool goes beyond that: readable contact details, other typed fields (e.g. notes), the
+// Conversions API, customer-list uploads, session recording or heatmaps, a new purpose, or a
+// category that isn't advertising (e.g. analytics).
 import type { Lang } from '../legal/content';
 
 export type ToolUse = 'site' | 'lists';
