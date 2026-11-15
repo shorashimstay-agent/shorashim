@@ -349,3 +349,26 @@ test('a decided bride request shows its own hours, not its event\'s nights', () 
   assert.deepEqual(plain(ctx.decisionSpan_({ stayType: 'couple', start: '2026-11-19', end: '2026-11-21' })), { start: '2026-11-19T15:00', end: '2026-11-21T11:00' });
   assert.equal(ctx.decisionSpan_({ stayType: '', start: '2026-11-19', end: '2026-11-21' }), null);
 });
+
+test('the decisions list always fits the 9 KB script property', () => {
+  const ctx = load();
+  const entry = (i) => ({ at: new Date().toISOString(), result: 'approved', ref: `SH-${i}`, name: 'א'.repeat(80), phone: '0501234567', stayType: 'bride_day_wedding_night', start: '2030-01-01', end: '2030-01-03', whatsapp: 'https://wa.me/972501234567?text=' + encodeURIComponent('ש'.repeat(150)), campaignSource: 'מ'.repeat(40) });
+  const list = Array.from({ length: 25 }, (_, i) => entry(i));
+  const json = ctx.fitDecisions_(list);
+  assert.ok(ctx.utf8Bytes_(json) <= 8000, `stored ${ctx.utf8Bytes_(json)} bytes`);
+  const kept = JSON.parse(json);
+  assert.ok(kept.length >= 1 && kept.length < 25);
+  assert.equal(kept[0].ref, 'SH-0', 'the newest decisions are kept');
+});
+
+test('the campaign tag is its own property, and a booking keeps the request private', () => {
+  const ctx = load();
+  const props = ctx.requestProps_({ ref: 'SH-1' }, { source: 'meta', campaign: 'כלות' });
+  assert.equal(JSON.parse(props.request).ref, 'SH-1');
+  assert.deepEqual(JSON.parse(props.campaign), { source: 'meta', campaign: 'כלות' });
+  assert.equal(JSON.parse(props.request).campaign, undefined, 'the tag never grows the request property');
+  assert.equal(ctx.requestProps_({ ref: 'SH-2' }, null).campaign, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.bookingPrivate_('{"ref":"SH-1"}', '{"source":"meta"}'))), { request: '{"ref":"SH-1"}', campaign: '{"source":"meta"}' });
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.bookingPrivate_('{"ref":"SH-1"}', ''))), { request: '{"ref":"SH-1"}' });
+  assert.equal(ctx.campaignOf_('not json'), null);
+});

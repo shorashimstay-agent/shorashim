@@ -486,3 +486,36 @@ test('the Apps Script form of the module is plain globals that behave the same',
   assert.deepEqual(plain(globals.stayRange('bride_day', '2026-10-10', '')), stayRange('bride_day', '2026-10-10', ''));
   assert.equal(globals.validateRequest({ ...valid }, '2026-09-15', PRICES).value.estimate, validateRequest({ ...valid }, '2026-09-15', PRICES).value.estimate);
 });
+
+test('a campaign tag is cleaned, never refused', async () => {
+  const { cleanCampaign, campaignLabel } = await import('./rules.js');
+  assert.equal(cleanCampaign(undefined), null);
+  assert.equal(cleanCampaign('meta'), null);
+  assert.equal(cleanCampaign({ source: '  ', fbclid: 'x' }), null);
+  assert.deepEqual(cleanCampaign({ source: 'meta', medium: 'paid', campaign: 'כלות – אוקטובר (IL) 💍', content: 'וידאו<script>' }), {
+    source: 'meta',
+    medium: 'paid',
+    campaign: 'כלות – אוקטובר (IL) 💍',
+    content: 'וידאו script',
+  });
+  // Line breaks and quotes go; each value is cut to 40 characters, the whole tag to 120.
+  assert.equal(cleanCampaign({ source: 'a\nb"c' }).source, 'a b c');
+  const long = 'א'.repeat(60);
+  const c = cleanCampaign({ source: long, medium: long, campaign: long, content: long });
+  assert.equal([...c.source].length, 40);
+  assert.equal([...c.medium].length, 40);
+  assert.equal([...c.campaign].length, 40);
+  assert.equal(c.content, undefined);
+  assert.equal(campaignLabel({ source: 'meta', medium: 'paid', campaign: 'כלות', content: 'וידאו' }), 'meta / כלות / וידאו');
+  assert.equal(campaignLabel(null), '');
+});
+
+test('validateRequest returns the campaign tag outside the request', async () => {
+  const { validateRequest } = await import('./rules.js');
+  const r = validateRequest({ stayType: 'couple', checkIn: '2030-03-04', checkOut: '2030-03-06', adults: 2, name: 'בדיקה', phone: '0501234567', campaign: { source: 'meta' } }, '2030-01-01', { couple_weekday: 900, couple_weekend: 1100 });
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.deepEqual(r.campaign, { source: 'meta' });
+  assert.equal(r.value.campaign, undefined);
+  const plain = validateRequest({ stayType: 'couple', checkIn: '2030-03-04', checkOut: '2030-03-06', adults: 2, name: 'בדיקה', phone: '0501234567' }, '2030-01-01', null);
+  assert.equal(plain.campaign, null);
+});

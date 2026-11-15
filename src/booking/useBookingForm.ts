@@ -6,6 +6,7 @@ import { BRAND_DATA } from '../data/shorashimData';
 import { bookingApiEnabled, checkDates, fetchAvailability, submitBookingRequest, type Availability } from '../lib/bookingApi';
 import { preloadRecaptcha, recaptchaToken } from '../lib/recaptcha';
 import { trackInitiateCheckout, trackLead } from '../lib/marketingEvents';
+import { landingCampaign } from '../lib/campaign';
 import {
   addDays,
   DAY_PARTICIPANT_TYPES,
@@ -409,6 +410,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       notes: notes.trim(),
       website,
       recaptchaToken: token,
+      ...(landingCampaign() ? { campaign: landingCampaign()! } : {}),
     });
 
     if (result.ok) {

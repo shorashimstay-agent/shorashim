@@ -828,7 +828,8 @@ function setup() {
 // the פעולה column and then ticking ביצוע (the tick is the confirmation, and works on phones).
 
 var ADMIN_TABS = { requests: 'בקשות', bookings: 'הזמנות', channels: 'ערוצים', cancellations: 'ביטולים' };
-var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה'];
+// 'מקור' (the ad campaign) comes after the hidden ID column, so ID_COL and ACTION_COL stay put.
+var REQUEST_COLUMNS = ['מספר בקשה', 'סטטוס', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'אורחים', 'שם', 'טלפון', 'אימייל', 'הערות', 'הערכת מחיר', 'התקבלה', 'פעולה', 'ביצוע', 'WhatsApp', 'מזהה', 'מקור'];
 var BOOKING_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות', 'מקור', 'סוג אירוח', 'אורחים', 'טלפון', 'אימייל', 'הערות', 'מספר', 'WhatsApp'];
 var CHANNEL_COLUMNS = ['כותרת', 'הגעה', 'עזיבה', 'לילות'];
 var CANCEL_COLUMNS = ['בוטלה', 'מספר', 'שם', 'טלפון', 'אימייל', 'סוג אירוח', 'הגעה', 'עזיבה', 'לילות', 'מחיר (באתר: הערכה)', 'אושרה', 'ביוזמת', 'דמי ביטול לפי התנאים', 'סיבה', 'מייל ביטול לאורח', 'מזהה'];
@@ -904,13 +905,35 @@ function sheetLink_(url, label) {
   return url ? '=HYPERLINK("' + url + '","' + label + '")' : '';
 }
 
-function recordDecision_(result, req, whatsapp) {
+/** A script property holds at most 9 KB; the decisions list stays well under it. */
+var DECISIONS_MAX_BYTES = 8000;
+
+/** UTF-8 size of a string (Hebrew letters take two bytes). */
+function utf8Bytes_(s) {
+  return unescape(encodeURIComponent(s)).length;
+}
+
+/**
+ * The decisions list as stored: the newest first, at most 25, and dropping the oldest until it fits
+ * the property size limit (an overflow would throw after the booking was already made).
+ */
+function fitDecisions_(list) {
+  var kept = list.slice(0, 25);
+  var json = JSON.stringify(kept);
+  while (kept.length > 1 && utf8Bytes_(json) > DECISIONS_MAX_BYTES) {
+    kept.pop();
+    json = JSON.stringify(kept);
+  }
+  return json;
+}
+
+function recordDecision_(result, req, whatsapp, campaignSource) {
   var props = PropertiesService.getScriptProperties();
   var cutoff = Date.now() - DECISION_DAYS * 86400000;
   var list = JSON.parse(props.getProperty(DECISIONS_KEY) || '[]').filter(function (d) {
     return Date.parse(d.at) > cutoff;
   });
-  list.unshift({
+  var entry = {
     at: new Date().toISOString(),
     result: result,
     ref: req.ref,
@@ -920,8 +943,27 @@ function recordDecision_(result, req, whatsapp) {
     start: req.start,
     end: req.end,
     whatsapp: whatsapp,
-  });
-  props.setProperty(DECISIONS_KEY, JSON.stringify(list.slice(0, 25)));
+  };
+  if (campaignSource) entry.campaignSource = String(campaignSource).slice(0, 40);
+  list.unshift(entry);
+  props.setProperty(DECISIONS_KEY, fitDecisions_(list));
+}
+
+/** A website booking's private properties: the request and, when there is one, the campaign tag. */
+function bookingPrivate_(request, campaignRaw) {
+  var priv = { request: request };
+  if (campaignOf_(campaignRaw)) priv.campaign = campaignRaw;
+  return priv;
+}
+
+/** The campaign tag stored on a calendar event (its own property), or null. */
+function campaignOf_(raw) {
+  try {
+    var c = raw ? JSON.parse(raw) : null;
+    return c && typeof c === 'object' ? c : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 /** Removes the given request numbers from the recent-decisions list (e.g. test requests) and rewrites the sheets. */
@@ -1006,6 +1048,7 @@ function adminData_() {
       estimate: req.estimate || 0,
       createdAt: createdAt,
       whatsapp: req.phone ? waLink_(req.phone, 'שלום ' + req.name + ', קיבלנו את בקשת ההזמנה שלך בשורשים') : '',
+      campaign: campaignLabel(campaignOf_(props.campaign)),
     };
   });
   var cutoff = now - DECISION_DAYS * 86400000;
@@ -1027,6 +1070,7 @@ function adminData_() {
         nights: STAY_TYPES[d.stayType] && STAY_TYPES[d.stayType].wedding ? stayNights(d.stayType, '', '') : daysBetween(d.start, d.end),
         stay: decisionSpan_(d),
         whatsapp: d.whatsapp || '',
+        campaignSource: d.campaignSource || '',
       };
     });
   var bookings = lists.bookings.map(function (item) {
@@ -1129,6 +1173,7 @@ function syncAdminSheet_() {
       false,
       sheetLink_(r.whatsapp, 'WhatsApp'),
       r.id,
+      text_(r.campaign),
     ];
   });
   var decided = data.decisions.map(function (d) {
@@ -1151,6 +1196,7 @@ function syncAdminSheet_() {
       '',
       sheetLink_(d.whatsapp, approved ? 'שליחת אישור ב-WhatsApp' : 'שליחת דחייה ב-WhatsApp'),
       '',
+      text_(d.campaignSource),
     ];
   });
   writeTab_(requests, REQUEST_COLUMNS.length, pending.concat(decided));
@@ -1505,7 +1551,8 @@ function closingEvent_(c, ref) {
     estimate: c.price,
     ref: ref,
   };
-  props.request = JSON.stringify(req);
+  // Private: the guest may be invited, and attendees can see shared properties.
+  priv.request = JSON.stringify(req);
   var booking = {
     summary: 'שורשים · ' + c.name,
     description: guestDescription_(req),
@@ -1906,10 +1953,11 @@ function createRequestOnce_(body) {
     eventId = calendarCall_(
       calendarRequest_('requests', 'post', '', { fields: 'iCalUID' }, {
         summary: '⏳ ' + req.name + ' · ' + STAY_TYPES[req.stayType].label,
-        description: ownerLines_(req).join('\n'),
+        description: ownerLines_(req, check.campaign).join('\n'),
         start: { date: req.start },
         end: { date: req.end },
-        extendedProperties: { shared: { request: JSON.stringify(req), createdAt: new Date().toISOString(), status: 'pending' } },
+        // The campaign tag is its own property, so it never grows the request's.
+        extendedProperties: { shared: requestProps_(req, check.campaign) },
       })
     ).iCalUID;
     mark('createEvent');
@@ -1923,7 +1971,7 @@ function createRequestOnce_(body) {
   scheduleMirrorRefresh_();
   mark('scheduleRefresh');
   try {
-    notifyOwner_(eventId, req);
+    notifyOwner_(eventId, req, check.campaign);
   } catch (err) {
     console.error('owner notification failed', err);
   }
@@ -1933,6 +1981,7 @@ function createRequestOnce_(body) {
   logEvent_('request.created', {
     ref: req.ref, id: eventId, start: req.start, end: req.end, nights: req.nights, stayType: req.stayType,
     adults: req.adults, participants: req.participants, estimate: req.estimate, ms: timings.total,
+    campaignSource: check.campaign ? check.campaign.source || '' : '',
   }, 'guest');
   return { ok: true, ref: req.ref, holdHours: HOLD_HOURS, start: req.start, end: req.end, timings: timings };
 }
@@ -2010,7 +2059,14 @@ function fridayNote_(date) {
   return new Date(toDayNumber(date) * 86400000).getUTCDay() === 5 ? 'בשישי אפשר גם מ-' + PREP_FRIDAY_START + ' בתיאום' : '';
 }
 
-function ownerLines_(req) {
+/** The request event's properties: the request, its state, and the campaign tag when there is one. */
+function requestProps_(req, campaign) {
+  var props = { request: JSON.stringify(req), createdAt: new Date().toISOString(), status: 'pending' };
+  if (campaign) props.campaign = JSON.stringify(campaign);
+  return props;
+}
+
+function ownerLines_(req, campaign) {
   var lines = stayLines_(req);
   if (STAY_TYPES[req.stayType].wedding) {
     var span = requestSpan(req);
@@ -2024,6 +2080,7 @@ function ownerLines_(req) {
   lines.push('טלפון: ' + req.phone);
   if (req.email) lines.push('אימייל: ' + req.email);
   if (req.notes) lines.push('הערות: ' + req.notes);
+  if (campaign) lines.push('מקור: ' + campaignLabel(campaign));
   lines.push('מספר בקשה: ' + req.ref);
   return lines;
 }
@@ -2069,8 +2126,8 @@ function consoleRequestUrl_(eventId, ref) {
   return CONSOLE_URL + '?request=' + encodeURIComponent(eventId) + '&ref=' + encodeURIComponent(ref);
 }
 
-function notifyOwner_(eventId, req) {
-  var rows = ownerLines_(req)
+function notifyOwner_(eventId, req, campaign) {
+  var rows = ownerLines_(req, campaign)
     .map(function (line) {
       return '<div>' + esc_(line) + '</div>';
     })
@@ -2088,7 +2145,7 @@ function notifyOwner_(eventId, req) {
   MailApp.sendEmail({
     to: CONFIG.notifyEmail || CONFIG.ownerEmail,
     subject: 'בקשת הזמנה ' + req.ref + ': ' + stayDatesShort_(req) + ' · ' + req.name,
-    body: ownerLines_(req).join('\n') + '\n\nלאישור או דחייה: ' + consoleRequestUrl_(eventId, req.ref),
+    body: ownerLines_(req, campaign).join('\n') + '\n\nלאישור או דחייה: ' + consoleRequestUrl_(eventId, req.ref),
     htmlBody: html,
     name: 'שורשים – הזמנות',
   });
@@ -2127,7 +2184,7 @@ function decisionState_(id, sig) {
   return {
     status: 'open',
     ref: req.ref,
-    lines: ownerLines_(req),
+    lines: ownerLines_(req, campaignOf_(ev.getTag('campaign'))),
     expired: ev.getTag('status') !== 'pending' || !isHoldActive(ev.getTag('createdAt'), Date.now()),
     conflicts: conflictsFor_(requestSpan(req), { excludeId: id }).map(heDate_),
   };
@@ -2179,12 +2236,15 @@ function decideOnce_(action, id) {
     if (!ev) return { ok: false, error: 'not_found' };
     var req = JSON.parse(ev.getTag('request') || '{}');
     if (!req.stayType) return { ok: false, error: 'not_found' };
+    var campaignRaw = ev.getTag('campaign');
+    var campaign = campaignOf_(campaignRaw);
+    var campaignSource = campaign ? campaign.source || '' : '';
 
     if (action === 'decline') {
       ev.deleteEvent();
       invalidateAvailability_();
       var declineLink = waLink_(req.phone, 'שלום ' + req.name + ', תודה על הפנייה לשורשים. לצערנו התאריכים שביקשת אינם פנויים. נשמח לעזור למצוא מועד אחר.');
-      recordDecision_('declined', req, declineLink);
+      recordDecision_('declined', req, declineLink, campaignSource);
       return { ok: true, result: 'declined', whatsapp: declineLink, ref: req.ref, start: req.start, end: req.end, nights: req.nights };
     }
 
@@ -2197,14 +2257,16 @@ function decideOnce_(action, id) {
       location: ADDRESS,
       start: { date: req.start },
       end: { date: req.end },
-      extendedProperties: { shared: { request: ev.getTag('request'), source: 'website' } },
+      // The guest is invited to this event and attendees can see shared properties: the request
+      // (name, phone, notes) and the campaign tag are private, readable only from this account.
+      extendedProperties: { shared: { source: 'website' }, private: bookingPrivate_(ev.getTag('request'), campaignRaw) },
     };
     if (req.email) booking.attendees = [{ email: req.email }];
     calendarCall_(calendarRequest_('bookings', 'post', '', { sendUpdates: req.email ? 'all' : 'none', fields: 'id' }, booking));
     ev.deleteEvent();
     invalidateAvailability_();
     var approveLink = waLink_(req.phone, 'שלום ' + req.name + ', ההזמנה שלך בשורשים אושרה (' + stayDatesShort_(req) + '). מחכים לכם!');
-    recordDecision_('approved', req, approveLink);
+    recordDecision_('approved', req, approveLink, campaignSource);
     return { ok: true, result: 'approved', invited: !!req.email, whatsapp: approveLink, ref: req.ref, start: req.start, end: req.end, nights: req.nights };
   } finally {
     lock.releaseLock();

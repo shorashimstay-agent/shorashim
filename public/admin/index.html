@@ -504,7 +504,8 @@
       '<div><dt>אורחים</dt><dd>' + [adultsText(r.adults), participantsText(r.participants), nightsText(r.nights)].filter(Boolean).join(' · ') + '</dd></div>' +
       '<div><dt>הערכת מחיר</dt><dd>' + money(r.estimate) + '</dd></div>' +
       '<div><dt>טלפון</dt><dd><a href="tel:' + esc(r.phone) + '" dir="ltr">' + esc(r.phone) + '</a></dd></div>' +
-      '<div><dt>אימייל</dt><dd dir="ltr">' + (r.email ? esc(r.email) : '—') + '</dd></div></dl>' +
+      '<div><dt>אימייל</dt><dd dir="ltr">' + (r.email ? esc(r.email) : '—') + '</dd></div>' +
+      (r.campaign ? '<div><dt>מקור</dt><dd>' + esc(r.campaign) + '</dd></div>' : '') + '</dl>' +
       (r.notes ? '<div class="note">' + esc(r.notes) + '</div>' : '') +
       (conflict ? '<p class="warnline">⚠ הלילות ' + r.conflicts.map(heFull).join(', ') + ' כבר תפוסים. אפשר רק לדחות.</p>' : '') +
       '<div class="row" style="margin-bottom:10px">' + holdText(r) + '</div>';
@@ -574,7 +575,7 @@
           var approved = x.result === 'approved';
           var at = new Date(x.at);
           return '<li class="item" data-decision-ref="' + esc(x.ref) + '"><div class="date"><b>' + at.getDate() + '</b><span>' + MONTHS[at.getMonth()].slice(0, 3) + '׳</span></div>' +
-            '<div><p class="who">' + esc(x.name) + '</p><p class="what">' + stayText(x) + ' · ' + esc(x.stayLabel) + '</p></div>' +
+            '<div><p class="who">' + esc(x.name) + '</p><p class="what">' + stayText(x) + ' · ' + esc(x.stayLabel) + (x.campaignSource ? ' · מקור: ' + esc(x.campaignSource) : '') + '</p></div>' +
             '<div class="side"><span class="pill ' + (approved ? 'ok' : 'bad') + '">' + (approved ? 'אושרה' : 'נדחתה') + '</span>' +
             (x.whatsapp ? '<a class="btn wa icon" href="' + esc(x.whatsapp) + '" target="_blank" rel="noopener" aria-label="' + (approved ? 'שליחת אישור' : 'שליחת דחייה') + ' ב-WhatsApp ל' + esc(x.name) + '">' + waIcon() + '</a>' : '') + '</div></li>';
         }).join('')
