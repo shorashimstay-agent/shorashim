@@ -196,9 +196,17 @@ test('the #booking flow sends one InitiateCheckout, then one Lead with a random 
     ln: sha('אוטומטית'),
     country: sha('il'),
   });
+  expect(calls[leadAt - 1][0], 'the contact details are given right before the Lead').toBe('init');
   expect(calls.slice(0, leadAt - 1).some((c) => c[0] === 'init' && c[2]), 'no contact details before the request is sent').toBe(false);
   const text = JSON.stringify(calls);
-  for (const secret of ['SH-CI000', '0501234567', '972501234567', 'ci@example.com', 'בדיקה', 'CI']) expect(text, `${secret} must never reach Meta in readable form`).not.toContain(`"${secret}"`);
+  for (const secret of ['SH-CI000', '0501234567', '972501234567', '050-123', 'ci@example.com', 'בדיקה אוטומטית', 'בדיקה', 'אוטומטית']) expect(text, `${secret} must never reach Meta in readable form`).not.toContain(secret);
+  // A second guest on the same page: Meta's script would keep the first guest's details, so nothing
+  // more is sent until the page reloads.
+  await page.getByRole('button', { name: 'שליחת בקשה נוספת' }).click();
+  await submitBooking(page, { ...guest(addDays(israelToday(), 60)), name: 'אורח שני', phone: '0527654321', email: 'second@example.com' });
+  const after = await fbqCalls(page);
+  expect(tracks(after, 'Lead'), 'a second request on the same page must not go with the first guest\'s details').toHaveLength(1);
+  expect(JSON.stringify(after)).not.toContain(createHash('sha256').update('second@example.com').digest('hex'));
 });
 
 test('the booking bar flow sends InitiateCheckout once per date choice', async ({ page, context }) => {

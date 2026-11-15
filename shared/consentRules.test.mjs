@@ -72,6 +72,7 @@ test('contact details are normalised for matching, empty ones left out', async (
   assert.equal(matchingKeys({ phone: '+972 50-123-4567' }).ph, '972501234567');
   assert.equal(matchingKeys({ phone: '00972501234567' }).ph, '972501234567');
   assert.equal(matchingKeys({ phone: '+972 050 1234567' }).ph, '972501234567');
-  assert.deepEqual(matchingKeys({ name: 'Dana', phone: '', email: '' }), { fn: 'dana', country: 'il' });
-  assert.deepEqual(matchingKeys({ name: 'Anne-Marie O’Neil Cohen' }), { fn: 'anne-marie', ln: 'o neil cohen', country: 'il' });
+  assert.deepEqual(matchingKeys({ name: 'Dana', phone: '', email: '' }), { fn: 'dana' });
+  assert.deepEqual(matchingKeys({ name: "Anne-Marie O'Neil Cohen", phone: '0501234567' }), { fn: 'annemarie', ln: 'oneilcohen', ph: '972501234567', country: 'il' });
+  assert.deepEqual(matchingKeys({ name: 'שרה בן-דוד', phone: '+44 7700 900123' }), { fn: 'שרה', ln: 'בןדוד', ph: '447700900123' });
 });

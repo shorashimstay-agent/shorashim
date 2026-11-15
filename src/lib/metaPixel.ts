@@ -27,6 +27,11 @@ declare global {
 
 // Set when the loader stub is installed, not when Meta's script arrives: with an ad blocker the
 // script never loads, and a withdrawal then reloads (or asks) for nothing. Harmless.
+// fbevents keeps the first contact details given with init for the rest of the page and ignores
+// later ones, so after one matched Lead the pixel is sealed: a second guest booking on the same page
+// must not be sent with the first guest's details. It reopens on the next page load.
+let matched = false;
+let sealed = false;
 let loaded = false;
 let revoked = false;
 
@@ -61,6 +66,11 @@ export function loadMetaPixel(): void {
   document.head.appendChild(script);
 }
 
+/** After a matched event, nothing more is sent from this page (see `matched` above). */
+export function sealMetaPixel(): void {
+  if (matched) sealed = true;
+}
+
 /** Stops the loaded pixel at once (Meta's consent API). It stays stopped until the page reloads. */
 export function revokeMetaPixel(): void {
   if (!loaded || revoked) return;
@@ -78,9 +88,10 @@ export function revokeMetaPixel(): void {
  * the pixel is loaded, live and consented to.
  */
 export function setMetaMatching(hashed: Record<string, string>): boolean {
-  if (!loaded || revoked || !window.fbq || getMarketingConsent() !== 'granted' || !Object.keys(hashed).length) return false;
+  if (!loaded || revoked || sealed || matched || !window.fbq || getMarketingConsent() !== 'granted' || !Object.keys(hashed).length) return false;
   try {
     window.fbq('init', PIXEL_ID, hashed);
+    matched = true;
     return true;
   } catch {
     return false;
@@ -89,7 +100,7 @@ export function setMetaMatching(hashed: Record<string, string>): boolean {
 
 /** Sends a standard event if the pixel is loaded, live and still consented to; true when sent. */
 export function trackMeta(event: string, params: Record<string, unknown>, eventID?: () => string): boolean {
-  if (!loaded || revoked || !window.fbq || getMarketingConsent() !== 'granted') return false;
+  if (!loaded || revoked || sealed || !window.fbq || getMarketingConsent() !== 'granted') return false;
   // Marketing must never break the page: any failure here is swallowed.
   try {
     if (eventID) window.fbq('track', event, params, { eventID: eventID() });
