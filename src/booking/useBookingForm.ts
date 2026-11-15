@@ -414,7 +414,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     if (result.ok) {
       const { ref, holdHours } = result;
       // Marketing (only with consent): once per accepted request; never for the honeypot's fake success.
-      if (!website) trackLead(ref, stayType);
+      if (!website) void trackLead(ref, stayType, { name: fullName, phone, email });
       setSubmission({ state: 'sent', ref, holdHours });
       setAnnouncement('');
       // The success panel replaces the form; move focus to it so nobody is left on a vanished button.

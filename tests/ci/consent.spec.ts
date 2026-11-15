@@ -1,6 +1,7 @@
 // The cookie banner and the marketing pixel (src/consent/, src/lib/consent.ts, src/lib/metaPixel.ts).
 // The CI build lets the pixel load on localhost with a dummy id (playwright.ci.config.ts), and every
 // request to Meta is answered by a stub that records the calls, so nothing ever reaches Meta.
+import { createHash } from 'node:crypto';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { FAKE_API } from '../../playwright.ci.config';
 import { addDays } from '../../shared/rules.js';
@@ -171,7 +172,7 @@ test('accepting loads the pixel with no user data and no automatic events', asyn
   await expect(banner(page)).toHaveCount(0);
 });
 
-test('the #booking flow sends one InitiateCheckout, then one Lead with a random id and no form data', async ({ page, context }) => {
+test('the #booking flow sends one InitiateCheckout, then one Lead with a random id and the contact details only hashed', async ({ page, context }) => {
   await stubMeta(context);
   await fakeBackend(context);
   await openBooking(page);
@@ -183,8 +184,21 @@ test('the #booking flow sends one InitiateCheckout, then one Lead with a random 
   const lead = tracks(calls, 'Lead')[0];
   expect(lead[2]).toEqual({ content_category: 'couple' });
   expect((lead[3] as { eventID: string }).eventID).toMatch(/^[0-9a-f-]{36}$/);
+  // Advanced matching: just before the Lead, the pixel gets the contact details as SHA-256 hashes.
+  const sha = (v: string) => createHash('sha256').update(v).digest('hex');
+  const leadAt = calls.findIndex((c) => c[0] === 'track' && c[1] === 'Lead');
+  const matching = calls.slice(0, leadAt).filter((c) => c[0] === 'init' && c[2]);
+  expect(matching, 'the Lead must come with the hashed contact details').toHaveLength(1);
+  expect(matching[0][2]).toEqual({
+    em: sha('ci@example.com'),
+    ph: sha('972501234567'),
+    fn: sha('בדיקה'),
+    ln: sha('אוטומטית'),
+    country: sha('il'),
+  });
+  expect(calls.slice(0, leadAt - 1).some((c) => c[0] === 'init' && c[2]), 'no contact details before the request is sent').toBe(false);
   const text = JSON.stringify(calls);
-  for (const secret of ['SH-CI000', '0501234567', 'ci@example.com', 'בדיקה אוטומטית']) expect(text, `${secret} must never reach Meta`).not.toContain(secret);
+  for (const secret of ['SH-CI000', '0501234567', '972501234567', 'ci@example.com', 'בדיקה', 'CI']) expect(text, `${secret} must never reach Meta in readable form`).not.toContain(`"${secret}"`);
 });
 
 test('the booking bar flow sends InitiateCheckout once per date choice', async ({ page, context }) => {
