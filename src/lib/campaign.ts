@@ -1,6 +1,7 @@
-// The ad campaign that brought the visitor, from the link's utm_* parameters. Kept in memory only:
-// nothing is written to the visitor's device, so no consent is needed. It is sent with a booking
-// request and stays with Shorashim (the privacy policy says so); nothing goes to an ad platform.
+// The ad campaign that brought the visitor, from the link's utm_* parameters: campaign labels we
+// wrote into our own ad links, not identifiers of the visitor or the device, and nothing is stored on
+// the device, so no cookie consent is needed. Kept in memory; sent only with a booking request and
+// kept by Shorashim (the privacy policy says so); nothing goes to an ad platform.
 // fbclid and other parameters are ignored.
 
 export interface Campaign {

@@ -216,7 +216,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'אין חובה חוקית למסור לנו מידע. בלי שם ומספר טלפון לא נוכל לטפל בבקשת ההזמנה.',
             'איננו מבקשים ואיננו שומרים פרטי תשלום.',
             'אם תאשרו זאת בבאנר העוגיות, נאסף גם מידע על השימוש באתר, ופרטי הקשר שמסרתם יכולים לעבור בצורה מגובבת, באמצעות כלי שיווק ופרסום (ראו "שיווק ופרסום"). בלי אישורכם, כלים אלה אינם מופעלים.',
-            'אם הגעתם אלינו מקישור של מודעה או קמפיין, מזהי הקמפיין שבקישור נשמרים עם בקשת ההזמנה, בלי קשר לבחירת העוגיות. הם נשארים אצלנו ואינם מועברים לאיש.',
+            'אם הגעתם אלינו מקישור של מודעה או קמפיין, מזהי הקמפיין שבקישור נשמרים עם בקשת ההזמנה, בלי קשר לבחירת העוגיות. הם נשארים אצלנו ואינם מועברים לפלטפורמות הפרסום או לגורמים אחרים.',
           ],
         },
         {
@@ -250,7 +250,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'כמה זמן המידע נשמר',
           body: [
             'בקשה שנדחתה נמחקת מהיומן מיד עם הדחייה. בקשה שאושרה הופכת להזמנה ביומן, ונשמרת כל עוד היא נדרשת לניהול האירוח ולחובותינו לפי דין, למשל לצורכי הנהלת חשבונות.',
-            'לצורך מניעת ספאם, מספר הטלפון נשמר זמנית במערכת עד 6 שעות לאחר שליחת הבקשה. פרטי ההחלטה על בקשה (שם, טלפון ותאריכים) מוצגים בגיליון הניהול שלנו עד 3 ימים.',
+            'לצורך מניעת ספאם, מספר הטלפון נשמר זמנית במערכת עד 6 שעות לאחר שליחת הבקשה. פרטי ההחלטה על בקשה (שם, טלפון, תאריכים ומקור הקמפיין) מוצגים בגיליון הניהול שלנו עד 3 ימים.',
             'תקופות השמירה של כלי השיווק והפרסום מפורטות בסעיף שלהם.',
           ],
         },
@@ -327,7 +327,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
             'You have no legal duty to give us any information. Without a name and phone number we cannot handle a booking request.',
             'We do not ask for or store payment details.',
             'If you accept it in the cookie banner, information about your use of the site is also collected, and the contact details you gave may be passed on in hashed form, by marketing and advertising tools (see "Marketing and advertising"). Without your consent, these tools do not run.',
-            'If you reached us through a link from an ad or campaign, the campaign identifiers in that link are saved with your booking request, whatever your cookie choice. They stay with us and are never passed on.',
+            'If you reached us through a link from an ad or campaign, the campaign identifiers in that link are saved with your booking request, whatever your cookie choice. They stay with us and are not passed on to advertising platforms or anyone else.',
           ],
         },
         {
@@ -361,7 +361,7 @@ export const DOCS: Record<PageId, Record<Lang, LegalDoc>> = {
           heading: 'How long we keep it',
           body: [
             'A declined request is deleted from our calendar as soon as it is declined. An approved request becomes a booking in our calendar and is kept for as long as we need it to manage the stay and to meet our legal obligations, such as accounting.',
-            'To prevent spam, your phone number is kept temporarily for up to 6 hours after you send a request. The details of a decision on a request (name, phone and dates) are shown in our admin sheet for up to 3 days.',
+            'To prevent spam, your phone number is kept temporarily for up to 6 hours after you send a request. The details of a decision on a request (name, phone, dates and campaign source) are shown in our admin sheet for up to 3 days.',
             'How long the marketing and advertising tools keep information is set out in their section.',
           ],
         },

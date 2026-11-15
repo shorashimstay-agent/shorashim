@@ -27,7 +27,7 @@ var LOG_STRING_MAX = 100;
 var LOG_FIELDS = [
   'ref', 'id', 'start', 'end', 'nights', 'stayType', 'adults', 'participants', 'kind', 'result', 'error',
   'by', 'fee', 'band', 'estimate', 'emailed', 'invited', 'hours', 'expiresAt', 'ok', 'ms', 'why', 'where', 'action',
-  'message', 'counts',
+  'message', 'counts', 'campaignSource',
 ];
 // Top-level, indexed fields; the rest of an event goes in its unindexed `data` map.
 var LOG_INDEXED = ['type', 'actor', 'ref', 'id'];
