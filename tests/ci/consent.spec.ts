@@ -208,6 +208,8 @@ test('the #booking flow sends one InitiateCheckout, then one Lead with a random 
   await fakeBackend(context, { ok: true, ref: 'SH-CI001', holdHours: 24 });
   await page.getByRole('button', { name: 'שליחת בקשה נוספת' }).click();
   await submitBooking(page, { ...guest(addDays(israelToday(), 60)), name: 'אורח שני', phone: '0527654321', email: 'second@example.com' });
+  // trackLead hashes asynchronously after the success screen: give a stray Lead time to arrive.
+  await page.waitForTimeout(500);
   const after = await fbqCalls(page);
   expect(tracks(after, 'Lead'), 'a second request on the same page must not go with the first guest\'s details').toHaveLength(1);
   expect(JSON.stringify(after)).not.toContain(createHash('sha256').update('second@example.com').digest('hex'));
@@ -584,8 +586,8 @@ test('a Lead sent without matching does not stop the next one from being matched
   await fakeBackend(context, { ok: true, ref: 'SH-CI002', holdHours: 24 });
   await page.getByRole('button', { name: 'שליחת בקשה נוספת' }).click();
   await submitBooking(page, { ...guest(addDays(israelToday(), 60)), name: 'אורח שני', phone: '501234567', email: 'second@example.com' });
+  await expect.poll(async () => tracks(await fbqCalls(page), 'Lead').length, { message: 'the second request is a Lead' }).toBe(1);
   const calls = await fbqCalls(page);
-  expect(tracks(calls, 'Lead'), 'the second request is a Lead').toHaveLength(1);
   const matching = calls.filter((c) => c[0] === 'init' && c[2]);
   expect(matching, 'and it is matched').toHaveLength(1);
   // A mobile typed without its leading 0 still goes with the country code.
