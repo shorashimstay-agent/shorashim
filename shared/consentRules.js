@@ -72,3 +72,31 @@ export function cookieDeletions(name, hostname) {
   if (labels.length > 2) out.push(`${expire}; domain=.${labels.join('.')}`);
   return out;
 }
+
+/**
+ * The guest's contact details, normalised as Meta's advanced matching expects (before hashing):
+ * email trimmed and lower-cased; phone as digits with the country code (972…); first and last name
+ * lower-cased, without punctuation; country "il". Empty values are left out.
+ * @param {{ name?: string, phone?: string, email?: string }} contact
+ * @returns {Record<string, string>}
+ */
+export function matchingKeys(contact) {
+  /** @type {Record<string, string>} */
+  const keys = {};
+  const email = String(contact?.email || '').trim().toLowerCase();
+  if (email) keys.em = email;
+  let phone = String(contact?.phone || '').replace(/\D/g, '');
+  if (phone.startsWith('00')) phone = phone.slice(2);
+  if (phone.startsWith('0')) phone = `972${phone.slice(1)}`;
+  if (phone.startsWith('9720')) phone = `972${phone.slice(4)}`;
+  if (phone) keys.ph = phone;
+  const words = String(contact?.name || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\s'-]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length) keys.fn = words[0];
+  if (words.length > 1) keys.ln = words.slice(1).join(' ');
+  keys.country = 'il';
+  return keys;
+}

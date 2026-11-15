@@ -1,6 +1,7 @@
 // The Meta Pixel, loaded only after the visitor accepts (src/lib/consent.ts) and only on the hosts in
 // VITE_META_PIXEL_HOSTS (default: the production domain), so staging, CI and local builds never send
-// anything to Meta. No <noscript> image, no Advanced Matching, no automatic event collection.
+// anything to Meta. No <noscript> image and no automatic event collection. With the Lead, the guest's
+// contact details go to Meta hashed (manual advanced matching), as the privacy policy says.
 import { isPixelHost, parseHosts } from '../../shared/consentRules.js';
 import { getMarketingConsent } from './consent';
 
@@ -68,6 +69,21 @@ export function revokeMetaPixel(): void {
     window.fbq?.('consent', 'revoke');
   } catch {
     // Our own track() check already sends nothing once revoked.
+  }
+}
+
+/**
+ * Gives the pixel the guest's hashed contact details (Meta's manual advanced matching), for the
+ * events that follow. Values must already be SHA-256 hashes; nothing readable is passed. Only while
+ * the pixel is loaded, live and consented to.
+ */
+export function setMetaMatching(hashed: Record<string, string>): boolean {
+  if (!loaded || revoked || !window.fbq || getMarketingConsent() !== 'granted' || !Object.keys(hashed).length) return false;
+  try {
+    window.fbq('init', PIXEL_ID, hashed);
+    return true;
+  } catch {
+    return false;
   }
 }
 

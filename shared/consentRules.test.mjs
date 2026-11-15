@@ -59,3 +59,19 @@ test('cookie deletion covers host-only and the registrable domain', () => {
     '_fbc=; Max-Age=0; path=/; domain=.www.shorashimstay.com',
   ]);
 });
+
+test('contact details are normalised for matching, empty ones left out', async () => {
+  const { matchingKeys } = await import('./consentRules.js');
+  assert.deepEqual(matchingKeys({ name: '  בדיקה  אוטומטית ', phone: '050-123 4567', email: ' CI@Example.COM ' }), {
+    em: 'ci@example.com',
+    ph: '972501234567',
+    fn: 'בדיקה',
+    ln: 'אוטומטית',
+    country: 'il',
+  });
+  assert.equal(matchingKeys({ phone: '+972 50-123-4567' }).ph, '972501234567');
+  assert.equal(matchingKeys({ phone: '00972501234567' }).ph, '972501234567');
+  assert.equal(matchingKeys({ phone: '+972 050 1234567' }).ph, '972501234567');
+  assert.deepEqual(matchingKeys({ name: 'Dana', phone: '', email: '' }), { fn: 'dana', country: 'il' });
+  assert.deepEqual(matchingKeys({ name: 'Anne-Marie O’Neil Cohen' }), { fn: 'anne-marie', ln: 'o neil cohen', country: 'il' });
+});
