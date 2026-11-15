@@ -1,7 +1,7 @@
 // The booking funnel's marketing events. Each is sent only if the visitor consented and the pixel
 // is live (trackMeta checks both); nothing is queued for later.
 import { matchingKeys } from '../../shared/consentRules.js';
-import { setMetaMatching, trackMeta } from './metaPixel';
+import { sealMetaPixel, setMetaMatching, trackMeta } from './metaPixel';
 
 const initiated = new Set<string>();
 const leads = new Set<string>();
@@ -57,8 +57,11 @@ export async function trackLead(ref: string, stayType: string, contact?: LeadCon
     leads.add(ref);
     if (contact) setMetaMatching(await hashAll(matchingKeys(contact)));
     trackMeta('Lead', { content_category: stayType }, randomId);
+    // The pixel now carries this guest's details for the rest of the page: send nothing more.
+    sealMetaPixel();
   } catch {
-    // Marketing never breaks the booking flow; the Lead still goes without matching if hashing fails.
+    // Runs only if hashing throws: the Lead still goes, without matching. Marketing never breaks the
+    // booking flow.
     try {
       trackMeta('Lead', { content_category: stayType }, randomId);
     } catch {

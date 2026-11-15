@@ -76,7 +76,8 @@ export function cookieDeletions(name, hostname) {
 /**
  * The guest's contact details, normalised as Meta's advanced matching expects (before hashing):
  * email trimmed and lower-cased; phone as digits with the country code (972…); first and last name
- * lower-cased, without punctuation; country "il". Empty values are left out.
+ * lower-cased, without whitespace or punctuation; country "il" for an Israeli phone. Empty values are
+ * left out.
  * @param {{ name?: string, phone?: string, email?: string }} contact
  * @returns {Record<string, string>}
  */
@@ -90,13 +91,17 @@ export function matchingKeys(contact) {
   if (phone.startsWith('0')) phone = `972${phone.slice(1)}`;
   if (phone.startsWith('9720')) phone = `972${phone.slice(4)}`;
   if (phone) keys.ph = phone;
+  // Meta strips whitespace and ASCII punctuation from names before hashing; ours are hashed here, so
+  // we do the same (Hebrew letters and other scripts stay).
+  const strip = (/** @type {string} */ w) => w.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, '');
   const words = String(contact?.name || '')
     .toLowerCase()
-    .replace(/[^\p{L}\p{M}\s'-]/gu, ' ')
     .split(/\s+/)
+    .map(strip)
     .filter(Boolean);
   if (words.length) keys.fn = words[0];
-  if (words.length > 1) keys.ln = words.slice(1).join(' ');
-  keys.country = 'il';
+  if (words.length > 1) keys.ln = words.slice(1).join('');
+  // The country only when the phone says Israel; a foreign guest is not sent as Israeli.
+  if (keys.ph?.startsWith('972')) keys.country = 'il';
   return keys;
 }
