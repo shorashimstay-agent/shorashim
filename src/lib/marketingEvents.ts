@@ -29,11 +29,21 @@ function randomId(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** SHA-256 of each value, as lower-case hex; values that can't be hashed are left out. */
+/** Not personal on its own; Meta's pixel normalises and hashes it itself (pre-hashed, it didn't show). */
+const PLAIN_KEYS = new Set(['country']);
+
+/**
+ * SHA-256 of each personal value, as lower-case hex; the country goes as is (the pixel hashes it).
+ * Without crypto.subtle nothing is returned, so no matching at all.
+ */
 async function hashAll(values: Record<string, string>): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (!crypto?.subtle) return out;
   for (const [key, value] of Object.entries(values)) {
+    if (PLAIN_KEYS.has(key)) {
+      out[key] = value;
+      continue;
+    }
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
     out[key] = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
   }

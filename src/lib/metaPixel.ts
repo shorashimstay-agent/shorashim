@@ -84,8 +84,8 @@ export function revokeMetaPixel(): void {
 
 /**
  * Gives the pixel the guest's hashed contact details (Meta's manual advanced matching), for the
- * events that follow. Values must already be SHA-256 hashes; nothing readable is passed. Only while
- * the pixel is loaded, live and consented to.
+ * events that follow. Personal values must already be SHA-256 hashes; only the country goes as is,
+ * and the pixel hashes it before sending. Only while the pixel is loaded, live and consented to.
  */
 export function setMetaMatching(hashed: Record<string, string>): boolean {
   if (!loaded || revoked || sealed || matched || !window.fbq || getMarketingConsent() !== 'granted' || !Object.keys(hashed).length) return false;
