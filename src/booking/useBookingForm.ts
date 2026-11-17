@@ -21,6 +21,8 @@ import {
   israelToday,
   NOTES_MAX,
   nightsOf,
+  reloadPrices,
+  stayMinimum,
   PREP_START,
   spansOfNights,
   staySpan,
@@ -51,7 +53,7 @@ export interface Alternative {
  */
 export type Gate =
   | { state: 'idle'; key?: undefined }
-  | { state: 'dates'; key: string; reason: string }
+  | { state: 'dates'; key: string; reason: string; extendTo?: string }
   | { state: 'checking'; key: string }
   | { state: 'free'; key: string; verified: boolean }
   | { state: 'taken'; key: string; alternatives: Alternative[]; searched: boolean }
@@ -62,6 +64,12 @@ export type Submission =
   | { state: 'sending' }
   | { state: 'sent'; ref: string; holdHours: number }
   | { state: 'failed'; message: string };
+
+/** The web app priced the stay differently from the page (its list changed meanwhile). */
+export interface PriceChange {
+  price: number | null;
+  shown: number | null;
+}
 
 const NO_BLOCKS = new Set<string>();
 const NO_SPANS: Span[] = [];
@@ -168,8 +176,16 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
 
   // Shown before check-out is picked too, so quote at least one night. usePrices re-renders the
   // form when the live prices arrive; the first night decides which nights are weekend nights.
-  usePrices();
+  const priceList = usePrices();
   const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount, checkIn || undefined);
+  const [priceChange, setPriceChange] = useState<PriceChange | null>(null);
+
+  // Minimum nights (the price list's; couple stays only). The calendar doesn't offer a check-out that
+  // is too short, and a line under it says the minimum from the chosen arrival.
+  const minimumOf = (from: string, to: string) => (priceList && stayType === 'couple' && from && to > from ? stayMinimum(priceList, from, to) : 1);
+  const tooShort = (from: string, to: string) => minimumOf(from, to) > daysBetween(from, to);
+  const arrivalMinimum = !wedding && checkIn ? minimumOf(checkIn, addDays(checkIn, 1)) : 1;
+  const minimumNote = arrivalMinimum > 1 ? `מ־${formatHebrewDate(checkIn)} אפשר להזמין לפחות ${arrivalMinimum} לילות.` : '';
   const stayTypeName = STAY_TYPE_NAMES[stayType];
 
   const datesText = (() => {
@@ -203,6 +219,9 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     return 'טווח התאריכים אינו תקין. בחרו תאריך כניסה ואחריו תאריך עזיבה.';
   };
 
+  /** The minimum the stay falls short of, or 0. */
+  const shortBy = (from: string, to: string) => (!wedding && from && to ? (tooShort(from, to) ? minimumOf(from, to) : 0) : 0);
+
   const showGate = (next: Gate) => {
     setGate(next);
     setGateShown((n) => n + 1);
@@ -225,6 +244,12 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     const reason = missing ? (from ? 'בחרו גם תאריך עזיבה.' : '') : datesReason(from, to);
     if (missing || reason) {
       showGate({ state: 'dates', key, reason });
+      return 'dates';
+    }
+    // Below the minimum: say so, and offer the stay extended to it.
+    const minimum = shortBy(from, to);
+    if (minimum) {
+      showGate({ state: 'dates', key, reason: `בתאריכים האלה אפשר להזמין לפחות ${minimum} לילות.`, extendTo: minimum <= MAX_NIGHTS ? addDays(from, minimum) : undefined });
       return 'dates';
     }
     if (!bookingApiEnabled) {
@@ -277,9 +302,15 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     }
     // Holidays get nearby dates of the same length; a wedding date is never moved for the bride.
     const searched = stayType === 'couple' && Boolean(fresh.from);
-    const alternatives = searched ? findAlternatives(fresh.busy, from, daysBetween(from, to), fresh.from, fresh.to, israelToday()) : [];
+    const alternatives = searched ? findAlternatives(fresh.busy, from, daysBetween(from, to), fresh.from, fresh.to, israelToday(), undefined, priceList ?? undefined) : [];
     showGate({ state: 'taken', key, alternatives, searched });
     return 'taken';
+  };
+
+  /** "להאריך ל־N לילות": the same arrival, the stay extended to its minimum, checked afresh. */
+  const extendStay = (to: string) => {
+    changeDates(checkIn, to);
+    void continueToDetails({ checkIn, checkOut: to });
   };
 
   /** Switches to a nearby stay offered for taken dates, and checks it afresh. */
@@ -376,7 +407,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     document.getElementById(first[1])?.focus();
   };
 
-  const submit = async () => {
+  const submit = async (acceptedPrice?: number | null) => {
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length) {
@@ -411,7 +442,10 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       website,
       recaptchaToken: token,
       ...(landingCampaign() ? { campaign: landingCampaign()! } : {}),
+      // The price the guest agreed to: the one shown, or the updated one after "שליחה במחיר המעודכן".
+      shownPrice: acceptedPrice !== undefined ? acceptedPrice : estimate,
     });
+    setPriceChange(null);
 
     if (result.ok) {
       const { ref, holdHours } = result;
@@ -436,10 +470,27 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       void continueToDetails(undefined, { takenNights: result.nights?.length ? result.nights : nightsOf(held.start, held.end) });
       return;
     }
+    if (result.error === 'price_changed') {
+      // The page's price list is older than the web app's: read it again, and let the guest decide.
+      setSubmission({ state: 'idle' });
+      setAnnouncement('');
+      void reloadPrices();
+      if (result.minimum && result.minimum > nights) {
+        const message = `בתאריכים האלה אפשר להזמין לפחות ${result.minimum} לילות.`;
+        setErrors({ dates: message });
+        showGate({ state: 'dates', key: chosenKey.current, reason: message, extendTo: result.minimum <= MAX_NIGHTS ? addDays(checkIn, result.minimum) : undefined });
+        return;
+      }
+      setPriceChange({ price: result.price ?? null, shown: estimate });
+      setAnnouncement(`המחיר עודכן ל־${result.price ? '₪' + result.price.toLocaleString('he-IL') : 'מחיר בתיאום אישי'}.`);
+      return;
+    }
     if (result.error === 'invalid' && result.fields) {
       const mapped: FieldErrors = {};
       Object.keys(result.fields).forEach((key) => {
-        const [field, message] = SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
+        const [field, message] = key === 'checkOut' && result.fields?.checkOut === 'minimum'
+          ? (['dates', `בתאריכים האלה אפשר להזמין לפחות ${result.minimum ?? 2} לילות.`] as [Field, string])
+          : SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];
         mapped[field] = message;
       });
       setErrors(mapped);
@@ -522,6 +573,13 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     setWebsite,
     errors,
     estimate,
+    priceChange,
+    /** "שליחה במחיר המעודכן": sends again, agreeing to the web app's price (a new request and token). */
+    acceptPriceChange: () => void submit(priceChange?.price ?? null),
+    dismissPriceChange: () => setPriceChange(null),
+    tooShort,
+    minimumNote,
+    extendStay,
     submission,
     sending,
     sendingLabel,

@@ -241,5 +241,15 @@ python3 apps-script/deploy.py --status     # which commit each environment is ru
   - **Hand edits** are caught by an installable `onChange` trigger and an hourly backstop. They are published if valid, and the owner gets one email per editing session (at most five a day) with the net change and whether the sheet is valid.
   - **Signed operator actions** (`doPost`, each with its own signing prefix): `publishPrices`, `applyPriceChanges` (upserts by id, all or nothing, with a dry run; how the agent enters prices), `restoreStructure` (rebuilds a mixed-up tab) and `setPricesFlag` (minimum nights; off until the booking form can show them).
   - **Rollback past price lists:** a build from before price lists reads only the base area, which can't express dated prices. Roll back together with blanking `perNight`, so the old code finds no valid prices and asks for personal pricing instead of quoting a wrong price. `pricesLastGood`, its old fallback, is deleted on the first publish.
+  - **Minimum nights and changed prices on the site** (`src/booking/useBookingForm.ts`):
+    - The calendar doesn't offer a check-out below the stay's minimum, and says the minimum from
+      the chosen arrival.
+    - A stay found too short offers "להאריך ל־N לילות".
+    - The page sends `pricingV2` and the price it showed. When the web app's price or minimum differs
+      (its list changed after the page loaded), it answers `price_changed`. The form shows the new
+      price, reads the list again, and sends again at that price with a new request and token.
+    - Minimums are enforced for every request (`invalid` on `checkOut` for pages without
+      `pricingV2`).
+    - They take effect only while the `pricesMinimumsEnabled` flag is on (signed `setPricesFlag`).
   - **Staging** has its own prices sheet (scenario G10 edits it); the rest of the suite pins its test price list (`tests/e2e/fixtures/prices.json`) through the signed `testSetPrices` hook.
 - **One copy of the rules:** `shared/rules.js` holds the date arithmetic, prices and validation, and both consumers use that same file. The site imports it as an ES module. Apps Script has no modules, so `deploy.py` strips the `export ` keyword on upload and every declaration becomes a global — which is why the file uses `var` and function declarations and never imports anything. `shared/rules.test.mjs` tests the module directly and also evaluates the stripped form to check it still defines the globals `Code.js` calls. `src/lib/stay.ts` adds only browser-side presentation helpers. The server still validates every request itself and remains authoritative.

@@ -152,6 +152,8 @@ export interface BookingRequest {
   recaptchaToken: string;
   /** The ad campaign from the landing link (src/lib/campaign.ts); left out when there is none. */
   campaign?: import('./campaign').Campaign;
+  /** The price the page showed (null: none). The web app answers `price_changed` when its own differs. */
+  shownPrice: number | null;
 }
 
 export interface BookingRequestSuccess {
@@ -162,9 +164,12 @@ export interface BookingRequestSuccess {
 
 export interface BookingRequestFailure {
   ok: false;
-  error: 'invalid' | 'unavailable' | 'captcha' | 'rate_limited' | 'server_error' | 'bad_request' | 'network';
+  error: 'invalid' | 'unavailable' | 'captcha' | 'rate_limited' | 'server_error' | 'bad_request' | 'network' | 'price_changed';
   fields?: Record<string, string>;
   nights?: string[];
+  /** price_changed: the web app's own price and minimum for the stay. */
+  price?: number | null;
+  minimum?: number;
 }
 
 export type BookingRequestResult = BookingRequestSuccess | BookingRequestFailure;
@@ -177,7 +182,8 @@ export async function submitBookingRequest(request: BookingRequest): Promise<Boo
       (d) => (d?.ok === true && typeof d.ref === 'string') || (d?.ok === false && typeof d.error === 'string' && d.error !== 'in_progress'),
       WRITE_POLICY,
       // pricesVersion tells the web app which prices the page showed (see prices.ts).
-      { method: 'POST', body: JSON.stringify({ action: 'request', requestId, pricesVersion: getPricesVersion(), ...request }) }
+      // pricingV2: this page can show `price_changed` (apps-script/src/Prices.js requestPriceCheck_).
+      { method: 'POST', body: JSON.stringify({ action: 'request', requestId, pricesVersion: getPricesVersion(), pricingV2: true, ...request }) }
     );
   } catch {
     return { ok: false, error: 'network' };

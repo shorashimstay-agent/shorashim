@@ -43,7 +43,8 @@ export const spansOfNights = (nights: Iterable<string>): Span[] => [...nights].s
 /** Friday, when preparation may also start at PREP_FRIDAY_START by arrangement. */
 export const isFriday = (date: string) => fromISODate(date).getDay() === 5;
 
-export { getPrices, getPricesVersion, usePrices } from './prices';
+export { getPrices, getPricesVersion, reloadPrices, usePrices } from './prices';
+export { stayMinimum } from '../../shared/rules.js';
 
 /** With `start`, Thursday to Saturday nights take the weekend price, and dated updates apply. Null until the prices arrive. */
 export const estimatePrice = (type: StayType, nights: number, adults: number, start?: string) =>
