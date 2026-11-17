@@ -829,8 +829,9 @@ test('the notice is cleared by "ראיתי", and restore runs from the dashboard
   e.ctx.priceRun_('setup');
   e.source.cells[1][2] = 900;
   e.ctx.priceRun_('handler');
-  assert.ok(consoleOp(e, 'prices').notice.items.length);
-  assert.equal(consoleOp(e, 'ackPriceEdit').ok, true);
+  const shown = consoleOp(e, 'prices').notice;
+  assert.ok(shown.items.length);
+  assert.equal(consoleOp(e, 'ackPriceEdit', { seenAt: shown.lastAt }).ok, true);
   assert.equal(consoleOp(e, 'prices').notice, null);
   e.source.cells.push(['perNight', '', 950]);
   assert.equal(consoleOp(e, 'prices').structure, 'base_below_header');
@@ -847,4 +848,22 @@ test('a save while the section is busy throws, so the retry runs', () => {
   assert.throws(() => consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 1000 }, requestId: 'req-busy-0001' }), /busy; retry/);
   e.lockState.busy = false;
   assert.equal(consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 1000 }, requestId: 'req-busy-0001' }).valid, true);
+});
+
+test('"ראיתי" clears only what the screen showed; restore runs only on the sheet its dry run saw', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = 900;
+  e.ctx.priceRun_('handler');
+  const seen = consoleOp(e, 'prices').notice.lastAt;
+  const notice = JSON.parse(e.store.get('prices:notice'));
+  notice.items.push({ key: 'later', at: new Date(seen + 60000).toISOString(), lines: ['אחר כך'] });
+  notice.lastAt = seen + 60000;
+  e.store.set('prices:notice', JSON.stringify(notice));
+  consoleOp(e, 'ackPriceEdit', { seenAt: seen });
+  assert.deepEqual(JSON.parse(e.store.get('prices:notice')).items.map((it) => it.key), ['later']);
+  e.source.cells.push(['perNight', '', 950]);
+  const dry = consoleOp(e, 'restorePrices', { dryRun: true });
+  e.source.cells[3][2] = 160; // changed after the dry run
+  assert.equal(consoleOp(e, 'restorePrices', { token: dry.token }).error, 'stale');
 });

@@ -504,9 +504,11 @@ function priceRun_(kind, opts) {
     var expected = null;
     var restored = null;
     if (kind === 'restore') {
+      // From the dashboard, the run carries the token of the sheet its dry run showed the owner.
+      if (opts.token && opts.token !== snap.hash) return { ok: false, error: 'stale', token: snap.hash };
       var plan = restorePlan_(sheet, rows, props);
       if (plan.error) return { ok: false, error: plan.error };
-      if (opts.dryRun) return { ok: true, dryRun: true, summary: plan.summary };
+      if (opts.dryRun) return { ok: true, dryRun: true, summary: plan.summary, token: snap.hash };
       expected = snapshotOf_(plan.rows);
       props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: kind, expected: expected.hash }));
       writeRestore_(sheet, rows, plan.rows);
@@ -1280,12 +1282,22 @@ function pricesConsoleCall_(body) {
     });
   }
   if (body.op === 'ackPriceEdit') {
-    PropertiesService.getScriptProperties().deleteProperty(PRICES_NOTICE_KEY);
+    // Clears only what the owner's screen showed: an edit recorded after it stays in the notice.
+    var props = PropertiesService.getScriptProperties();
+    var notice = JSON.parse(props.getProperty(PRICES_NOTICE_KEY) || 'null');
+    var seenAt = Number(args.seenAt || 0);
+    if (notice && Number(notice.lastAt || 0) > seenAt) {
+      notice.items = notice.items.filter(function (it) {
+        return Date.parse(it.at) > seenAt;
+      });
+      notice.older = 0;
+      props.setProperty(PRICES_NOTICE_KEY, JSON.stringify(notice));
+    } else props.deleteProperty(PRICES_NOTICE_KEY);
     logEvent_('console.ackPriceEdit', {}, 'console');
     return { ok: true };
   }
   if (body.op === 'restorePrices') {
-    var restored = priceRun_('restore', { dryRun: !!args.dryRun });
+    var restored = priceRun_('restore', { dryRun: !!args.dryRun, token: args.token ? String(args.token) : '' });
     if (!args.dryRun) logEvent_('console.restorePrices', { ok: restored.ok, error: restored.error, valid: restored.valid }, 'console');
     return restored;
   }
