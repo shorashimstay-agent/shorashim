@@ -132,6 +132,17 @@ export class GoogleAccount {
     return r.values ?? [];
   }
 
+  /** Deletes the tab with this gid (the published price tab, in G12). */
+  deleteTab(sheetId: string, gid: number): Promise<unknown> {
+    return this.api('POST', `${SHEETS}/${sheetId}:batchUpdate`, { body: { requests: [{ deleteSheet: { sheetId: gid } }] } });
+  }
+
+  /** The spreadsheet's tabs: title, gid and whether they are hidden. */
+  async tabs(sheetId: string): Promise<{ title: string; sheetId: number; hidden?: boolean }[]> {
+    const r = await this.api<{ sheets: { properties: { title: string; sheetId: number; hidden?: boolean } }[] }>('GET', `${SHEETS}/${sheetId}`, { query: { fields: 'sheets.properties(title,sheetId,hidden)' } });
+    return r.sheets.map((s) => s.properties);
+  }
+
   setValues(sheetId: string, range: string, values: unknown[][]): Promise<unknown> {
     return this.api('PUT', `${SHEETS}/${sheetId}/values/${encodeURIComponent(range)}`, { query: { valueInputOption: 'USER_ENTERED' }, body: { values } });
   }
