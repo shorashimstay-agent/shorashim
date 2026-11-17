@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer" />
 <!-- The booking web app the console talks to. Public: the website calls the same address. -->
 <meta name="booking-api" content="https://script.google.com/macros/s/AKfycbwP44lR5eBIRvpV2cYMBlN8fHMp9mrI1WljV3f6lgagccNSh-eGkuteNwMH_c6YjK19/exec" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'self'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'self'" />
 <link rel="icon" type="image/png" href="/shorashim-logo-transparent.png" />
 <link rel="apple-touch-icon" href="/shorashim-logo-transparent.png" />
 <title>שורשים · ניהול</title>
@@ -173,7 +173,32 @@
 
   /* Tab bar: the site's dark footer band. */
   nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ink); border-top: 1px solid #292824; z-index: 6; padding-bottom: env(safe-area-inset-bottom); }
-  nav.tabs .in { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+  nav.tabs .in { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+  nav.tabs button { min-width: 0; padding: 0 2px; letter-spacing: .06em; }
+
+  /* Prices screen. */
+  .pform label { display: block; font-size: 11px; letter-spacing: .16em; color: var(--accent); margin: 14px 0 6px; }
+  .pform input { width: 100%; min-height: 44px; padding: 9px 10px; font: inherit; font-size: 16px; border: 1px solid #CFC4B4; border-radius: 2px; background: #fff; color: var(--ink); }
+  .pform input[type=date], .pform input[type=number] { direction: ltr; text-align: right; }
+  .pform input:disabled { background: var(--sand); color: var(--muted); }
+  .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .pgrid > div { min-width: 0; }
+  .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+  .pquote { font-size: 15px; line-height: 1.7; margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--line); }
+  .pquote b { font-family: var(--serif); font-weight: 400; font-size: 22px; }
+  .ucard { background: var(--paper); border: 1px solid var(--line); padding: 14px 14px 12px; margin-bottom: 10px; }
+  .ucard.bad { border-color: #E3B3AC; border-inline-start: 3px solid var(--bad); background: var(--bad-bg); }
+  .ucard.past { opacity: .7; }
+  .ucard h4 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .ucard .when { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+  .ucard dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0 0 10px; font-size: 14px; }
+  .ucard dt { color: var(--muted); }
+  .ucard dd { margin: 0; }
+  .ucard .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #screen-prices .choices button { min-height: 44px; }
+  .banner.warn { background: var(--warn-bg); border-color: #E2CC9C; color: var(--warn); }
+  .banner ul { margin: 6px 0 0; padding-inline-start: 18px; }
+  .banner .row { margin-top: 10px; }
   nav.tabs button { border: 0; border-radius: 0; color: rgba(222,213,200,.8); min-height: 66px; flex-direction: column; gap: 4px; font-size: 12px; letter-spacing: .12em; position: relative; }
   nav.tabs button:hover { color: #fff; }
   nav.tabs button[aria-current="page"] { color: var(--ivory); }
@@ -287,6 +312,23 @@
       </div>
       <ul class="list" id="channels"></ul>
     </section>
+
+    <section class="screen" id="screen-prices" aria-labelledby="h-prices" hidden>
+      <div class="head">
+        <span class="etag">05 · מחירים</span>
+        <h2 id="h-prices">מחירים</h2>
+        <p class="sub" id="prices-sub">מחירי הלינה הזוגית, החבילות והעדכונים לפי תאריכים. כל שמירה מתעדכנת באתר מיד, בלי פרסום מחדש.</p>
+      </div>
+      <div id="prices-alerts"></div>
+      <h3 class="tag">מחירי בסיס</h3>
+      <form class="card pform" id="prices-base" novalidate></form>
+      <h3 class="tag">בדיקת מחיר</h3>
+      <form class="card pform" id="prices-check" novalidate></form>
+      <h3 class="tag">עדכונים לפי תאריכים</h3>
+      <div class="row" style="margin:0 0 12px"><button type="button" class="btn primary" id="price-add" style="flex:1">＋ הוספת עדכון</button></div>
+      <div id="price-form-slot"></div>
+      <div id="price-updates"></div>
+    </section>
   </main>
 
   <nav class="tabs" aria-label="מסכים">
@@ -294,6 +336,7 @@
       <button type="button" data-tab="requests" aria-current="page"><span class="badge" id="badge" aria-hidden="true" hidden></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>בקשות<span class="sr-only" id="badge-sr"></span></button>
       <button type="button" data-tab="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>יומן</button>
       <button type="button" data-tab="bookings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 11l8-6 8 6v9H4z"/><path d="M10 20v-5h4v5"/></svg>הזמנות</button>
+      <button type="button" data-tab="prices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12l8-8h8v8l-8 8z"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>מחירים</button>
       <button type="button" data-tab="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/></svg>ערוצים</button>
     </div>
   </nav>
@@ -302,7 +345,7 @@
 <script type="module">
   // Built by Vite (vite.config.ts), so the console prices with the same shared rules as the website
   // and the web app: one place for the price logic.
-  import { estimatePrice } from '../shared/rules.js';
+  import { estimatePrice, quoteStay, buildPriceList, updateProblem, updateConflicts, isWeekendNight, MAX_NIGHTS } from '../shared/rules.js';
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
   var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null, cancel: null };
   // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
@@ -1368,6 +1411,387 @@
       : '<li class="empty">אין הזמנות קרובות מהערוצים.</li>';
   }
 
+  // ---- Prices (Prices.js; the plan's step 3). The screen reads the sheet as it is now ("prices"),
+  // and every save carries the token it read: a sheet changed since refuses the save.
+
+  var BASE_FIELDS = [
+    ['perNight', 'לילה א׳–ד׳ (₪)'], ['weekendPerNight', 'לילה ה׳–ש׳ (₪)'], ['thirdGuestPercent', 'אורח שלישי (% מהלינה)'],
+    ['bride_day', 'יום כלה (₪)'], ['bride_night_day', 'לילה לפני + יום כלה (₪)'], ['wedding_night', 'ליל כלולות (₪)'], ['bride_day_wedding_night', 'יום התארגנות + ליל כלולות (₪)'],
+  ];
+  var HE_DAY = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  var UPDATE_ERRORS = {
+    name: 'צריך שם לעדכון.', name_long: 'השם ארוך מדי (עד 60 תווים).', from: 'בחרו תאריך התחלה.', to: 'בחרו תאריך סיום.',
+    order: 'תאריך הסיום לפני תאריך ההתחלה.', empty: 'הזינו לפחות מחיר אחד, מחיר לשני לילות או מינימום.',
+    weekday: 'מחיר א׳–ד׳: מספר שלם בין 100 ל-20,000.', weekend: 'מחיר ה׳–ש׳: מספר שלם בין 100 ל-20,000.',
+    minimum: 'מינימום לילות: 1 עד 14.', minimum_off: 'מינימום לילות עוד לא פעיל באתר.', twoNight: 'מחיר לשני לילות: מספר שלם בין 100 ל-40,000.',
+    twoNight_range: 'מחיר לשני לילות רק בעדכון לתאריך יחיד.', twoNight_minimum: 'מחיר לשני לילות לא יחול עם מינימום מעל 2.',
+    too_far: 'התאריך רחוק מדי (יותר משנה).', past: 'העדכון כבר הסתיים.',
+  };
+  state.prices = null;
+  state.pform = null;
+
+  function dayName(d) { return 'יום ' + HE_DAY[parse(d).getDay()]; }
+  function shekel(n) { return n == null || n === '' ? '—' : '₪' + Number(n).toLocaleString('en-US'); }
+  function intOrNull(v) { v = String(v == null ? '' : v).replace(/[₪,\s]/g, ''); return v === '' ? null : Number(v); }
+
+  function loadPrices() {
+    return call('prices').then(function (data) {
+      if (!data || data.ok !== true) throw new Error('no prices');
+      state.prices = data;
+      renderPrices();
+    }).catch(function (err) {
+      if (err && err.message === 'unauthorized') return;
+      $('prices-alerts').innerHTML = '<div class="banner err" role="alert">לא הצלחנו לטעון את המחירים. <button type="button" class="btn quiet" id="prices-retry">לנסות שוב</button></div>';
+      $('prices-retry').onclick = function () { loadPrices(); };
+    });
+  }
+
+  /** The list the site would price from with the open form's change applied: the preview. */
+  function candidateList(change) {
+    var p = state.prices;
+    if (!p || !p.published) return null;
+    if (!change) return p.published;
+    var updates = (p.updates || []).filter(function (u) { return u.id !== change.id; });
+    if (!change.remove) updates.push(change);
+    try { return buildPriceList(p.published.base, updates, p.today, p.minimumsEnabled); } catch (e) { return null; }
+  }
+
+  function renderPrices() {
+    var p = state.prices;
+    if (!p) return;
+    renderPriceAlerts(p);
+    renderPriceBase(p);
+    renderPriceCheck();
+    renderPriceUpdates(p);
+    if (state.pform) renderPriceForm();
+  }
+
+  function renderPriceAlerts(p) {
+    var html = '';
+    if (p.notice && p.notice.items && p.notice.items.length) {
+      var lines = [];
+      p.notice.items.slice(-8).forEach(function (it) { lines = lines.concat(it.lines); });
+      html += '<div class="banner info" role="status"><b>שינוי ידני בגיליון</b>' + (p.notice.older ? ' (ועוד ' + p.notice.older + ' קודמים)' : '') +
+        '<ul>' + lines.slice(0, 12).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+        '<div class="row"><button type="button" class="btn quiet" id="prices-ack">ראיתי</button></div></div>';
+    }
+    if (p.valid === false) {
+      var since = p.status && p.status.since ? ' (מ־' + heFull(p.status.since.slice(0, 10)) + ')' : '';
+      html += '<div class="banner err" role="alert"><b>הגיליון לא תקין</b>, ולכן האתר ממשיך לעבוד עם המחירון התקין האחרון' + since + '. מה צריך לתקן:' +
+        '<ul>' + (p.problems || []).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+        (p.structure ? '<div class="row"><button type="button" class="btn primary" id="prices-restore">שחזור מבנה</button></div>' : '<p class="hint">אפשר לתקן או להסיר את השורות שסומנו למטה. עד אז נשמרים רק תיקונים.</p>') + '</div>';
+    }
+    if (p.warnings && p.warnings.length) {
+      html += '<div class="banner warn" role="status"><b>שימו לב</b><ul>' + p.warnings.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>';
+    }
+    html += '<div id="prices-msg" role="status" aria-live="polite">' + (state.pmsg ? '<div class="banner ' + (state.pmsg.bad ? 'err' : 'info') + '">' + esc(state.pmsg.text) + '</div>' : '') + '</div>';
+    $('prices-alerts').innerHTML = html;
+    if ($('prices-ack')) $('prices-ack').onclick = function () {
+      call('ackPriceEdit').then(loadPrices, function () {});
+    };
+    if ($('prices-restore')) $('prices-restore').onclick = restorePrices;
+  }
+
+  function priceMessage(text, bad) {
+    // Kept in state, so the reload that follows a save doesn't wipe it.
+    state.pmsg = text ? { text: text, bad: !!bad } : null;
+    var el = $('prices-msg');
+    if (el) el.innerHTML = text ? '<div class="banner ' + (bad ? 'err' : 'info') + '">' + esc(text) + '</div>' : '';
+    if (text) announce(text);
+  }
+
+  function restorePrices() {
+    call('restorePrices', { args: { dryRun: true } }).then(function (dry) {
+      if (!dry.ok) return priceMessage('לא ניתן לשחזר את המבנה: ' + (dry.error === 'extra_columns' ? 'יש בגיליון עמודות מעבר ל-I.' : dry.error), true);
+      var s = dry.summary;
+      var text = 'השחזור יסדר את הגיליון מחדש: ' + s.keys + ' מחירי בסיס, ' + s.updates + ' עדכונים' +
+        (s.newIds ? ', ' + s.newIds + ' מהם יקבלו מזהה חדש' : '') + (s.notes ? ', ' + s.notes + ' הערות' : '') + '.' +
+        (s.restoredFromSnapshot.length ? '\nישוחזרו מהמחירון התקין האחרון: ' + s.restoredFromSnapshot.join(', ') + '.' : '') +
+        (s.dropped.length ? '\nלא יישמרו: ' + s.dropped.join(' | ') + '.' : '') + '\n\nלהמשיך?';
+      if (!window.confirm(text)) return;
+      return call('restorePrices', { args: {} }).then(function (res) {
+        priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
+        return loadPrices();
+      });
+    }, function () { priceMessage('המערכת עסוקה, נסו שוב בעוד רגע.', true); });
+  }
+
+  function renderPriceBase(p) {
+    var base = p.base || (p.published && p.published.base) || {};
+    var html = '<div class="pgrid">' + BASE_FIELDS.map(function (f) {
+      return '<div><label for="pb-' + f[0] + '">' + f[1] + '</label><input id="pb-' + f[0] + '" data-key="' + f[0] + '" type="number" inputmode="numeric" min="0" step="1" value="' + esc(base[f[0]] == null ? '' : base[f[0]]) + '"></div>';
+    }).join('') + '</div><p class="hint">א׳–ד׳ הם לילות ראשון עד רביעי; ה׳–ש׳ הם לילות חמישי, שישי ושבת.</p>' +
+      '<div class="row" style="margin-top:14px"><button type="submit" class="btn primary" style="flex:1">שמירת מחירי בסיס</button></div>';
+    $('prices-base').innerHTML = html;
+    $('prices-base').onsubmit = function (e) {
+      e.preventDefault();
+      var changes = {};
+      BASE_FIELDS.forEach(function (f) {
+        var v = intOrNull($('pb-' + f[0]).value);
+        if (v !== (base[f[0]] == null ? null : base[f[0]])) changes[f[0]] = v;
+      });
+      if (!Object.keys(changes).length) return priceMessage('לא שונה דבר.');
+      savePrice('saveBase', { base: changes });
+    };
+  }
+
+  function renderPriceCheck() {
+    var c = state.pcheck || (state.pcheck = { from: '', to: '', adults: 2 });
+    var html = '<div class="pgrid"><div><label for="pc-from">הגעה</label><input id="pc-from" type="date" value="' + esc(c.from) + '"></div>' +
+      '<div><label for="pc-to">עזיבה</label><input id="pc-to" type="date" value="' + esc(c.to) + '"></div></div>' +
+      '<label>אורחים</label><div class="choices" role="group" aria-label="אורחים"><button type="button" data-adults="2" aria-pressed="' + (c.adults === 2) + '">זוג</button><button type="button" data-adults="3" aria-pressed="' + (c.adults === 3) + '">3 אורחים</button></div>' +
+      '<div id="pc-out" class="pquote" aria-live="polite"></div>';
+    $('prices-check').innerHTML = html;
+    $('prices-check').onsubmit = function (e) { e.preventDefault(); };
+    $('pc-from').onchange = function () { c.from = this.value; if (c.from && (!c.to || c.to <= c.from)) { c.to = addDays(c.from, 1); $('pc-to').value = c.to; } quoteCheck(); };
+    $('pc-to').onchange = function () { c.to = this.value; quoteCheck(); };
+    $('prices-check').querySelectorAll('[data-adults]').forEach(function (b) {
+      b.onclick = function () { c.adults = Number(b.getAttribute('data-adults')); renderPriceCheck(); };
+    });
+    quoteCheck();
+  }
+
+  /** The price check: price and minimum from the published list (with the open form's change), and availability. */
+  function quoteCheck() {
+    var c = state.pcheck, out = $('pc-out');
+    if (!out) return;
+    if (!c.from || !c.to || c.to <= c.from) { out.innerHTML = '<span class="hint">בחרו תאריכי הגעה ועזיבה.</span>'; return; }
+    var nights = daysBetweenDates(c.from, c.to);
+    if (nights > MAX_NIGHTS) { out.innerHTML = '<span class="hint">עד ' + MAX_NIGHTS + ' לילות.</span>'; return; }
+    var change = state.pform && formChange();
+    var list = candidateList(change && !change.problem ? change.update : null);
+    if (!list) { out.innerHTML = '<span class="hint">אין מחירון פורסם.</span>'; return; }
+    var q = quoteStay(list, 'couple', c.from, nights, c.adults);
+    var html = (change && !change.problem ? '<span class="hint">כולל העדכון שבעריכה (עוד לא נשמר)</span><br>' : '') +
+      '<b>' + shekel(q.price) + '</b> ל' + nightsText(nights) + (c.adults === 3 ? ', 3 אורחים' : '') +
+      (q.minimum > 1 ? '<br>מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ' — <b style="font-size:inherit;color:var(--bad)">השהייה קצרה מדי</b>' : '') : '') +
+      '<br><span id="pc-avail" class="hint">בודקים זמינות…</span>';
+    out.innerHTML = html;
+    var key = c.from + c.to;
+    state.pcheckKey = key;
+    fetch(API + '?action=check&start=' + c.from + '&end=' + c.to).then(function (r) { return r.json(); }).then(function (j) {
+      if (state.pcheckKey !== key || !$('pc-avail')) return;
+      $('pc-avail').textContent = j && j.free === true ? 'התאריכים פנויים' : j && j.free === false ? 'חלק מהלילות תפוסים' : 'לא ניתן לבדוק זמינות כרגע';
+    }, function () { if ($('pc-avail')) $('pc-avail').textContent = 'לא ניתן לבדוק זמינות כרגע'; });
+  }
+
+  function updateLines(u) {
+    var single = u.from === u.to;
+    var rows = [];
+    if (single) {
+      var price = u.weekend != null && isWeekendNight(u.from) ? u.weekend : u.weekday != null && !isWeekendNight(u.from) ? u.weekday : null;
+      if (price != null) rows.push(['מחיר ללילה', shekel(price)]);
+      if (u.twoNight != null) rows.push(['לשני לילות', shekel(u.twoNight) + ' (עזיבה ' + heFull(addDays(u.from, 2)) + ')']);
+    } else {
+      if (u.weekday != null) rows.push(['א׳–ד׳', shekel(u.weekday)]);
+      if (u.weekend != null) rows.push(['ה׳–ש׳', shekel(u.weekend)]);
+    }
+    if (u.minimum != null) rows.push(['מינימום', u.minimum + ' לילות']);
+    if (u.inactiveMinimum != null) rows.push(['מינימום', u.inactiveMinimum + ' לילות (עוד לא פעיל)']);
+    return rows;
+  }
+
+  function renderPriceUpdates(p) {
+    var today = p.today;
+    var list = (p.updates || []).slice().sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+    var current = list.filter(function (u) { return u.to >= today; });
+    var past = list.filter(function (u) { return u.to < today; });
+    var card = function (u, isPast) {
+      var single = u.from === u.to;
+      return '<article class="ucard' + (isPast ? ' past' : '') + '" data-update="' + esc(u.id) + '"><h4>' + esc(u.name || '(ללא שם)') + '</h4>' +
+        '<p class="when">' + (single ? heFull(u.from) + ' · ' + dayName(u.from) : range(u.from, u.to)) + '</p>' +
+        '<dl>' + updateLines(u).map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>' +
+        '<div class="acts"><button type="button" class="btn quiet" data-edit="' + esc(u.id) + '" aria-label="עריכת ' + esc(u.name || 'עדכון') + '">עריכה</button>' +
+        '<button type="button" class="btn danger" data-remove="' + esc(u.id) + '" aria-label="הסרת ' + esc(u.name || 'עדכון') + '">הסרה</button></div></article>';
+    };
+    var bad = (p.invalidRows || []).map(function (r) {
+      return '<article class="ucard bad" data-row="' + r.row + '"><h4>שורה ' + r.row + ': ' + esc(r.cells[1] || r.cells[0] || '(ללא שם)') + '</h4>' +
+        '<p class="when">' + esc(r.reason) + '</p><p class="hint">' + esc(r.cells.slice(1).filter(Boolean).join(' · ')) + '</p>' +
+        '<div class="acts">' + (/^u[a-z0-9]{6,12}$/.test(r.id) ? '<button type="button" class="btn quiet" data-fix="' + r.row + '">תיקון</button><button type="button" class="btn danger" data-remove="' + esc(r.id) + '">הסרה</button>' : '<span class="hint">אפשר לתקן בשחזור מבנה או בגיליון.</span>') + '</div></article>';
+    }).join('');
+    $('price-updates').innerHTML = bad + (current.length ? current.map(function (u) { return card(u, false); }).join('') : '<p class="empty">אין עדכונים פעילים. המחירים לפי מחירי הבסיס.</p>') +
+      (past.length ? '<details style="margin-top:12px"><summary class="hint">עדכונים שהסתיימו (' + past.length + ')</summary>' + past.map(function (u) { return card(u, true); }).join('') + '</details>' : '');
+    $('price-updates').querySelectorAll('[data-edit]').forEach(function (b) {
+      b.onclick = function () {
+        var u = p.updates.filter(function (x) { return x.id === b.getAttribute('data-edit'); })[0];
+        openPriceForm(u);
+      };
+    });
+    $('price-updates').querySelectorAll('[data-fix]').forEach(function (b) {
+      b.onclick = function () {
+        var r = p.invalidRows.filter(function (x) { return String(x.row) === b.getAttribute('data-fix'); })[0];
+        var c = r.cells;
+        openPriceForm({ id: r.id, name: c[1], from: /^\d{4}-\d{2}-\d{2}$/.test(c[2]) ? c[2] : '', to: /^\d{4}-\d{2}-\d{2}$/.test(c[3]) ? c[3] : '', weekday: intOrNull(c[4]), weekend: intOrNull(c[5]), inactiveMinimum: intOrNull(c[6]), twoNight: intOrNull(c[7]) });
+      };
+    });
+    $('price-updates').querySelectorAll('[data-remove]').forEach(function (b) {
+      b.onclick = function () {
+        if (!window.confirm('להסיר את העדכון? המחירים בתאריכים שלו יחזרו לפי העדכונים האחרים או מחירי הבסיס.')) return;
+        savePrice('removeUpdate', { id: b.getAttribute('data-remove') });
+      };
+    });
+  }
+
+  function openPriceForm(u) {
+    u = u || {};
+    var single = u.from && u.from === u.to;
+    var nightPrice = single ? (isWeekendNight(u.from) ? (u.weekend != null ? u.weekend : u.weekday) : (u.weekday != null ? u.weekday : u.weekend)) : null;
+    state.pform = {
+      id: u.id || '', name: u.name || '', from: u.from || '', to: u.to || '',
+      weekday: u.weekday == null ? '' : u.weekday, weekend: u.weekend == null ? '' : u.weekend, night: nightPrice == null ? '' : nightPrice,
+      twoNight: u.twoNight == null ? '' : u.twoNight, minimum: u.minimum == null ? '' : u.minimum,
+      inactiveMinimum: u.inactiveMinimum == null ? null : u.inactiveMinimum, clearMinimum: false, requestId: requestId(),
+    };
+    renderPriceForm();
+    var first = $('pf-name');
+    if (first) first.focus();
+  }
+
+  /** The update the form describes, and its first problem (shared rules, as the backend checks it). */
+  function formChange() {
+    var f = state.pform, p = state.prices;
+    if (!f) return null;
+    var single = f.from && f.from === f.to;
+    var u = { id: f.id || 'unew00000', name: f.name.trim(), from: f.from, to: f.to };
+    if (single) {
+      var n = intOrNull(f.night);
+      if (n != null) u[isWeekendNight(f.from) ? 'weekend' : 'weekday'] = n;
+      var two = intOrNull(f.twoNight);
+      if (two != null) u.twoNight = two;
+    } else {
+      if (intOrNull(f.weekday) != null) u.weekday = intOrNull(f.weekday);
+      if (intOrNull(f.weekend) != null) u.weekend = intOrNull(f.weekend);
+    }
+    if (p.minimumsEnabled && intOrNull(f.minimum) != null) u.minimum = intOrNull(f.minimum);
+    if (!p.minimumsEnabled && f.inactiveMinimum != null && !f.clearMinimum) u.minimum = f.inactiveMinimum;
+    var problem = updateProblem(u, { today: p.today, forSave: true, minimumsEnabled: p.minimumsEnabled });
+    if (!problem) {
+      var others = (p.updates || []).filter(function (x) { return x.id !== u.id; });
+      var clash = updateConflicts(others.concat([u])).filter(function (c) { return c.a === u.id || c.b === u.id; })[0];
+      if (clash) {
+        var other = others.filter(function (x) { return x.id === (clash.a === u.id ? clash.b : clash.a); })[0];
+        problem = 'conflict';
+        return { update: u, problem: problem, message: 'העדכון סותר את "' + (other ? other.name : '') + '"' + (clash.field === 'date' ? ': כבר יש עדכון לתאריך הזה.' : ' (טווחים חופפים באותו שדה). אפשר טווח שנמצא כולו בתוך טווח אחר.') };
+      }
+    }
+    return { update: u, problem: problem, message: problem ? UPDATE_ERRORS[problem] || problem : '' };
+  }
+
+  function renderPriceForm() {
+    var f = state.pform, p = state.prices;
+    if (!f) { $('price-form-slot').innerHTML = ''; $('price-add').hidden = false; return; }
+    $('price-add').hidden = true;
+    var single = f.from && f.from === f.to;
+    var html = '<form class="panel pform" id="price-form" novalidate><h3>' + (f.id ? 'עריכת עדכון' : 'הוספת עדכון') + '</h3>' +
+      '<label for="pf-name">שם העדכון</label><input id="pf-name" value="' + esc(f.name) + '" maxlength="60" autocomplete="off"><p class="hint">השם מופיע באתר.</p>' +
+      '<div class="pgrid"><div><label for="pf-from">מ־</label><input id="pf-from" type="date" value="' + esc(f.from) + '"></div>' +
+      '<div><label for="pf-to">עד (כולל)</label><input id="pf-to" type="date" value="' + esc(f.to) + '"></div></div>' +
+      '<p class="hint">ללילה אחד: אותו תאריך בשני השדות.</p>';
+    if (single) {
+      var wk = isWeekendNight(f.from);
+      html += '<label for="pf-night">מחיר ללילה (₪)</label><input id="pf-night" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.night) + '">' +
+        '<p class="hint">' + heFull(f.from) + ' הוא ' + dayName(f.from) + ': המחיר נשמר בעמודת ' + (wk ? 'ה׳–ש׳' : 'א׳–ד׳') + '.</p>' +
+        '<label for="pf-two">מחיר כולל לשני לילות (₪, לא חובה)</label><input id="pf-two" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.twoNight) + '">' +
+        '<p class="hint">הגעה ב־' + heFull(f.from) + ', עזיבה ב־' + heFull(addDays(f.from, 2)) + ' (' + dayName(addDays(f.from, 2)) + ').</p>';
+    } else {
+      html += '<div class="pgrid"><div><label for="pf-weekday">מחיר א׳–ד׳ (₪)</label><input id="pf-weekday" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.weekday) + '"></div>' +
+        '<div><label for="pf-weekend">מחיר ה׳–ש׳ (₪)</label><input id="pf-weekend" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.weekend) + '"></div></div>' +
+        '<p class="hint">שדה ריק: המחיר לפי עדכון רחב יותר או מחיר הבסיס.</p>';
+    }
+    if (p.minimumsEnabled) {
+      html += '<label for="pf-min">מינימום לילות (לא חובה)</label><input id="pf-min" type="number" inputmode="numeric" min="1" max="14" step="1" value="' + esc(f.minimum) + '">';
+    } else if (f.inactiveMinimum != null) {
+      html += '<label>מינימום לילות</label><p class="hint">בגיליון רשום מינימום ' + f.inactiveMinimum + ' לילות, אבל מינימום עוד לא פעיל באתר.</p>' +
+        '<label style="letter-spacing:0;color:var(--ink);font-size:15px"><input id="pf-clearmin" type="checkbox" style="width:auto;min-height:0;margin-inline-end:8px"' + (f.clearMinimum ? ' checked' : '') + '>להסיר את המינימום</label>';
+    } else {
+      html += '<label for="pf-min">מינימום לילות</label><input id="pf-min" type="number" disabled placeholder="זמין בקרוב">';
+    }
+    html += '<div id="pf-preview" class="pquote" aria-live="polite"></div><p class="fielderr" id="pf-error" role="alert"></p>' +
+      '<div class="actions two" style="margin-top:14px"><button type="submit" class="btn primary">שמירה</button><button type="button" class="btn quiet" id="pf-cancel">ביטול</button></div></form>';
+    $('price-form-slot').innerHTML = html;
+    var bind = function (id, key, rerender) {
+      var el = $(id);
+      if (!el) return;
+      el.oninput = function () { f[key] = el.value; previewForm(); };
+      if (rerender) el.onchange = function () {
+        f[key] = el.value;
+        if (key === 'from' && f.from && (!f.to || f.to < f.from)) f.to = f.from;
+        var keep = document.activeElement && document.activeElement.id;
+        renderPriceForm();
+        if (keep && $(keep)) $(keep).focus();
+      };
+    };
+    bind('pf-name', 'name'); bind('pf-from', 'from', true); bind('pf-to', 'to', true);
+    bind('pf-night', 'night'); bind('pf-two', 'twoNight'); bind('pf-weekday', 'weekday'); bind('pf-weekend', 'weekend'); bind('pf-min', 'minimum');
+    if ($('pf-clearmin')) $('pf-clearmin').onchange = function () { f.clearMinimum = this.checked; previewForm(); };
+    $('pf-cancel').onclick = function () { state.pform = null; renderPriceForm(); renderPriceCheck(); $('price-add').focus(); };
+    $('price-form').onsubmit = function (e) {
+      e.preventDefault();
+      var change = formChange();
+      if (change.problem) { $('pf-error').textContent = change.message; return; }
+      var u = change.update;
+      if (!f.id) delete u.id;
+      if (!p.minimumsEnabled && f.inactiveMinimum != null && f.clearMinimum) delete u.minimum;
+      savePrice(f.id ? 'editUpdate' : 'addUpdate', { update: u, requestId: f.requestId });
+    };
+    previewForm();
+  }
+
+  /** Under the form: what the change does to the price, before saving (the published list plus this change). */
+  function previewForm() {
+    var change = formChange(), el = $('pf-preview');
+    if (!el) return;
+    $('pf-error').textContent = change.problem && (change.problem === 'conflict' || state.pform.from) ? change.message : '';
+    if (change.problem) { el.innerHTML = ''; renderPriceCheck(); return; }
+    var list = candidateList(change.update), u = change.update;
+    var lines = [];
+    if (u.from === u.to) {
+      lines.push('לילה ב־' + heFull(u.from) + ': <b>' + shekel(quoteStay(list, 'couple', u.from, 1, 2).price) + '</b>');
+      lines.push('שני לילות מ־' + heFull(u.from) + ': <b>' + shekel(quoteStay(list, 'couple', u.from, 2, 2).price) + '</b>');
+    } else {
+      var firstWeekday = null, firstWeekend = null;
+      for (var d = u.from; d <= u.to && (!firstWeekday || !firstWeekend); d = addDays(d, 1)) {
+        if (isWeekendNight(d)) firstWeekend = firstWeekend || d; else firstWeekday = firstWeekday || d;
+      }
+      if (firstWeekday) lines.push('לילה ב־' + heFull(firstWeekday) + ' (א׳–ד׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekday, 1, 2).price) + '</b>');
+      if (firstWeekend) lines.push('לילה ב־' + heFull(firstWeekend) + ' (ה׳–ש׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekend, 1, 2).price) + '</b>');
+    }
+    el.innerHTML = '<span class="hint">תצוגה מקדימה, לפני שמירה:</span><br>' + lines.join('<br>');
+    renderPriceCheck();
+  }
+
+  /** One save; the answer says whether it reached the site. */
+  function savePrice(op, args) {
+    var p = state.prices;
+    args.token = p.token;
+    args.requestId = args.requestId || requestId();
+    priceMessage('שומרים…');
+    return call(op, { args: args }).then(function (res) {
+      if (res.ok && res.valid) {
+        state.pform = null;
+        priceMessage('נשמר, והמחירים באתר עודכנו.');
+      } else if (res.ok) {
+        state.pform = null;
+        priceMessage('נשמר, עדיין לא באתר: נותרו ' + (res.problems || []).length + ' בעיות לתיקון.', true);
+      } else if (res.error === 'stale') {
+        priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש; בדקו ונסו שוב.', true);
+        if (state.pform) state.pform.requestId = requestId();
+      } else if (res.error === 'fix_first') {
+        priceMessage('קודם צריך לתקן או להסיר את השורות שסומנו: ' + (res.problems || []).join(' · '), true);
+        if (state.pform) state.pform.requestId = requestId();
+      } else {
+        priceMessage('לא נשמר: ' + ((res.problems || []).join(' · ') || res.error), true);
+        if (state.pform) state.pform.requestId = requestId();
+      }
+      return loadPrices();
+    }, function (err) {
+      if (err && err.message === 'unauthorized') return;
+      priceMessage('המערכת עסוקה, נסו שוב בעוד רגע.', true);
+    });
+  }
+
+  $('price-add').onclick = function () { openPriceForm(null); };
+
   // ---- Tabs, header
 
   document.querySelectorAll('nav.tabs button').forEach(function (b) {
@@ -1377,12 +1801,14 @@
         if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
       });
       document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
+      // The prices screen reads the sheet fresh every time it opens.
+      if (state.tab === 'prices') loadPrices();
       window.scrollTo(0, 0);
       var h = document.querySelector('#screen-' + state.tab + ' h2');
       if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
     });
   });
-  $('refresh-btn').onclick = function () { load(); };
+  $('refresh-btn').onclick = function () { load(); if (state.tab === 'prices') loadPrices(); };
   $('health-btn').onclick = function () {
     var p = $('health-panel');
     p.hidden = !p.hidden;

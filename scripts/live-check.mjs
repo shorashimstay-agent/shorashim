@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 
 const SITE = 'https://shorashimstay.com';
-const PAGES = ['/terms/', '/privacy/', '/accessibility/', '/en/terms/', '/en/privacy/', '/en/accessibility/'];
+const PAGES = ['/terms/', '/privacy/', '/accessibility/', '/en/terms/', '/en/privacy/', '/en/accessibility/', '/admin/'];
 const assetsOf = (html) => [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
 
 const built = assetsOf(fs.readFileSync('dist/index.html', 'utf8'));
