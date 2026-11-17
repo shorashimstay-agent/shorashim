@@ -14,10 +14,13 @@ const DECEMBER = { id: 'udec2026', name: 'דצמבר 2026', from: '2026-12-01', 
 type Update = { id: string; name: string; from: string; to: string; weekday?: number; weekend?: number; minimum?: number; twoNight?: number };
 
 /** A fake backend for the console: the overview and the price operations, kept in memory. */
-async function fakeConsole(page: Page, { stale = false, copiedId = false } = {}) {
+async function fakeConsole(page: Page, { stale = false, copiedId = false, badBase = false } = {}) {
   const state = { base: { ...BASE } as Record<string, number>, updates: [DECEMBER] as Update[], saves: [] as unknown[], token: 1 };
   const prices = () => ({
-    ok: true, today: TODAY, minimumsEnabled: false, token: `t${state.token}`, base: state.base, updates: state.updates,
+    ok: true, today: TODAY, minimumsEnabled: false, token: `t${state.token}`, updates: state.updates,
+    // badBase: perNight typed as "1o50" in the sheet, so the base doesn't read until it is fixed.
+    base: badBase && state.base.perNight === BASE.perNight ? null : state.base,
+    rawBase: Object.fromEntries(Object.entries(state.base).map(([k, v]) => [k, badBase && k === 'perNight' && v === BASE.perNight ? '1o50' : String(v)])),
     // copiedId: a pasted row that kept the id of December's row.
     invalidRows: copiedId ? [{ row: 24, id: 'udec2026', code: 'id', reason: 'מזהה שורה חסר או כפול', cells: ['udec2026', 'ינואר', '2027-01-05', '2027-01-10', '900', '', '', ''] }] : [],
     problems: copiedId ? ['שורה 24: מזהה שורה חסר או כפול'] : [], warnings: [], valid: !copiedId, structure: '', status: { valid: true }, notice: null,
@@ -209,4 +212,28 @@ test('a row whose id was copied offers no buttons that would act on the original
   const bad = page.locator('.ucard.bad');
   await expect(bad).toContainText('המזהה של השורה יתוקן אוטומטית');
   await expect(bad.getByRole('button')).toHaveCount(0);
+});
+
+test('an invalid base value is shown as typed in the sheet and can be fixed back', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fakeConsole(page, { badBase: true });
+  await page.goto('/admin/');
+  await page.getByRole('button', { name: 'מחירים' }).click();
+  await expect(page.locator('#pb-perNight')).toHaveValue('');
+  await page.locator('#pb-perNight').fill('1050');
+  await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  expect(state.saves.at(-1)).toMatchObject({ op: 'saveBase', args: { base: { perNight: 1050 } } });
+});
+
+test('a base save leaves an open update form as it was', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeConsole(page);
+  await openPrices(page);
+  await page.getByRole('button', { name: '＋ הוספת עדכון' }).click();
+  await page.locator('#pf-name').fill('טיוטה');
+  await page.locator('#pb-perNight').fill('1060');
+  await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  await expect(page.locator('#pf-name')).toHaveValue('טיוטה');
 });

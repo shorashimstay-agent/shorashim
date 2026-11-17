@@ -877,3 +877,48 @@ test('a pasted row with a copied id is reported with the code the screen uses to
   assert.equal(row.code, 'id');
   assert.ok(screen.updates.some((u) => u.id === 'udec2026' && u.name === 'דצמבר'), 'the original stays a normal card');
 });
+
+test('a deleted prices tab is rebuilt from the dashboard: a dry run first, then the real run', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  const v = e.ctx.priceRun_('setup').version;
+  e.ss.sheets = e.ss.sheets.filter((s) => s !== e.source);
+  const dry = consoleOp(e, 'restorePrices', { dryRun: true });
+  assert.equal(dry.ok, true, JSON.stringify(dry));
+  assert.equal(dry.summary.updates, 1);
+  assert.equal(e.ss.getSheetByName('מחירים'), null, 'the dry run creates nothing');
+  const real = consoleOp(e, 'restorePrices', { token: dry.token });
+  assert.equal(real.valid, true, JSON.stringify(real));
+  assert.equal(real.version, v);
+});
+
+test('while the layout is broken the dashboard only restores; an edit of a removed update is refused', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['id', '', '']);
+  e.source.cells.push(['udec2026', 'ינואר', '2027-01-05', '2027-01-10', '900', '', '', '', '']);
+  let screen = consoleOp(e, 'prices');
+  const res = consoleOp(e, 'removeUpdate', { token: screen.token, id: 'udec2026' });
+  assert.equal(res.error, 'structure');
+  assert.ok(e.source.cells.some((r) => r[1] === 'ינואר') && e.source.cells.some((r) => r[1] === 'דצמבר'), 'nothing blanked');
+  // A sound sheet: the December row is cleared by hand, then a still-open edit form saves.
+  const f = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  f.ctx.priceRun_('setup');
+  for (let c = 1; c < 8; c++) f.source.cells[22][c] = '';
+  f.ctx.priceRun_('handler');
+  screen = consoleOp(f, 'prices');
+  const edit = consoleOp(f, 'editUpdate', { token: screen.token, update: { ...{ id: 'udec2026', name: 'דצמבר', from: '2026-12-01', to: '2026-12-31', weekday: 860 } } });
+  assert.equal(edit.error, 'unknown_id');
+});
+
+test('an invalid base value shows its raw cell and a Hebrew problem, and can be fixed from the form', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = '1o50';
+  e.ctx.priceRun_('handler');
+  const screen = consoleOp(e, 'prices');
+  assert.equal(screen.base, null);
+  assert.equal(screen.rawBase.perNight, '1o50');
+  assert.ok(screen.problems.some((p) => p.includes('מחיר בסיס א׳–ד׳')), JSON.stringify(screen.problems));
+  const fixed = consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 850 } });
+  assert.equal(fixed.valid, true, JSON.stringify(fixed));
+});
