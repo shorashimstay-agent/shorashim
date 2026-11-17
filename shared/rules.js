@@ -54,7 +54,9 @@ export var PRICE_KEYS = ['perNight', 'weekendPerNight', 'thirdGuestPerNight', 'b
 export var PRICE_DEFAULTS = { weekendPerNight: 'perNight' };
 // Prices that may be missing with no fallback: the package they price then has no estimate, and
 // every other price still holds. A new package's row can reach the sheet after the code does.
-export var OPTIONAL_PRICE_KEYS = ['bride_day_wedding_night'];
+// thirdGuestPerNight is no longer used (the third guest is a percentage since 17.11.2026); its row
+// stays in the sheet only for older readers of A1:C20 and is cleared in step 4 of the plan.
+export var OPTIONAL_PRICE_KEYS = ['bride_day_wedding_night', 'thirdGuestPerNight'];
 export var PRICE_MIN = 100;
 export var PRICE_MAX = 20000;
 
@@ -113,6 +115,396 @@ export function pricesFromRows(rows) {
   });
   var checked = checkPrices({ version: 'sheet', prices: prices });
   return checked.ok ? { ok: true, version: pricesVersionOf(checked.prices), prices: checked.prices } : checked;
+}
+
+// ---------------------------------------------------------------------------
+// Price lists (docs/private/pricing-dashboard-plan.md). The owner's prices tab holds a base area
+// (key / label / value rows, as above, plus thirdGuestPercent) and, under a header row whose first
+// cell is "id", a table of dated updates. The web app validates it and publishes the result as a
+// price list, { version, base, updates }, which the site, the web app and the console all price
+// from with quoteStay.
+
+export var THIRD_GUEST_PERCENT_DEFAULT = 35;
+export var MINIMUM_NIGHTS_MAX = MAX_NIGHTS;
+// An update that ended more than this many days ago is left out of the published list.
+export var UPDATE_KEEP_DAYS = 30;
+export var PUBLISHED_MAX_CHARS = 45000;
+export var UPDATE_NAME_MAX = 60;
+export var UPDATE_ID_RE = /^u[a-z0-9]{6,12}$/;
+// The updates table's columns, A to I.
+export var UPDATE_COLUMNS = ['id', 'name', 'from', 'to', 'weekday', 'weekend', 'minimum', 'twoNight', 'updated'];
+export var UPDATE_HEADER = ['id', 'שם', 'מ־', 'עד (כולל)', 'א׳–ד׳', 'ה׳–ש׳', 'מינימום לילות', 'מחיר לשני לילות', 'עודכן'];
+// The base area must stay in rows 1–20: older readers of the sheet read A1:C20.
+export var BASE_AREA_ROWS = 20;
+var UPDATE_FIELDS = ['weekday', 'weekend', 'minimum', 'twoNight'];
+
+/** 32-bit FNV-1a of a string, as 8 hex digits. */
+export function fnv1a(text) {
+  var hash = 0x811c9dc5;
+  for (var i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return ('0000000' + hash.toString(16)).slice(-8);
+}
+
+/**
+ * A date typed in the sheet: ISO (2026-12-31) or Israeli day-first order (31/12/2026, 31.12.2026,
+ * with or without leading zeros). Month-first is never assumed. Anything else, a date that does not
+ * exist, or a non-string (a date cell's serial number) gives ''.
+ * @param {unknown} value @returns {string}
+ */
+export function parseSheetDate(value) {
+  if (typeof value !== 'string') return '';
+  var text = value.trim();
+  if (DATE_RE.test(text)) return isNaN(toDayNumber(text)) ? '' : text;
+  var m = /^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/.exec(text);
+  if (!m) return '';
+  var iso = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  return isNaN(toDayNumber(iso)) ? '' : iso;
+}
+
+/**
+ * A whole number typed in the sheet: "1,250", "₪1,250", "₪1,050.00" and 1250 are 1250. Empty gives
+ * null; anything else (a fraction, text) gives NaN.
+ * @param {unknown} value @returns {number | null}
+ */
+export function parseSheetInt(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Math.floor(value) === value ? value : NaN;
+  var text = String(value).replace(/[₪\s,]/g, '').replace(/\.0+$/, '');
+  if (text === '') return null;
+  return /^\d+$/.test(text) ? Number(text) : NaN;
+}
+
+function cellText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+/** A price is a whole number of shekels in [PRICE_MIN, max]. */
+function isPrice(n, max) {
+  return typeof n === 'number' && Math.floor(n) === n && n >= PRICE_MIN && n <= (max || PRICE_MAX);
+}
+
+/**
+ * Checks the base prices: the flat key → price map (checkPrices) plus thirdGuestPercent, a whole
+ * number 0–100 (THIRD_GUEST_PERCENT_DEFAULT when missing).
+ * @returns {{ ok: true, base: Record<string, number> } | { ok: false, error: string }}
+ */
+export function checkBase(source) {
+  if (!source || typeof source !== 'object') return { ok: false, error: 'no prices' };
+  var checked = checkPrices({ version: 'base', prices: source });
+  if (!checked.ok) return checked;
+  var base = checked.prices;
+  var percent = source.thirdGuestPercent === undefined || source.thirdGuestPercent === null ? THIRD_GUEST_PERCENT_DEFAULT : source.thirdGuestPercent;
+  if (typeof percent !== 'number' || Math.floor(percent) !== percent || percent < 0 || percent > 100) return { ok: false, error: 'bad percent' };
+  base.thirdGuestPercent = percent;
+  return { ok: true, base: base };
+}
+
+/**
+ * Why an update can't stand, or '' when it can. `u` has id, name, from, to (ISO) and optional
+ * weekday, weekend, minimum and twoNight. opts: today (ISO), forSave (a dashboard save: the name is
+ * required and the update must not have ended), minimumsEnabled (off: a minimum is refused on save;
+ * on read it is ignored, see readPriceSource).
+ * @returns {string}
+ */
+export function updateProblem(u, opts) {
+  opts = opts || {};
+  if (opts.forSave && !cellText(u.name)) return 'name';
+  if (cellText(u.name).length > UPDATE_NAME_MAX) return 'name_long';
+  if (!u.from || isNaN(toDayNumber(u.from))) return 'from';
+  if (!u.to || isNaN(toDayNumber(u.to))) return 'to';
+  if (u.from > u.to) return 'order';
+  var has = false;
+  for (var i = 0; i < UPDATE_FIELDS.length; i++) if (u[UPDATE_FIELDS[i]] !== undefined && u[UPDATE_FIELDS[i]] !== null) has = true;
+  if (!has) return 'empty';
+  if (u.weekday != null && !isPrice(u.weekday)) return 'weekday';
+  if (u.weekend != null && !isPrice(u.weekend)) return 'weekend';
+  if (u.minimum != null) {
+    if (typeof u.minimum !== 'number' || Math.floor(u.minimum) !== u.minimum || u.minimum < 1 || u.minimum > MINIMUM_NIGHTS_MAX) return 'minimum';
+    if (opts.forSave && !opts.minimumsEnabled) return 'minimum_off';
+  }
+  if (u.twoNight != null) {
+    if (!isPrice(u.twoNight, 2 * PRICE_MAX)) return 'twoNight';
+    if (u.from !== u.to) return 'twoNight_range';
+    if (u.minimum != null && u.minimum > 2 && (opts.minimumsEnabled || opts.forSave)) return 'twoNight_minimum';
+  }
+  if (opts.today && toDayNumber(u.from) > toDayNumber(opts.today) + HORIZON_DAYS) return 'too_far';
+  if (opts.forSave && opts.today && u.to < opts.today) return 'past';
+  return '';
+}
+
+/**
+ * Pairs of updates that contradict each other: two single-date updates on the same date, or two
+ * ranges that overlap without one containing the other (or of equal length), when both set the same
+ * field. A range nested inside a longer one is fine: the shorter one wins (priceForNight).
+ * @param {object[]} updates @returns {{ a: string, b: string, field: string }[]}
+ */
+export function updateConflicts(updates) {
+  var out = [];
+  for (var i = 0; i < updates.length; i++) {
+    for (var j = i + 1; j < updates.length; j++) {
+      var a = updates[i];
+      var b = updates[j];
+      if (a.from > b.to || b.from > a.to) continue;
+      var singleA = a.from === a.to;
+      var singleB = b.from === b.to;
+      if (singleA !== singleB) continue;
+      if (!singleA) {
+        var lenA = daysBetween(a.from, a.to);
+        var lenB = daysBetween(b.from, b.to);
+        var aInB = a.from >= b.from && a.to <= b.to;
+        var bInA = b.from >= a.from && b.to <= a.to;
+        if ((aInB || bInA) && lenA !== lenB) continue;
+      }
+      for (var f = 0; f < UPDATE_FIELDS.length; f++) {
+        var key = UPDATE_FIELDS[f];
+        if (a[key] != null && b[key] != null) {
+          out.push({ a: a.id, b: b.id, field: key });
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Reads the prices tab. `rows` are its cells, top to bottom, A to I: strings as displayed, numbers
+ * for the base area's values, dates already turned into ISO strings by the caller. opts: today,
+ * minimumsEnabled, hasBaseline (before the first publish a missing header is an empty updates table).
+ *
+ * Returns the base prices, the updates, and what is wrong: `structure` ('' or why the layout is
+ * broken), `baseError`, per-row `rowErrors` ({ row, id, reason }), `conflicts`, and `warnings`. The
+ * source is publishable only when all of those are empty (sourceIsValid). Row numbers are 1-based.
+ */
+export function readPriceSource(rows, opts) {
+  opts = opts || {};
+  rows = rows || [];
+  var out = { base: null, baseError: '', updates: [], rowErrors: [], conflicts: [], warnings: [], structure: '', headerRow: 0, removedIds: [], blankIds: [], idRows: {} };
+  var headers = [];
+  for (var r = 0; r < rows.length; r++) if (cellText(rows[r] && rows[r][0]) === 'id') headers.push(r);
+  if (headers.length > 1) out.structure = 'two_headers';
+  else if (headers.length === 0 && opts.hasBaseline) out.structure = 'no_header';
+  var headerIndex = headers.length ? headers[0] : rows.length;
+  out.headerRow = headers.length ? headerIndex + 1 : 0;
+
+  var source = {};
+  var seen = {};
+  var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
+  for (r = 0; r < rows.length; r++) {
+    var key = cellText(rows[r] && rows[r][0]);
+    if (baseKeys.indexOf(key) >= 0) {
+      if (r > headerIndex) out.structure = out.structure || 'base_below_header';
+      else if (r >= BASE_AREA_ROWS) out.structure = out.structure || 'base_outside_rows';
+      if (seen[key]) out.structure = out.structure || 'duplicate_key';
+      seen[key] = true;
+      var value = rows[r][2];
+      var n = typeof value === 'number' ? value : parseSheetInt(value);
+      if (n === null) continue;
+      if (isNaN(n)) out.baseError = out.baseError || 'bad ' + key;
+      else source[key] = n;
+    } else if (r < headerIndex && UPDATE_ID_RE.test(key)) {
+      out.structure = out.structure || 'update_above_header';
+    } else if (r < headerIndex && /^[A-Za-z_]\w*$/.test(key) && cellText(rows[r][2])) {
+      out.warnings.push({ row: r + 1, reason: 'unknown_key', key: key });
+    }
+  }
+  if (!out.baseError) {
+    var base = checkBase(source);
+    if (base.ok) out.base = base.base;
+    else out.baseError = base.error;
+  }
+
+  var ids = {};
+  for (r = headerIndex + 1; r < rows.length; r++) {
+    var row = rows[r] || [];
+    var id = cellText(row[0]);
+    var empty = true;
+    for (var c = 1; c <= 7; c++) if (cellText(row[c])) empty = false;
+    if (empty) {
+      if (id) out.removedIds.push(id);
+      continue;
+    }
+    if (!id || !UPDATE_ID_RE.test(id) || ids[id]) {
+      out.blankIds.push(r + 1);
+      out.rowErrors.push({ row: r + 1, id: id, reason: 'id' });
+      continue;
+    }
+    ids[id] = true;
+    out.idRows[id] = r + 1;
+    var u = { id: id, name: cellText(row[1]), from: parseSheetDate(row[2]), to: parseSheetDate(row[3]) };
+    var bad = '';
+    var fields = { weekday: row[4], weekend: row[5], minimum: row[6], twoNight: row[7] };
+    for (var f in fields) {
+      var v = parseSheetInt(fields[f]);
+      if (v !== null && isNaN(v)) bad = bad || f;
+      else if (v !== null) u[f] = v;
+    }
+    var problem = bad || updateProblem(u, { today: opts.today, minimumsEnabled: opts.minimumsEnabled });
+    if (problem) {
+      out.rowErrors.push({ row: r + 1, id: id, reason: problem });
+      continue;
+    }
+    // Minimums are off until the booking form can show them: one in the sheet is kept aside as
+    // inactiveMinimum (the console shows it), never priced, published or counted as a conflict.
+    if (u.minimum != null && !opts.minimumsEnabled) {
+      out.warnings.push({ row: r + 1, id: id, reason: 'minimum_off' });
+      u.inactiveMinimum = u.minimum;
+      delete u.minimum;
+    }
+    if (u.from === u.to) {
+      var weekend = isWeekendNight(u.from);
+      if ((weekend && u.weekend == null && u.weekday != null) || (!weekend && u.weekday == null && u.weekend != null)) {
+        out.warnings.push({ row: r + 1, id: id, reason: 'price_unused' });
+      }
+    }
+    out.updates.push(u);
+  }
+  out.conflicts = updateConflicts(out.updates);
+  return out;
+}
+
+/** Whether a read source (readPriceSource) can be published. */
+export function sourceIsValid(read) {
+  return !!read.base && !read.structure && !read.baseError && !read.rowErrors.length && !read.conflicts.length;
+}
+
+/** An update as published: only its set fields, in a fixed order. */
+function publishedUpdate(u, minimumsEnabled) {
+  var p = { id: u.id, name: cellText(u.name), from: u.from, to: u.to };
+  if (u.weekday != null) p.weekday = u.weekday;
+  if (u.weekend != null) p.weekend = u.weekend;
+  if (u.minimum != null && minimumsEnabled) p.minimum = u.minimum;
+  if (u.twoNight != null) p.twoNight = u.twoNight;
+  return p;
+}
+
+/**
+ * The price list to publish: the base and the updates that ended at most UPDATE_KEEP_DAYS ago, with
+ * minimums left out while they are off. Its version is a hash of the content, so the same prices
+ * always get the same version wherever they are computed.
+ * @returns {{ version: string, base: Record<string, number>, updates: object[] }}
+ */
+export function buildPriceList(base, updates, today, minimumsEnabled) {
+  var keys = Object.keys(base).sort();
+  var b = {};
+  keys.forEach(function (k) {
+    b[k] = base[k];
+  });
+  var cutoff = today ? addDays(today, -UPDATE_KEEP_DAYS) : '';
+  var list = (updates || [])
+    .filter(function (u) {
+      return !cutoff || u.to >= cutoff;
+    })
+    .map(function (u) {
+      return publishedUpdate(u, minimumsEnabled);
+    })
+    .filter(function (u) {
+      return u.weekday != null || u.weekend != null || u.minimum != null || u.twoNight != null;
+    })
+    .sort(function (x, y) {
+      return x.id < y.id ? -1 : x.id > y.id ? 1 : 0;
+    });
+  return { version: 'p-' + fnv1a(JSON.stringify({ base: b, updates: list })), base: b, updates: list };
+}
+
+/**
+ * Checks a published price list, as the site and the web app read it. Unknown fields are ignored,
+ * so a newer web app can add one without failing an older page.
+ * @returns {{ ok: true, list: object } | { ok: false, error: string }}
+ */
+export function checkPriceList(value) {
+  if (!value || typeof value !== 'object') return { ok: false, error: 'not an object' };
+  if (typeof value.version !== 'string' || !/^[\w.@:-]{1,64}$/.test(value.version)) return { ok: false, error: 'bad version' };
+  var base = checkBase(value.base);
+  if (!base.ok) return base;
+  if (!Array.isArray(value.updates)) return { ok: false, error: 'no updates' };
+  var updates = [];
+  for (var i = 0; i < value.updates.length; i++) {
+    var raw = value.updates[i] || {};
+    var u = { id: String(raw.id || ''), name: cellText(raw.name), from: String(raw.from || ''), to: String(raw.to || '') };
+    for (var f = 0; f < UPDATE_FIELDS.length; f++) if (raw[UPDATE_FIELDS[f]] != null) u[UPDATE_FIELDS[f]] = raw[UPDATE_FIELDS[f]];
+    if (updateProblem(u, { minimumsEnabled: true })) return { ok: false, error: 'bad update ' + u.id };
+    updates.push(u);
+  }
+  return { ok: true, list: { version: value.version, base: base.base, updates: updates } };
+}
+
+/**
+ * A price list from what a caller holds: a price list is returned as is, a flat key → price map
+ * (older callers, test fixtures) becomes a list with no updates. Null when there are no prices.
+ */
+export function asPriceList(prices) {
+  if (!prices || typeof prices !== 'object') return null;
+  if (prices.base && Array.isArray(prices.updates)) return prices;
+  var base = checkBase(prices);
+  if (!base.ok) return null;
+  return buildPriceList(base.base, [], '', false);
+}
+
+/**
+ * The price and minimum of one night, by precedence for each field: the single-date update for that
+ * night, then every range containing it from the shortest to the longest, then the base. The first
+ * that sets the field wins; the base has no minimum, so the default is 1.
+ * @returns {{ price: number, minimum: number }}
+ */
+export function priceForNight(list, date) {
+  var weekend = isWeekendNight(date);
+  var key = weekend ? 'weekend' : 'weekday';
+  var matches = list.updates
+    .filter(function (u) {
+      return u.from <= date && date <= u.to;
+    })
+    .sort(function (a, b) {
+      return daysBetween(a.from, a.to) - daysBetween(b.from, b.to);
+    });
+  var price = null;
+  var minimum = null;
+  for (var i = 0; i < matches.length; i++) {
+    if (price === null && matches[i][key] != null) price = matches[i][key];
+    if (minimum === null && matches[i].minimum != null) minimum = matches[i].minimum;
+  }
+  if (price === null) price = weekend ? list.base.weekendPerNight : list.base.perNight;
+  return { price: price, minimum: minimum === null ? 1 : minimum };
+}
+
+/**
+ * A stay's price and minimum. Packages take their flat price (null when the sheet has none) and
+ * have no minimum. A couple stay sums its nights; a two-night stay that arrives on a single-date
+ * update with a two-night total costs that total instead. A third guest adds thirdGuestPercent of
+ * the lodging, rounded to the shekel. Without a start date every night takes the base midweek price.
+ * @returns {{ price: number | null, minimum: number }}
+ */
+export function quoteStay(list, stayType, start, nights, adults) {
+  if (stayType !== 'couple') {
+    return { price: typeof list.base[stayType] === 'number' ? list.base[stayType] : null, minimum: 1 };
+  }
+  var total = 0;
+  var minimum = 1;
+  for (var i = 0; i < nights; i++) {
+    if (!start) {
+      total += list.base.perNight;
+      continue;
+    }
+    var night = priceForNight(list, addDays(start, i));
+    total += night.price;
+    if (night.minimum > minimum) minimum = night.minimum;
+  }
+  if (start && nights === 2) {
+    for (var j = 0; j < list.updates.length; j++) {
+      var u = list.updates[j];
+      if (u.twoNight != null && u.from === start && u.to === start) total = u.twoNight;
+    }
+  }
+  if (adults === 3) total += Math.round((total * list.base.thirdGuestPercent) / 100);
+  return { price: total, minimum: minimum };
+}
+
+/** The longest minimum among the nights [checkIn, checkOut), 1 when none is set. */
+export function stayMinimum(list, checkIn, checkOut) {
+  return quoteStay(list, 'couple', checkIn, daysBetween(checkIn, checkOut), 2).minimum;
 }
 
 export var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -388,31 +780,29 @@ export function conflictingNights(blocked, start, end) {
   });
 }
 
-/** Friday and Saturday nights are weekend nights. A night is named by the date it starts. */
-/** @param {string} date @returns {boolean} */
+/**
+ * Thursday, Friday and Saturday nights are weekend nights (the owner's prices of 17.11.2026: Sun–Wed
+ * midweek, Thu–Sat weekend). A night is named by the date it starts.
+ * @param {string} date @returns {boolean}
+ */
 export function isWeekendNight(date) {
   var day = new Date(toDayNumber(date) * 86400000).getUTCDay();
-  return day === 5 || day === 6;
+  return day === 4 || day === 5 || day === 6;
 }
 
 /**
+ * The price for a stay, or null without prices. `prices` is a price list (priceListOf) or, from
+ * callers that hold only the flat key → price map, that map. A couple stay without `start` is priced
+ * from the base midweek price.
  * @param {StayType} stayType @param {number} nights @param {number} adults
- * @param {Record<string, number> | null} prices checked prices; without them there is no estimate
- * @param {string} [start] the first night; without it every night is priced as a weeknight
+ * @param {Record<string, any> | null} prices
+ * @param {string} [start] the first night
  * @returns {number | null}
  */
 export function estimatePrice(stayType, nights, adults, prices, start) {
-  var p = prices;
-  if (!p) return null;
-  if (stayType === 'bride_day' || stayType === 'bride_night_day' || stayType === 'wedding_night' || stayType === 'bride_day_wedding_night') {
-    return typeof p[stayType] === 'number' ? p[stayType] : null;
-  }
-  var weekend = p.weekendPerNight || p.perNight;
-  var total = 0;
-  for (var i = 0; i < nights; i++) {
-    total += start && isWeekendNight(addDays(start, i)) ? weekend : p.perNight;
-  }
-  return total + (adults === 3 ? p.thirdGuestPerNight * nights : 0);
+  var list = asPriceList(prices);
+  if (!list) return null;
+  return quoteStay(list, stayType, start || '', nights, adults).price;
 }
 
 // Nearby dates offered when a holiday's dates are taken.
@@ -430,7 +820,7 @@ export var ALTERNATIVE_SEARCH_DAYS = 30;
  * @param {number} [limit] at most this many, MAX_ALTERNATIVES by default
  * @returns {{ checkIn: string, checkOut: string }[]}
  */
-export function findAlternatives(busy, checkIn, nights, from, to, firstNight, limit) {
+export function findAlternatives(busy, checkIn, nights, from, to, firstNight, limit, list) {
   limit = limit || MAX_ALTERNATIVES;
   var out = [];
   if (!(nights >= 1) || isNaN(toDayNumber(checkIn)) || isNaN(toDayNumber(from)) || isNaN(toDayNumber(to))) return out;
@@ -442,6 +832,8 @@ export function findAlternatives(busy, checkIn, nights, from, to, firstNight, li
     for (var i = 0; i < starts.length && out.length < limit; i++) {
       var s = starts[i];
       if (s < lo || s + nights > hi) continue;
+      // With a price list, an alternative must also meet the minimum of the nights it covers.
+      if (list && stayMinimum(list, fromDayNumber(s), fromDayNumber(s + nights)) > nights) continue;
       if (spanIsFree(busy, staySpan('couple', fromDayNumber(s), fromDayNumber(s + nights)))) out.push({ checkIn: fromDayNumber(s), checkOut: fromDayNumber(s + nights) });
     }
   }
