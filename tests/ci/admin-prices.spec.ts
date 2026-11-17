@@ -93,6 +93,10 @@ test('New Year\'s Eve as one update: the night price in its weekday column, the 
   await expect(page.locator('#pf-preview')).toContainText('₪2,100');
   await page.getByRole('button', { name: 'שמירה' }).click();
   await expect(page.locator('#prices-msg')).toContainText('נשמר, והמחירים באתר עודכנו');
+  // The form closes, and adding is offered again, with focus on it.
+  await expect(page.locator('#price-form')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '＋ הוספת עדכון' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '＋ הוספת עדכון' })).toBeFocused();
   expect(state.saves[0]).toMatchObject({ op: 'addUpdate', args: { update: { name: 'סילבסטר', from: '2026-12-31', to: '2026-12-31', weekend: 1250, twoNight: 2100 } } });
   const card = page.locator('.ucard', { hasText: 'סילבסטר' });
   await expect(card).toContainText('₪1,250');
@@ -111,6 +115,7 @@ test('New Year\'s Eve as one update: the night price in its weekday column, the 
   await page.locator('#pc-to').fill('2027-01-02');
   await page.locator('#pc-to').blur();
   await page.getByRole('button', { name: '3 אורחים' }).click();
+  await expect(page.getByRole('button', { name: '3 אורחים' })).toBeFocused();
   await expect(page.locator('#pc-out')).toContainText('₪2,835');
   await expect(page.locator('#pc-out')).toContainText('התאריכים פנויים');
 });
@@ -152,4 +157,27 @@ test('with the keyboard open (half the height), the error and the save button st
   await expect(page.locator('#pf-error')).toContainText('צריך שם לעדכון');
   await page.locator('#pf-error').scrollIntoViewIfNeeded();
   await expect(page.locator('#pf-error')).toBeInViewport();
+});
+
+test('a double tap saves once, and typing in the form asks for availability only once per dates', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fakeConsole(page);
+  let checks = 0;
+  page.on('request', (r) => { if (r.method() === 'GET' && r.url().includes('action=check')) checks++; });
+  await openPrices(page);
+  await page.locator('#pc-from').fill('2027-02-01');
+  await page.locator('#pc-from').blur();
+  await expect(page.locator('#pc-out')).toContainText('התאריכים פנויים');
+  const before = checks;
+  await page.getByRole('button', { name: '＋ הוספת עדכון' }).click();
+  await page.locator('#pf-name').pressSequentially('חורף');
+  await page.locator('#pf-from').fill('2027-02-01');
+  await page.locator('#pf-from').blur();
+  await page.locator('#pf-night').pressSequentially('990');
+  await expect(page.locator('#pc-out')).toContainText('כולל העדכון שבעריכה');
+  expect(checks - before, 'no new availability checks while typing').toBe(0);
+  await page.locator('#pb-perNight').fill('1060');
+  await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).dblclick();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  expect(state.saves.filter((x: any) => x.op === 'saveBase')).toHaveLength(1);
 });

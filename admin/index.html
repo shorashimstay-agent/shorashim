@@ -174,7 +174,7 @@
   /* Tab bar: the site's dark footer band. */
   nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ink); border-top: 1px solid #292824; z-index: 6; padding-bottom: env(safe-area-inset-bottom); }
   nav.tabs .in { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
-  nav.tabs button { min-width: 0; padding: 0 2px; letter-spacing: .06em; }
+  nav.tabs .in button { min-width: 0; padding: 0 2px; letter-spacing: .06em; }
 
   /* Prices screen. */
   .pform label { display: block; font-size: 11px; letter-spacing: .16em; color: var(--accent); margin: 14px 0 6px; }
@@ -1423,12 +1423,20 @@
     name: 'צריך שם לעדכון.', name_long: 'השם ארוך מדי (עד 60 תווים).', from: 'בחרו תאריך התחלה.', to: 'בחרו תאריך סיום.',
     order: 'תאריך הסיום לפני תאריך ההתחלה.', empty: 'הזינו לפחות מחיר אחד, מחיר לשני לילות או מינימום.',
     weekday: 'מחיר א׳–ד׳: מספר שלם בין 100 ל-20,000.', weekend: 'מחיר ה׳–ש׳: מספר שלם בין 100 ל-20,000.',
-    minimum: 'מינימום לילות: 1 עד 14.', minimum_off: 'מינימום לילות עוד לא פעיל באתר.', twoNight: 'מחיר לשני לילות: מספר שלם בין 100 ל-40,000.',
+    minimum: 'מינימום לילות: 1 עד 14.', minimum_off: 'מינימום לילות עוד לא פעיל באתר: סמנו "להסיר את המינימום" כדי לשמור.', twoNight: 'מחיר לשני לילות: מספר שלם בין 100 ל-40,000.',
     twoNight_range: 'מחיר לשני לילות רק בעדכון לתאריך יחיד.', twoNight_minimum: 'מחיר לשני לילות לא יחול עם מינימום מעל 2.',
     too_far: 'התאריך רחוק מדי (יותר משנה).', past: 'העדכון כבר הסתיים.',
   };
+  var PRICE_SAVE_ERRORS = {
+    busy: 'המערכת עסוקה, נסו שוב בעוד רגע.', server_error: 'המערכת עסוקה, נסו שוב בעוד רגע.', in_progress: 'השמירה הקודמת עוד מתבצעת. נסו שוב בעוד רגע.',
+    unknown_id: 'העדכון כבר לא קיים בגיליון. המסך נטען מחדש.', no_header: 'טבלת העדכונים חסרה בגיליון. אפשר להשתמש ב"שחזור מבנה".',
+    no_room: 'אין מקום למחיר נוסף באזור מחירי הבסיס בגיליון.', base_not_number: 'מחיר בסיס חייב להיות מספר שלם.', unknown_key: 'מחיר לא מוכר.',
+    extra_columns: 'יש בגיליון עמודות מעבר ל-I, ולכן אי אפשר לשחזר אוטומטית.', source_missing: 'לשונית המחירים חסרה בגיליון.', bad_request: 'הבקשה לא תקינה.',
+  };
   state.prices = null;
   state.pform = null;
+  state.psaving = false;
+  state.pavail = null;
 
   function dayName(d) { return 'יום ' + HE_DAY[parse(d).getDay()]; }
   function shekel(n) { return n == null || n === '' ? '—' : '₪' + Number(n).toLocaleString('en-US'); }
@@ -1463,7 +1471,7 @@
     renderPriceBase(p);
     renderPriceCheck();
     renderPriceUpdates(p);
-    if (state.pform) renderPriceForm();
+    renderPriceForm();
   }
 
   function renderPriceAlerts(p) {
@@ -1484,10 +1492,10 @@
     if (p.warnings && p.warnings.length) {
       html += '<div class="banner warn" role="status"><b>שימו לב</b><ul>' + p.warnings.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>';
     }
-    html += '<div id="prices-msg" role="status" aria-live="polite">' + (state.pmsg ? '<div class="banner ' + (state.pmsg.bad ? 'err' : 'info') + '">' + esc(state.pmsg.text) + '</div>' : '') + '</div>';
+    html += '<div id="prices-msg" tabindex="-1">' + (state.pmsg ? '<div class="banner ' + (state.pmsg.bad ? 'err' : 'info') + '">' + esc(state.pmsg.text) + '</div>' : '') + '</div>';
     $('prices-alerts').innerHTML = html;
     if ($('prices-ack')) $('prices-ack').onclick = function () {
-      call('ackPriceEdit').then(loadPrices, function () {});
+      call('ackPriceEdit', { args: { seenAt: p.notice.lastAt || 0 } }).then(loadPrices, function () { priceMessage(PRICE_SAVE_ERRORS.busy, true); });
     };
     if ($('prices-restore')) $('prices-restore').onclick = restorePrices;
   }
@@ -1502,18 +1510,20 @@
 
   function restorePrices() {
     call('restorePrices', { args: { dryRun: true } }).then(function (dry) {
-      if (!dry.ok) return priceMessage('לא ניתן לשחזר את המבנה: ' + (dry.error === 'extra_columns' ? 'יש בגיליון עמודות מעבר ל-I.' : dry.error), true);
+      if (!dry.ok) return priceMessage('לא ניתן לשחזר את המבנה: ' + (PRICE_SAVE_ERRORS[dry.error] || dry.error), true);
       var s = dry.summary;
       var text = 'השחזור יסדר את הגיליון מחדש: ' + s.keys + ' מחירי בסיס, ' + s.updates + ' עדכונים' +
         (s.newIds ? ', ' + s.newIds + ' מהם יקבלו מזהה חדש' : '') + (s.notes ? ', ' + s.notes + ' הערות' : '') + '.' +
         (s.restoredFromSnapshot.length ? '\nישוחזרו מהמחירון התקין האחרון: ' + s.restoredFromSnapshot.join(', ') + '.' : '') +
         (s.dropped.length ? '\nלא יישמרו: ' + s.dropped.join(' | ') + '.' : '') + '\n\nלהמשיך?';
       if (!window.confirm(text)) return;
-      return call('restorePrices', { args: {} }).then(function (res) {
+      // The sheet the owner confirmed: a change since refuses the run.
+      return call('restorePrices', { args: { token: dry.token } }).then(function (res) {
+        if (!res.ok) return priceMessage(res.error === 'stale' ? 'הגיליון השתנה מאז הבדיקה. נסו שוב.' : 'לא ניתן לשחזר את המבנה: ' + (PRICE_SAVE_ERRORS[res.error] || res.error), true);
         priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
         return loadPrices();
       });
-    }, function () { priceMessage('המערכת עסוקה, נסו שוב בעוד רגע.', true); });
+    }, function () { priceMessage(PRICE_SAVE_ERRORS.busy, true); });
   }
 
   function renderPriceBase(p) {
@@ -1531,6 +1541,8 @@
         if (v !== (base[f[0]] == null ? null : base[f[0]])) changes[f[0]] = v;
       });
       if (!Object.keys(changes).length) return priceMessage('לא שונה דבר.');
+      var cleared = Object.keys(changes).filter(function (k) { return changes[k] === null; });
+      if (cleared.length && !window.confirm('לרוקן את ' + cleared.map(function (k) { return BASE_FIELDS.filter(function (f) { return f[0] === k; })[0][1]; }).join(', ') + '? באתר יוצג "מחיר בתיאום אישי".')) return;
       savePrice('saveBase', { base: changes });
     };
   }
@@ -1546,7 +1558,11 @@
     $('pc-from').onchange = function () { c.from = this.value; if (c.from && (!c.to || c.to <= c.from)) { c.to = addDays(c.from, 1); $('pc-to').value = c.to; } quoteCheck(); };
     $('pc-to').onchange = function () { c.to = this.value; quoteCheck(); };
     $('prices-check').querySelectorAll('[data-adults]').forEach(function (b) {
-      b.onclick = function () { c.adults = Number(b.getAttribute('data-adults')); renderPriceCheck(); };
+      b.onclick = function () {
+        c.adults = Number(b.getAttribute('data-adults'));
+        $('prices-check').querySelectorAll('[data-adults]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+        quoteCheck();
+      };
     });
     quoteCheck();
   }
@@ -1558,7 +1574,7 @@
     if (!c.from || !c.to || c.to <= c.from) { out.innerHTML = '<span class="hint">בחרו תאריכי הגעה ועזיבה.</span>'; return; }
     var nights = daysBetweenDates(c.from, c.to);
     if (nights > MAX_NIGHTS) { out.innerHTML = '<span class="hint">עד ' + MAX_NIGHTS + ' לילות.</span>'; return; }
-    var change = state.pform && formChange();
+    var change = state.pform ? formChange() : null;
     var list = candidateList(change && !change.problem ? change.update : null);
     if (!list) { out.innerHTML = '<span class="hint">אין מחירון פורסם.</span>'; return; }
     var q = quoteStay(list, 'couple', c.from, nights, c.adults);
@@ -1567,12 +1583,22 @@
       (q.minimum > 1 ? '<br>מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ' — <b style="font-size:inherit;color:var(--bad)">השהייה קצרה מדי</b>' : '') : '') +
       '<br><span id="pc-avail" class="hint">בודקים זמינות…</span>';
     out.innerHTML = html;
-    var key = c.from + c.to;
-    state.pcheckKey = key;
+    // Availability is asked once per pair of dates, not on every keystroke in the form.
+    var key = c.from + '|' + c.to;
+    if (state.pavail && state.pavail.key === key) {
+      if (state.pavail.text) $('pc-avail').textContent = state.pavail.text;
+      return;
+    }
+    state.pavail = { key: key, text: '' };
     fetch(API + '?action=check&start=' + c.from + '&end=' + c.to).then(function (r) { return r.json(); }).then(function (j) {
-      if (state.pcheckKey !== key || !$('pc-avail')) return;
-      $('pc-avail').textContent = j && j.free === true ? 'התאריכים פנויים' : j && j.free === false ? 'חלק מהלילות תפוסים' : 'לא ניתן לבדוק זמינות כרגע';
-    }, function () { if ($('pc-avail')) $('pc-avail').textContent = 'לא ניתן לבדוק זמינות כרגע'; });
+      var text = j && j.free === true ? 'התאריכים פנויים' : j && j.free === false ? 'חלק מהלילות תפוסים' : 'לא ניתן לבדוק זמינות כרגע';
+      if (!state.pavail || state.pavail.key !== key) return;
+      state.pavail.text = text;
+      if ($('pc-avail')) $('pc-avail').textContent = text;
+    }, function () {
+      if (state.pavail && state.pavail.key === key) state.pavail = null;
+      if ($('pc-avail')) $('pc-avail').textContent = 'לא ניתן לבדוק זמינות כרגע';
+    });
   }
 
   function updateLines(u) {
@@ -1621,7 +1647,8 @@
       b.onclick = function () {
         var r = p.invalidRows.filter(function (x) { return String(x.row) === b.getAttribute('data-fix'); })[0];
         var c = r.cells;
-        openPriceForm({ id: r.id, name: c[1], from: /^\d{4}-\d{2}-\d{2}$/.test(c[2]) ? c[2] : '', to: /^\d{4}-\d{2}-\d{2}$/.test(c[3]) ? c[3] : '', weekday: intOrNull(c[4]), weekend: intOrNull(c[5]), inactiveMinimum: intOrNull(c[6]), twoNight: intOrNull(c[7]) });
+        var minimum = intOrNull(c[6]);
+        openPriceForm({ id: r.id, name: c[1], from: /^\d{4}-\d{2}-\d{2}$/.test(c[2]) ? c[2] : '', to: /^\d{4}-\d{2}-\d{2}$/.test(c[3]) ? c[3] : '', weekday: intOrNull(c[4]), weekend: intOrNull(c[5]), minimum: p.minimumsEnabled ? minimum : null, inactiveMinimum: p.minimumsEnabled ? null : minimum, twoNight: intOrNull(c[7]) });
       };
     });
     $('price-updates').querySelectorAll('[data-remove]').forEach(function (b) {
@@ -1650,7 +1677,7 @@
   /** The update the form describes, and its first problem (shared rules, as the backend checks it). */
   function formChange() {
     var f = state.pform, p = state.prices;
-    if (!f) return null;
+    if (!f || !p) return null;
     var single = f.from && f.from === f.to;
     var u = { id: f.id || 'unew00000', name: f.name.trim(), from: f.from, to: f.to };
     if (single) {
@@ -1679,8 +1706,8 @@
 
   function renderPriceForm() {
     var f = state.pform, p = state.prices;
-    if (!f) { $('price-form-slot').innerHTML = ''; $('price-add').hidden = false; return; }
-    $('price-add').hidden = true;
+    if (!f) { $('price-form-slot').innerHTML = ''; $('price-add').style.display = ''; return; }
+    $('price-add').style.display = 'none';
     var single = f.from && f.from === f.to;
     var html = '<form class="panel pform" id="price-form" novalidate><h3>' + (f.id ? 'עריכת עדכון' : 'הוספת עדכון') + '</h3>' +
       '<label for="pf-name">שם העדכון</label><input id="pf-name" value="' + esc(f.name) + '" maxlength="60" autocomplete="off"><p class="hint">השם מופיע באתר.</p>' +
@@ -1706,7 +1733,7 @@
     } else {
       html += '<label for="pf-min">מינימום לילות</label><input id="pf-min" type="number" disabled placeholder="זמין בקרוב">';
     }
-    html += '<div id="pf-preview" class="pquote" aria-live="polite"></div><p class="fielderr" id="pf-error" role="alert"></p>' +
+    html += '<div id="pf-preview" class="pquote" aria-live="polite"></div><p class="fielderr" id="pf-error"></p>' +
       '<div class="actions two" style="margin-top:14px"><button type="submit" class="btn primary">שמירה</button><button type="button" class="btn quiet" id="pf-cancel">ביטול</button></div></form>';
     $('price-form-slot').innerHTML = html;
     var bind = function (id, key, rerender) {
@@ -1714,8 +1741,13 @@
       if (!el) return;
       el.oninput = function () { f[key] = el.value; previewForm(); };
       if (rerender) el.onchange = function () {
+        var wasSingle = f.from && f.from === f.to;
         f[key] = el.value;
         if (key === 'from' && f.from && (!f.to || f.to < f.from)) f.to = f.from;
+        var single = f.from && f.from === f.to;
+        // Switching between one night and a range keeps the prices typed so far.
+        if (wasSingle && !single && f.night !== '') { if (isWeekendNight(f.from)) f.weekend = f.weekend || f.night; else f.weekday = f.weekday || f.night; }
+        if (!wasSingle && single && f.night === '') f.night = isWeekendNight(f.from) ? f.weekend : f.weekday;
         var keep = document.activeElement && document.activeElement.id;
         renderPriceForm();
         if (keep && $(keep)) $(keep).focus();
@@ -1728,7 +1760,13 @@
     $('price-form').onsubmit = function (e) {
       e.preventDefault();
       var change = formChange();
-      if (change.problem) { $('pf-error').textContent = change.message; return; }
+      if (!change) return;
+      if (change.problem) {
+        $('pf-error').textContent = change.message;
+        markInvalid(change.problem);
+        announce(change.message);
+        return;
+      }
       var u = change.update;
       if (!f.id) delete u.id;
       if (!p.minimumsEnabled && f.inactiveMinimum != null && f.clearMinimum) delete u.minimum;
@@ -1740,9 +1778,10 @@
   /** Under the form: what the change does to the price, before saving (the published list plus this change). */
   function previewForm() {
     var change = formChange(), el = $('pf-preview');
-    if (!el) return;
+    if (!el || !change) return;
     $('pf-error').textContent = change.problem && (change.problem === 'conflict' || state.pform.from) ? change.message : '';
-    if (change.problem) { el.innerHTML = ''; renderPriceCheck(); return; }
+    markInvalid(change.problem);
+    if (change.problem) { el.innerHTML = ''; quoteCheck(); return; }
     var list = candidateList(change.update), u = change.update;
     var lines = [];
     if (u.from === u.to) {
@@ -1757,37 +1796,67 @@
       if (firstWeekend) lines.push('לילה ב־' + heFull(firstWeekend) + ' (ה׳–ש׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekend, 1, 2).price) + '</b>');
     }
     el.innerHTML = '<span class="hint">תצוגה מקדימה, לפני שמירה:</span><br>' + lines.join('<br>');
-    renderPriceCheck();
+    quoteCheck();
+  }
+
+  /** The field a problem belongs to is marked invalid and points at the error. */
+  function markInvalid(problem) {
+    var fields = { name: 'pf-name', name_long: 'pf-name', from: 'pf-from', to: 'pf-to', order: 'pf-to', too_far: 'pf-from', past: 'pf-to',
+      weekday: $('pf-night') ? 'pf-night' : 'pf-weekday', weekend: $('pf-night') ? 'pf-night' : 'pf-weekend', twoNight: 'pf-two', twoNight_minimum: 'pf-two', minimum: 'pf-min', minimum_off: 'pf-clearmin', conflict: 'pf-from' };
+    document.querySelectorAll('#price-form input').forEach(function (i) { i.removeAttribute('aria-invalid'); i.removeAttribute('aria-describedby'); });
+    var el = problem && $(fields[problem]);
+    if (el) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'pf-error'); }
   }
 
   /** One save; the answer says whether it reached the site. */
   function savePrice(op, args) {
     var p = state.prices;
+    if (state.psaving) return Promise.resolve();
+    state.psaving = true;
+    setPriceButtons(true);
     args.token = p.token;
     args.requestId = args.requestId || requestId();
     priceMessage('שומרים…');
+    var closed = false;
+    var focusAfter = function () { closed = true; };
     return call(op, { args: args }).then(function (res) {
-      if (res.ok && res.valid) {
+      if (res.ok && res.error === 'budget') {
+        state.pform = null;
+        priceMessage('נשמר. האתר יתעדכן תוך כדקה.');
+        focusAfter();
+      } else if (res.ok && res.valid !== false) {
         state.pform = null;
         priceMessage('נשמר, והמחירים באתר עודכנו.');
+        focusAfter();
       } else if (res.ok) {
         state.pform = null;
         priceMessage('נשמר, עדיין לא באתר: נותרו ' + (res.problems || []).length + ' בעיות לתיקון.', true);
+        focusAfter();
       } else if (res.error === 'stale') {
         priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש; בדקו ונסו שוב.', true);
-        if (state.pform) state.pform.requestId = requestId();
       } else if (res.error === 'fix_first') {
         priceMessage('קודם צריך לתקן או להסיר את השורות שסומנו: ' + (res.problems || []).join(' · '), true);
-        if (state.pform) state.pform.requestId = requestId();
+      } else if (res.error === 'invalid') {
+        priceMessage('לא נשמר: ' + (res.problems || []).join(' · '), true);
       } else {
-        priceMessage('לא נשמר: ' + ((res.problems || []).join(' · ') || res.error), true);
-        if (state.pform) state.pform.requestId = requestId();
+        priceMessage(PRICE_SAVE_ERRORS[res.error] || 'לא נשמר. נסו שוב בעוד רגע.', true);
       }
-      return loadPrices();
+      // A refusal needs a new request next time (consoleOnce_ keeps the answer for its id).
+      if (!res.ok && state.pform) state.pform.requestId = requestId();
+      // After the reload has closed the form: focus "הוספת עדכון", where the next step starts.
+      return loadPrices().then(function () { if (closed && $('price-add')) $('price-add').focus(); });
     }, function (err) {
       if (err && err.message === 'unauthorized') return;
-      priceMessage('המערכת עסוקה, נסו שוב בעוד רגע.', true);
+      priceMessage(PRICE_SAVE_ERRORS.busy, true);
+    }).then(function () {
+      state.psaving = false;
+      setPriceButtons(false);
     });
+  }
+
+  /** While a save runs, its buttons can't be pressed again. */
+  function setPriceButtons(busy) {
+    document.querySelectorAll('#screen-prices button[type=submit], #screen-prices [data-remove], #prices-restore').forEach(function (b) { b.disabled = busy; });
   }
 
   $('price-add').onclick = function () { openPriceForm(null); };
