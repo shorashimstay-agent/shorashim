@@ -1431,7 +1431,7 @@
     busy: 'המערכת עסוקה, נסו שוב בעוד רגע.', server_error: 'המערכת עסוקה, נסו שוב בעוד רגע.', in_progress: 'השמירה הקודמת עוד מתבצעת. נסו שוב בעוד רגע.',
     unknown_id: 'העדכון כבר לא קיים בגיליון. המסך נטען מחדש.', no_header: 'טבלת העדכונים חסרה בגיליון. אפשר להשתמש ב"שחזור מבנה".',
     no_room: 'אין מקום למחיר נוסף באזור מחירי הבסיס בגיליון.', base_not_number: 'מחיר בסיס חייב להיות מספר שלם.', unknown_key: 'מחיר לא מוכר.',
-    extra_columns: 'יש בגיליון עמודות מעבר ל-I, ולכן אי אפשר לשחזר אוטומטית.', source_missing: 'לשונית המחירים חסרה בגיליון.', bad_request: 'הבקשה לא תקינה.',
+    extra_columns: 'יש בגיליון עמודות מעבר ל-I, ולכן אי אפשר לשחזר אוטומטית.', structure: 'מבנה הגיליון השתבש: קודם "שחזור מבנה", ואז אפשר לשמור.', source_missing: 'לשונית המחירים חסרה בגיליון.', bad_request: 'הבקשה לא תקינה.',
   };
   state.prices = null;
   state.pform = null;
@@ -1480,11 +1480,11 @@
       var lines = [];
       p.notice.items.slice(-8).forEach(function (it) { lines = lines.concat(it.lines); });
       html += '<div class="banner info" role="status"><b>שינוי ידני בגיליון</b>' + (p.notice.older ? ' (ועוד ' + p.notice.older + ' קודמים)' : '') +
-        '<ul>' + lines.slice(0, 12).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+        '<ul>' + lines.slice(-12).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
         '<div class="row"><button type="button" class="btn quiet" id="prices-ack">ראיתי</button></div></div>';
     }
     if (p.valid === false) {
-      var since = p.status && p.status.since ? ' (מ־' + heFull(p.status.since.slice(0, 10)) + ')' : '';
+      var since = p.status && p.status.since ? ' (מ־' + new Date(p.status.since).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) + ')' : '';
       html += '<div class="banner err" role="alert"><b>הגיליון לא תקין</b>, ולכן האתר ממשיך לעבוד עם המחירון התקין האחרון' + since + '. מה צריך לתקן:' +
         '<ul>' + (p.problems || []).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
         (p.structure ? '<div class="row"><button type="button" class="btn primary" id="prices-restore">שחזור מבנה</button></div>' : '<p class="hint">אפשר לתקן או להסיר את השורות שסומנו למטה. עד אז נשמרים רק תיקונים.</p>') + '</div>';
@@ -1529,18 +1529,23 @@
   }
 
   function renderPriceBase(p) {
-    var base = p.base || (p.published && p.published.base) || {};
+    // What the sheet holds now (raw, so an invalid value can be fixed); unsaved typing is kept.
+    if (state.pbaseDirty && $('pb-perNight')) return;
+    var sheetValue = function (k) { return p.rawBase && k in p.rawBase ? p.rawBase[k] : p.base && p.base[k] != null ? String(p.base[k]) : ''; };
+    var base = {};
+    BASE_FIELDS.forEach(function (f) { base[f[0]] = sheetValue(f[0]); });
     var html = '<div class="pgrid">' + BASE_FIELDS.map(function (f) {
       return '<div><label for="pb-' + f[0] + '">' + f[1] + '</label><input id="pb-' + f[0] + '" data-key="' + f[0] + '" type="number" inputmode="numeric" min="0" step="1" value="' + esc(base[f[0]] == null ? '' : base[f[0]]) + '"></div>';
     }).join('') + '</div><p class="hint">א׳–ד׳ הם לילות ראשון עד רביעי; ה׳–ש׳ הם לילות חמישי, שישי ושבת.</p>' +
       '<div class="row" style="margin-top:14px"><button type="submit" class="btn primary" style="flex:1">שמירת מחירי בסיס</button></div>';
     $('prices-base').innerHTML = html;
+    $('prices-base').oninput = function () { state.pbaseDirty = true; };
     $('prices-base').onsubmit = function (e) {
       e.preventDefault();
       var changes = {};
       BASE_FIELDS.forEach(function (f) {
-        var v = intOrNull($('pb-' + f[0]).value);
-        if (v !== (base[f[0]] == null ? null : base[f[0]])) changes[f[0]] = v;
+        var typed = $('pb-' + f[0]).value.trim();
+        if (typed !== String(base[f[0]]).trim()) changes[f[0]] = intOrNull(typed);
       });
       if (!Object.keys(changes).length) return priceMessage('לא שונה דבר.');
       var cleared = Object.keys(changes).filter(function (k) { return changes[k] === null; });
@@ -1825,20 +1830,22 @@
     args.requestId = args.requestId || requestId();
     priceMessage('שומרים…');
     var closed = false;
-    var focusAfter = function () { closed = true; };
+    // Only the form the save came from closes: an open update form survives a base save, and
+    // unsaved base values survive an update save.
+    var done = function () {
+      if (op === 'addUpdate' || op === 'editUpdate') { state.pform = null; closed = true; }
+      if (op === 'saveBase') state.pbaseDirty = false;
+    };
     return call(op, { args: args }).then(function (res) {
       if (res.ok && res.error === 'budget') {
-        state.pform = null;
+        done();
         priceMessage('נשמר. האתר יתעדכן תוך כדקה.');
-        focusAfter();
       } else if (res.ok && res.valid !== false) {
-        state.pform = null;
+        done();
         priceMessage('נשמר, והמחירים באתר עודכנו.');
-        focusAfter();
       } else if (res.ok) {
-        state.pform = null;
+        done();
         priceMessage('נשמר, עדיין לא באתר: נותרו ' + (res.problems || []).length + ' בעיות לתיקון.', true);
-        focusAfter();
       } else if (res.error === 'stale') {
         priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש; בדקו ונסו שוב.', true);
       } else if (res.error === 'fix_first') {
@@ -1867,7 +1874,7 @@
 
   /** While a save runs, its buttons can't be pressed again. */
   function setPriceButtons(busy) {
-    document.querySelectorAll('#screen-prices button[type=submit], #screen-prices [data-remove], #prices-restore').forEach(function (b) { b.disabled = busy; });
+    document.querySelectorAll('#screen-prices button[type=submit], #screen-prices [data-remove], #screen-prices [data-edit], #screen-prices [data-fix], #prices-restore').forEach(function (b) { b.disabled = busy; });
   }
 
   $('price-add').onclick = function () { openPriceForm(null); };

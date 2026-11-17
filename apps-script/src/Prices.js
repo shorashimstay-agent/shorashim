@@ -248,7 +248,10 @@ function sourceWarnings_(read) {
 function sourceProblems_(read) {
   var out = [];
   if (read.structure) out.push(PRICE_PROBLEMS_HE[read.structure] || read.structure);
-  if (read.baseError) out.push('מחיר קבוע לא תקין (' + read.baseError + ')');
+  if (read.baseError) {
+    var key = String(read.baseError).replace(/^bad (price )?/, '');
+    out.push(key === 'percent' ? 'אחוז האורח השלישי לא תקין (מספר שלם 0–100)' : 'מחיר קבוע לא תקין: ' + (PRICE_KEY_NAMES_HE[key] || key));
+  }
   read.rowErrors.forEach(function (e) {
     out.push('שורה ' + e.row + ': ' + (PRICE_PROBLEMS_HE[e.reason] || e.reason));
   });
@@ -471,7 +474,14 @@ function priceRun_(kind, opts) {
     }
     var sheet = ss.getSheetByName(PRICES_TAB);
     var baseline = chunkedJson_(props, PRICES_BASELINE);
-    if (!sheet && kind === 'restore' && !opts.dryRun) {
+    if (!sheet && kind === 'restore') {
+      if (opts.dryRun) {
+        // Planned from the last valid snapshot, without creating anything yet.
+        var missingPlan = restorePlan_({ getLastColumn: function () { return 0; } }, [], props);
+        return missingPlan.error ? { ok: false, error: missingPlan.error } : { ok: true, dryRun: true, summary: missingPlan.summary, token: 'missing' };
+      }
+      if (opts.token && opts.token !== 'missing') return { ok: false, error: 'stale', token: 'missing' };
+      opts.token = '';
       sheet = ss.insertSheet(PRICES_TAB);
       logEvent_('prices.source_recreated', {}, 'system');
     }
@@ -517,6 +527,9 @@ function priceRun_(kind, opts) {
     } else if (kind === 'apply' || kind === 'save') {
       // A dashboard save carries the token of the sheet its screen showed: any change since refuses it.
       if (kind === 'save' && opts.token !== snap.hash) return { ok: false, error: 'stale', token: snap.hash };
+      // While the layout is broken, ids can't be told apart (a pasted block keeps them): only
+      // "שחזור מבנה" may write.
+      if (kind === 'save' && read.structure) return { ok: false, error: 'structure', problems: sourceProblems_(read) };
       var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled, kind === 'save' && !sourceIsValid(read));
       if (planned.error) return { ok: false, error: planned.error, problems: planned.problems };
       if (opts.dryRun) {
@@ -790,6 +803,20 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled, fixOnly) {
     if (!found) unknown.push(id);
   });
   if (unknown.length) return { error: 'unknown_id', problems: unknown };
+  var gone = (changes.upserts || []).filter(function (u) {
+    if (!changes.mustExist) return false;
+    for (var r = header + 1; r < rows.length; r++) {
+      var row = rows[r] || [];
+      if (String(row[0]).trim() === u.id && row.slice(1, 8).some(function (v) {
+        return String(v === null || v === undefined ? '' : v).trim() !== '';
+      })) return false;
+    }
+    return true;
+  });
+  // An edit of an update that was removed meanwhile (by hand) doesn't bring it back.
+  if (gone.length) return { error: 'unknown_id', problems: gone.map(function (u) {
+    return u.id;
+  }) };
   (changes.upserts || []).forEach(function (u) {
     var problem = updateProblem(u, { today: today, forSave: true, minimumsEnabled: minimumsEnabled });
     if (problem) touched.push({ error: problem, id: u.id });
@@ -1226,6 +1253,13 @@ function pricesForConsole_() {
   var read = readPriceSource(rows, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: true });
   out.token = snapshotOf_(rows).hash;
   out.base = read.base;
+  // The base cells as they are in the sheet, so an invalid one can be fixed from the form.
+  out.rawBase = {};
+  var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
+  rows.forEach(function (row, r) {
+    var key = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
+    if (baseKeys.indexOf(key) >= 0 && (!read.headerRow || r < read.headerRow - 1)) out.rawBase[key] = row[2] === null || row[2] === undefined ? '' : String(row[2]);
+  });
   out.structure = read.structure;
   out.updates = read.updates;
   out.invalidRows = read.rowErrors.map(function (e) {
@@ -1263,6 +1297,7 @@ function pricesConsoleSave_(op, args) {
       if (u[f] !== null && u[f] !== undefined && u[f] !== '') clean[f] = Number(u[f]);
     });
     changes.upserts = [clean];
+    if (op === 'editUpdate') changes.mustExist = true;
   } else changes.removes = [String(args.id || '')];
   var res = priceRun_('save', { changes: changes, token: String(args.token || '') });
   if (!res.ok && ['busy', 'moved', 'unreadable', 'source_missing'].indexOf(res.error) >= 0) throw new Error('price section ' + res.error + '; retry');
