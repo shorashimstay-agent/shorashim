@@ -165,11 +165,14 @@ function describeChanges_(before, after) {
   }
   var a = index((before && before.rows) || []);
   var b = index((after && after.rows) || []);
+  var name = function (k) {
+    return PRICE_KEY_NAMES_HE[k] || k;
+  };
   Object.keys(b.base).forEach(function (k) {
-    if (a.base[k] !== b.base[k]) lines.push(k + ': ' + (a.base[k] || '—') + ' ← ' + (b.base[k] || '—'));
+    if (a.base[k] !== b.base[k]) lines.push(name(k) + ': ' + (a.base[k] || '—') + ' ← ' + (b.base[k] || '—'));
   });
   Object.keys(a.base).forEach(function (k) {
-    if (!(k in b.base)) lines.push(k + ': נמחק');
+    if (!(k in b.base)) lines.push(name(k) + ': נמחק');
   });
   Object.keys(b.updates).forEach(function (id) {
     if (!(id in a.updates)) lines.push('עדכון חדש: ' + b.updates[id]);
@@ -182,6 +185,13 @@ function describeChanges_(before, after) {
   if (!lines.length) lines.push('שינוי בשורות שאינן מחירים (תוויות או שורות ריקות)');
   return lines.slice(0, 20);
 }
+
+// The base keys as the owner knows them, for the email and the dashboard's notice.
+var PRICE_KEY_NAMES_HE = {
+  perNight: 'מחיר בסיס א׳–ד׳', weekendPerNight: 'מחיר בסיס ה׳–ש׳', thirdGuestPercent: 'אורח שלישי (%)',
+  thirdGuestPerNight: 'אורח שלישי (ישן, לא בשימוש)', bride_day: 'יום כלה', bride_night_day: 'לילה לפני + יום כלה',
+  wedding_night: 'ליל כלולות', bride_day_wedding_night: 'יום התארגנות + ליל כלולות',
+};
 
 var PRICE_PROBLEMS_HE = {
   two_headers: 'יש בגיליון שתי שורות כותרת לעדכונים',
