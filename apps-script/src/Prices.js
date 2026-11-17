@@ -520,10 +520,16 @@ function priceRun_(kind, opts) {
       var since = props.getProperty(PRICES_VERSION_KEY) ? previous.since || '' : '';
       props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: clipLines_(problems, 20), since: since }));
       props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
-      // The site keeps the last valid list: the published tab is still checked against it.
-      var lastText = chunkedRead_(props, PRICES_COPY);
+      props.setProperty(PRICES_PUBLISHED_DAY_KEY, today);
+      // The site keeps the last valid list: the published tab is still checked against it. With
+      // minimums off, that list loses its minimums at once (the first step of a step-4 rollback).
+      var lastText = minimumsEnabled ? chunkedRead_(props, PRICES_COPY) : stripMinimums_(props, today);
       if (lastText) syncPublishedTab_(ss, props, lastText, false, since || new Date().toISOString());
       return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined };
+    }
+    if (Date.now() - started > PRICES_BUDGET_MS) {
+      schedulePriceRetry_();
+      return { ok: true, saved: wrote, published: false, error: 'budget' };
     }
     var text = JSON.stringify(list);
     var changed = props.getProperty(PRICES_VERSION_KEY) !== list.version;
@@ -559,6 +565,29 @@ function priceRun_(kind, opts) {
 }
 
 /**
+ * The last published list without its minimums, stored as the new copy when it had any (Script
+ * Properties only, so it works when the sheet can't be read). Returns the list's text, or null.
+ */
+function stripMinimums_(props, today) {
+  var text = chunkedRead_(props, PRICES_COPY);
+  if (!text) return null;
+  var checked = checkPriceList(JSON.parse(text));
+  if (!checked.ok) return text;
+  var had = checked.list.updates.some(function (u) {
+    return u.minimum != null;
+  });
+  if (!had) return text;
+  var list = buildPriceList(checked.list.base, checked.list.updates, today, false);
+  var stripped = JSON.stringify(list);
+  var extra = {};
+  extra[PRICES_VERSION_KEY] = list.version;
+  chunkedEntries_(props, PRICES_COPY, stripped, extra);
+  CacheService.getScriptCache().remove(PRICES_CACHE_KEY_V2);
+  logEvent_('prices.minimums_stripped', { version: list.version }, 'system');
+  return stripped;
+}
+
+/**
  * Step 6: the published tab must hold `text`. It is rewritten when it differs (a new list, or a hand
  * edit of the hidden tab) and recreated when it is missing. Inside the section only.
  */
@@ -579,6 +608,12 @@ function syncPublishedTab_(ss, props, text, changed, stamp) {
   return true;
 }
 
+/** Grows the tab to at least `rows` rows and `cols` columns, so writes never fall off the grid. */
+function ensureGrid_(sheet, rows, cols) {
+  if (typeof sheet.getMaxRows === 'function' && sheet.getMaxRows() < rows) sheet.insertRowsAfter(sheet.getMaxRows(), rows - sheet.getMaxRows());
+  if (typeof sheet.getMaxColumns === 'function' && sheet.getMaxColumns() < cols) sheet.insertColumnsAfter(sheet.getMaxColumns(), cols - sheet.getMaxColumns());
+}
+
 /** Writes the updates header at PRICES_HEADER_ROW. setup refuses if rows 21 and below hold anything. */
 function writeHeader_(sheet, rows, strict) {
   for (var r = PRICES_HEADER_ROW - 2; r < rows.length; r++) {
@@ -590,6 +625,7 @@ function writeHeader_(sheet, rows, strict) {
       return false;
     }
   }
+  ensureGrid_(sheet, PRICES_HEADER_ROW + 20, 9);
   sheet.getRange(PRICES_HEADER_ROW, 1, 1, 9).setValues([UPDATE_HEADER]);
   sheet.getRange(PRICES_HEADER_ROW + 1, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW, 1), 9).setNumberFormat('@');
   return true;
@@ -655,16 +691,26 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled) {
     touched.push({ row: at, key: key, base: true });
   });
   if (baseError) return { error: baseError };
+  // Rows typed without an id (or with a copied one) get theirs in the same write.
+  if (!read.structure) read.blankIds.forEach(function (n) {
+    next[n - 1][0] = newUpdateId_();
+    touched.push({ row: n - 1, id: next[n - 1][0] });
+  });
+  var unknown = [];
   (changes.removes || []).forEach(function (id) {
+    var found = false;
     for (var r = header + 1; r < next.length; r++) if (String(next[r][0]).trim() === id) {
       for (var c = 1; c < 9; c++) next[r][c] = '';
       touched.push({ row: r, id: id });
+      found = true;
     }
+    if (!found) unknown.push(id);
   });
+  if (unknown.length) return { error: 'unknown_id', problems: unknown };
   (changes.upserts || []).forEach(function (u) {
     var problem = updateProblem(u, { today: today, forSave: true, minimumsEnabled: minimumsEnabled });
     if (problem) touched.push({ error: problem, id: u.id });
-    var cells = [u.id, u.name || '', u.from, u.to, u.weekday == null ? '' : String(u.weekday), u.weekend == null ? '' : String(u.weekend), u.minimum == null ? '' : String(u.minimum), u.twoNight == null ? '' : String(u.twoNight), Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd.MM.yyyy HH:mm')];
+    var cells = [u.id, cleanName(u.name), u.from, u.to, u.weekday == null ? '' : String(u.weekday), u.weekend == null ? '' : String(u.weekend), u.minimum == null ? '' : String(u.minimum), u.twoNight == null ? '' : String(u.twoNight), Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd.MM.yyyy HH:mm')];
     var at = -1;
     for (var r = header + 1; r < next.length; r++) if (String(next[r][0]).trim() === u.id) at = r;
     if (at < 0) {
@@ -703,6 +749,11 @@ function writePlan_(sheet, rows, plan) {
     var now = String((ids[t.row] || [''])[0] || '').trim();
     if (was !== now) return false;
   }
+  var lastRow = 0;
+  plan.touched.forEach(function (t) {
+    lastRow = Math.max(lastRow, t.row + 1);
+  });
+  ensureGrid_(sheet, lastRow + 20, 9);
   var data = [];
   var title = "'" + sheet.getName().replace(/'/g, "''") + "'!";
   plan.touched.forEach(function (t) {
@@ -733,6 +784,7 @@ function restorePlan_(sheet, rows, props) {
   var summary = { keys: 0, updates: 0, newIds: 0, duplicateKeys: [], notes: 0, restoredFromSnapshot: [], dropped: [] };
   var labels = {};
   var values = {};
+  var extras = {};
   var notes = [];
   var updates = [];
   var seenIds = {};
@@ -745,13 +797,18 @@ function restorePlan_(sheet, rows, props) {
     var content = false;
     for (var c = 1; c <= 7; c++) if (text(row[c])) content = true;
     if (r === 0 && baseKeys.indexOf(key) < 0 && key !== 'id' && !UPDATE_ID_RE.test(key)) {
-      title = row.slice(0, 3);
+      title = row.slice(0, 9);
       return;
     }
     if (baseKeys.indexOf(key) >= 0) {
-      if (key in values) summary.duplicateKeys.push(key);
+      if (key in values) {
+        summary.duplicateKeys.push(key);
+        var lost = [text(values[key])].concat(extras[key] || []).filter(Boolean).join(' · ');
+        if (lost) summary.dropped.push(key + ' (עותק קודם): ' + lost);
+      }
       labels[key] = row[1];
       values[key] = row[2];
+      extras[key] = row.slice(3, 9).map(text);
       return;
     }
     if (key === 'id' || (!content && (!key || UPDATE_ID_RE.test(key)))) return;
@@ -793,11 +850,18 @@ function restorePlan_(sheet, rows, props) {
     });
   }
   var blank = ['', '', '', '', '', '', '', '', ''];
-  var out = [title.concat(['', '', '', '', '', '']).slice(0, 9)];
+  var pad = function (cells) {
+    cells = cells.map(function (v) {
+      return v === null || v === undefined ? '' : v;
+    });
+    while (cells.length < 9) cells.push('');
+    return cells.slice(0, 9);
+  };
+  var out = [pad(title)];
   baseKeys.forEach(function (key) {
     if (!(key in values)) return;
     var n = typeof values[key] === 'number' ? values[key] : parseSheetInt(values[key]);
-    out.push([key, labels[key] || '', n === null || isNaN(n) ? text(values[key]) : n, '', '', '', '', '', '']);
+    out.push(pad([key, labels[key] || '', n === null || isNaN(n) ? text(values[key]) : n].concat(extras[key] || [])));
     summary.keys++;
   });
   notes.forEach(function (note) {
@@ -822,6 +886,7 @@ function restorePlan_(sheet, rows, props) {
 
 /** Writes a restore plan over columns A–I (columns J on are refused by restorePlan_). */
 function writeRestore_(sheet, rows, out) {
+  ensureGrid_(sheet, out.length + 20, 9);
   var height = Math.max(sheet.getLastRow(), out.length, 1);
   sheet.getRange(1, 1, height, 9).clearContent();
   sheet.getRange(PRICES_HEADER_ROW, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW + 1, 1), 9).setNumberFormat('@');
@@ -940,15 +1005,20 @@ function currentPrices_(wantedVersion) {
       console.warn('first price run failed', err);
     }
   }
+  var fallback = cache.get('prices:tabFallback');
+  if (fallback) return JSON.parse(fallback);
+  var found = { version: 'none', prices: null };
   try {
     var tab = findPublishedTab_(SpreadsheetApp.openById(CONFIG.pricesSheetId));
     var cell = tab ? JSON.parse(String(tab.getRange('A1').getValue() || 'null')) : null;
     var fromTab = cell ? checkPriceList(cell) : null;
-    if (fromTab && fromTab.ok) return { version: fromTab.list.version, prices: fromTab.list };
+    if (fromTab && fromTab.ok) found = { version: fromTab.list.version, prices: fromTab.list };
   } catch (err) {
     countLogNoise_('prices.unreadable');
   }
-  return { version: 'none', prices: null };
+  // Guest calls reach this before reCAPTCHA: one sheet read a minute at most.
+  cache.put('prices:tabFallback', JSON.stringify(found), 60);
+  return found;
 }
 
 /** A recently published list by version (the last few are kept), or null. */
@@ -1035,9 +1105,23 @@ function pricesSignedAction_(body) {
     var flagProps = PropertiesService.getScriptProperties();
     var before = flagProps.getProperty(PRICES_MINIMUMS_KEY);
     flagProps.setProperty(PRICES_MINIMUMS_KEY, body.value ? 'true' : 'false');
-    var flagged = priceRun_('flag');
-    if (!flagged.ok && flagged.error === 'busy') {
-      // Not republished: put the flag back, so it never disagrees with the published list.
+    var flagged;
+    try {
+      flagged = priceRun_('flag');
+    } catch (err) {
+      flagged = { ok: false, error: 'server_error' };
+    }
+    var published = flagged.ok && flagged.valid !== false;
+    if (!body.value && !published) {
+      // Off must hold even when nothing could be republished: strip the minimums from the copy the
+      // web app prices from (the published tab follows on the next run).
+      stripMinimums_(flagProps, today_());
+      flagged.minimumsEnabled = false;
+      return flagged;
+    }
+    if (body.value && !published) {
+      // On, but the list could not be rebuilt with minimums: put the flag back, so it never
+      // disagrees with the published list.
       if (before === null) flagProps.deleteProperty(PRICES_MINIMUMS_KEY);
       else flagProps.setProperty(PRICES_MINIMUMS_KEY, before);
       flagged.minimumsEnabled = before === 'true';
@@ -1082,7 +1166,8 @@ function pricesSetup_() {
   var keys = sheet.getRange(1, 1, PRICES_HEADER_ROW - 1, 3).getValues();
   keys.forEach(function (row, r) {
     if (String(row[0]).trim() === 'thirdGuestPercent' && typeof row[2] === 'number' && row[2] > 0 && row[2] < 1) {
-      sheet.getRange(r + 1, 3).setValue(Math.round(row[2] * 100));
+      var cell = sheet.getRange(r + 1, 3);
+      if (String(cell.getNumberFormat() || '').indexOf('%') >= 0) cell.setValue(Math.round(row[2] * 100));
     }
   });
   sheet.getRange(1, 3, PRICES_HEADER_ROW - 1, 1).setNumberFormat('0');
