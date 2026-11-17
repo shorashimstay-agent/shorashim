@@ -84,12 +84,15 @@ function sourceCells(updates = [], { header = true } = {}) {
 
 function env({ cells = sourceCells([], { header: false }), testHooks = false } = {}) {
   const store = new Map();
+  // Apps Script refuses a property value over 9 KB.
+  const limit = (k, v) => { if (Buffer.byteLength(k + String(v)) > 9 * 1024) throw new Error(`property ${k} is over 9 KB`); };
   const props = {
     getProperty: (k) => (store.has(k) ? store.get(k) : null),
-    setProperty: (k, v) => { store.set(k, String(v)); return props; },
-    setProperties: (o) => { for (const [k, v] of Object.entries(o)) store.set(k, String(v)); return props; },
+    setProperty: (k, v) => { limit(k, v); store.set(k, String(v)); return props; },
+    setProperties: (o) => { for (const [k, v] of Object.entries(o)) limit(k, v); for (const [k, v] of Object.entries(o)) store.set(k, String(v)); return props; },
     deleteProperty: (k) => { store.delete(k); return props; },
   };
+  const lockState = { busy: false };
   const cacheStore = new Map();
   const cache = { get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k) };
   const source = fakeSheet('מחירים', 0, cells);
@@ -115,7 +118,7 @@ function env({ cells = sourceCells([], { header: false }), testHooks = false } =
     CONFIG: { pricesSheetId: 'prices-sheet', pricesPublishedGid: GID, ownerEmail: 'owner@example.com', testHooks, hmacSecret: 'k' },
     PropertiesService: { getScriptProperties: () => props },
     CacheService: { getScriptCache: () => cache },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock: () => {}, releaseLock: () => {} }), getUserLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => !lockState.busy, waitLock: () => {}, releaseLock: () => {} }), getUserLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
     SpreadsheetApp: {
       openById: () => { if (ss.broken) throw new Error('Sheets is down'); return ss; },
       flush: () => {},
@@ -169,7 +172,7 @@ function env({ cells = sourceCells([], { header: false }), testHooks = false } =
     const tab = ss.sheets.find((s) => s.id === GID);
     return tab ? JSON.parse(String(tab.cells[0]?.[0] || 'null')) : null;
   };
-  return { ctx, store, props, cache, ss, source, mails, triggers, logged, sheetsApi, published };
+  return { ctx, store, props, cache, ss, source, mails, triggers, logged, sheetsApi, published, lockState };
 }
 
 test('the first run writes the header, publishes, and drops the old fallback copy', () => {
@@ -368,12 +371,124 @@ test('the source tab renamed: recorded once, nothing published; Sheets down: no 
   assert.equal(f.store.has('prices:pending'), false);
 });
 
+/** A signed applyPriceChanges, as the operator sends it. */
+function apply(e, changes, { requestId = 'req-' + Math.random().toString(36).slice(2, 12), dryRun = false } = {}) {
+  const t = Date.now();
+  const sig = e.ctx.sign_('applyPrices:' + t + ':' + requestId + ':' + (dryRun ? 1 : 0) + ':' + JSON.stringify(changes));
+  return e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes, requestId, dryRun, sig });
+}
+
 test('a hand edit not processed yet is still recorded when an operator write runs first', () => {
   const e = env({ cells: sourceCells([]) });
-  e.ctx.priceRun_('setup', { sanctioned: true });
+  e.ctx.priceRun_('setup');
   e.source.cells[2][2] = 1111;
-  e.ctx.priceRun_('apply', { changes: { upserts: [DEC] } });
+  assert.equal(apply(e, { upserts: [DEC] }).valid, true);
   assert.ok(JSON.parse(e.store.get('prices:pending')).items[0].lines.some((l) => l.includes('weekendPerNight')));
+});
+
+test('a sort that moves a base row below the header: nothing overwritten, and restore repairs it', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  const v = e.ctx.priceRun_('setup').version;
+  const [perNight] = e.source.cells.splice(1, 1);
+  e.source.cells.push(perNight);
+  e.source.cells.push(['id', 'שם', '', '', '', '', '', '', '']);
+  const res = e.ctx.priceRun_('handler');
+  assert.equal(res.valid, false);
+  assert.ok(e.source.cells.some((r) => r[0] === 'perNight'), 'the key is still a key');
+  assert.equal(e.source.cells.filter((r) => r[0] === 'id').length, 2, 'the second header is untouched');
+  assert.equal(e.published().version, v);
+  e.source.cells.pop();
+  const fixed = e.ctx.priceRun_('restore');
+  assert.equal(fixed.valid, true, JSON.stringify(fixed));
+  assert.equal(e.published().base.perNight, 850);
+});
+
+test('dozens of hand edits never push a property past 9 KB, and publishing goes on', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  for (let i = 0; i < 60; i++) {
+    e.source.cells[22][1] = 'דצמבר '.repeat(9) + i;
+    e.source.cells[22][4] = String(800 + i);
+    assert.equal(e.ctx.priceRun_('handler').valid, true, `edit ${i}`);
+  }
+  assert.equal(e.published().updates[0].weekday, 859);
+  const notice = JSON.parse(e.store.get('prices:notice'));
+  assert.ok(notice.older > 0, 'older edits are counted, not kept');
+  e.source.cells[22][2] = 'x'.repeat(20000);
+  assert.equal(e.ctx.priceRun_('handler').valid, false, 'a huge invalid cell is recorded and refused, without throwing');
+});
+
+test('a write that finds its rows moved leaves no intent behind to hide the next hand edit', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const original = e.ctx.writePlan_;
+  e.ctx.writePlan_ = () => false;
+  assert.throws(() => apply(e, { upserts: [DEC] }), /moved; retry/, 'thrown, so consoleOnce_ lets a retry run');
+  e.ctx.writePlan_ = original;
+  assert.equal(e.store.has('prices:writeIntent'), false);
+  e.source.cells[1][2] = 900;
+  e.ctx.priceRun_('handler');
+  assert.ok(e.store.has('prices:pending'));
+});
+
+test('a hand edit landing during an operator write is recorded, not absorbed', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const batch = e.ctx.Sheets.Spreadsheets.Values.batchUpdate;
+  e.ctx.Sheets.Spreadsheets.Values.batchUpdate = (req, id) => {
+    batch(req, id);
+    e.source.cells[5][2] = 1999; // someone types in bride_day at the same moment
+  };
+  assert.equal(apply(e, { upserts: [DEC] }).valid, true);
+  assert.ok(JSON.parse(e.store.get('prices:pending')).items.some((it) => it.lines.some((l) => l.includes('bride_day'))));
+});
+
+test('the change handler never creates a missing published tab itself; the section does, and tells the owner', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.ss.sheets = e.ss.sheets.filter((s) => s.id !== GID);
+  e.cache.remove('prices:recreate');
+  assert.equal(e.ctx.pricesNeedRun_(), true);
+  assert.equal(e.ss.sheets.some((s) => s.id === GID), false, 'the check only looks');
+  e.store.delete('prices:lastRun');
+  e.ctx.onPricesSheetChange({});
+  assert.equal(e.ss.sheets.some((s) => s.id === GID), true);
+  assert.ok(JSON.parse(e.store.get('prices:pending')).items.some((it) => it.system));
+});
+
+test('base changes: unknown keys and a full base area are refused, never dropped', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  assert.equal(apply(e, { base: { perNigth: 900 } }).error, 'unknown_key');
+  for (let r = 9; r < 20; r++) e.source.cells[r] = ['note', 'x', ''];
+  e.source.cells[4] = ['note', 'x', ''];
+  e.ctx.priceRun_('handler');
+  assert.equal(apply(e, { base: { thirdGuestPercent: 40 } }).error, 'no_room');
+});
+
+test('a busy section puts the minimums flag back', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const t = Date.now();
+  e.lockState.busy = true;
+  const res = e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: true, sig: e.ctx.sign_('pricesFlag:' + t + ':1') });
+  assert.equal(res.error, 'busy');
+  assert.equal(res.minimumsEnabled, false);
+  assert.equal(e.store.has('pricesMinimumsEnabled'), false);
+});
+
+test('edits that net to nothing send no email', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = 900;
+  e.ctx.priceRun_('handler');
+  e.source.cells[1][2] = 850;
+  e.ctx.priceRun_('handler');
+  const pending = JSON.parse(e.store.get('prices:pending'));
+  pending.lastAt = 0;
+  e.store.set('prices:pending', JSON.stringify(pending));
+  e.ctx.pricesEmailDue_();
+  assert.equal(e.mails.length, 0);
 });
 
 test('the section refuses to run nested', () => {
@@ -402,8 +517,7 @@ test('signed actions cover their arguments', () => {
   assert.equal(e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: false, sig }), null, 'a signature for "on" is refused for "off"');
   assert.equal(e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: true, sig }).minimumsEnabled, true);
   const changes = { upserts: [DEC] };
-  const fnv = e.ctx.fnv1a(JSON.stringify(changes));
-  const applySig = e.ctx.sign_('applyPrices:' + t + ':' + fnv + ':req-12345678:0');
+  const applySig = e.ctx.sign_('applyPrices:' + t + ':req-12345678:0:' + JSON.stringify(changes));
   assert.equal(e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes: { upserts: [NYE] }, requestId: 'req-12345678', sig: applySig }), null, 'other changes');
   assert.equal(e.ctx.pricesSignedAction_({ action: 'publishPrices', t: t - 600000, sanctioned: false, sig: e.ctx.sign_('publishPrices:' + (t - 600000) + ':0') }), null, 'stale');
 });

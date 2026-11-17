@@ -28,6 +28,8 @@ var LOG_FIELDS = [
   'ref', 'id', 'start', 'end', 'nights', 'stayType', 'adults', 'participants', 'kind', 'result', 'error',
   'by', 'fee', 'band', 'estimate', 'emailed', 'invited', 'hours', 'expiresAt', 'ok', 'ms', 'why', 'where', 'action',
   'message', 'counts', 'campaignSource',
+  // Prices (Prices.js): the published version and counts, never prices or names.
+  'version', 'updates', 'lines', 'gid', 'valid',
 ];
 // Top-level, indexed fields; the rest of an event goes in its unindexed `data` map.
 var LOG_INDEXED = ['type', 'actor', 'ref', 'id'];

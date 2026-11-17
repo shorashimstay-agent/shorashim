@@ -208,6 +208,26 @@ test('blank and cleared rows, ids, unknown keys and wrong-column prices', () => 
   assert.ok(readPriceSource(unknown, opts).warnings.some((w) => w.reason === 'unknown_key'));
 });
 
+test('only an empty or copied id gets a new id; keys and headers sorted down are never touched', () => {
+  const read = readPriceSource(sheet([
+    ['udup0001', 'x', '2026-12-05', '2026-12-06', '900', '', '', '', ''],
+    ['udup0001', 'copy', '2026-12-08', '2026-12-09', '900', '', '', '', ''],
+    ['perNight', '', '', '', '', '', '', '', ''],
+    ['טקסט', 'y', '2026-12-10', '2026-12-11', '900', '', '', '', ''],
+  ]), opts);
+  assert.deepEqual(read.blankIds, [24], 'the copied id only');
+  assert.equal(read.structure, 'base_below_header');
+  assert.ok(read.rowErrors.some((e) => e.id === 'טקסט' && e.reason === 'id'), 'other text is an invalid row, not overwritten');
+});
+
+test('a two-night total under an inherited minimum above 2 is flagged', () => {
+  const read = readPriceSource(sheet([
+    ['uhol0001', 'חג', '2027-04-20', '2027-04-25', '', '', '3', '', ''],
+    ['utwo0001', 'זוג', '2027-04-21', '2027-04-21', '', '1300', '', '2400', ''],
+  ]), { ...opts, minimumsEnabled: true });
+  assert.ok(read.warnings.some((w) => w.reason === 'twoNight_unreachable' && w.id === 'utwo0001'));
+});
+
 test('a minimum typed by hand while minimums are off is ignored, not invalid', () => {
   const read = readPriceSource(sheet([['uhol0001', 'חג', '2027-04-21', '2027-04-22', '', '', '3', '', '']]), opts);
   assert.equal(sourceIsValid(read), true);
