@@ -692,3 +692,44 @@ test('the owner note names the price the guest saw in a known older list', () =>
   const req = { stayType: 'couple', start: '2027-02-01', nights: 1, adults: 2, estimate: 1050 };
   assert.match(e.ctx.requestPriceCheck_({ pricesVersion: old }, req, current).note, /האורח ראה מחירון קודם \(₪850\)/);
 });
+
+test('minimums off while Sheets is down: the copy at once, the published tab by the queued run', () => {
+  const e = env({ cells: sourceCells([['uhol0001', 'חג', '2027-04-21', '2027-04-22', '', '', '3', '', '']]) });
+  e.store.set('pricesMinimumsEnabled', 'true');
+  const before = e.ctx.priceRun_('setup').version;
+  e.ss.broken = true;
+  const t = Date.now();
+  const off = e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: false, sig: e.ctx.sign_('pricesFlag:' + t + ':0') });
+  assert.equal(off.retryQueued, true);
+  assert.equal(e.ctx.currentPrices_('').prices.updates.length, 0);
+  assert.equal(e.ctx.priceListByVersion_(e.store.get('prices:version')).updates.length, 0, 'the stripped list is in the history');
+  assert.notEqual(e.store.get('prices:version'), before);
+  e.ss.broken = false;
+  assert.equal(e.ctx.pricesNeedRun_(), true, 'a publish is pending');
+  e.ctx.onPricesBackstop();
+  assert.equal(e.published().updates.length, 0, 'the published tab follows');
+});
+
+test('restore keeps text typed in column A of an update row', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['פסח - לבדוק', '', '2027-04-20', '2027-04-27', '1300', '', '', '', '']);
+  e.source.cells.push(['טיוטה', 'קיץ', '2027-07-01', '2027-07-31', '1100', '', '', '', '']);
+  const dry = e.ctx.priceRun_('restore', { dryRun: true });
+  assert.ok(dry.summary.dropped.some((d) => d.includes('טיוטה')), 'listed when the row has a name');
+  e.ctx.priceRun_('restore');
+  assert.ok(e.published().updates.some((u) => u.name === 'פסח - לבדוק'), 'kept as the name when it has none');
+});
+
+test('a failed send keeps the pending edits for the next run', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = 900;
+  e.ctx.priceRun_('handler');
+  const pending = JSON.parse(e.store.get('prices:pending'));
+  pending.lastAt = 0;
+  e.store.set('prices:pending', JSON.stringify(pending));
+  e.ctx.MailApp.sendEmail = () => { throw new Error('Service invoked too many times: email'); };
+  assert.throws(() => e.ctx.pricesEmailDue_());
+  assert.ok(e.store.has('prices:pending'));
+});

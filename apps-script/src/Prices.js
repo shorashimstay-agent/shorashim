@@ -328,48 +328,66 @@ function pricesEmailDue_() {
   if (!raw) return;
   var pending = JSON.parse(raw);
   if (!pending.items.length || Date.now() - Number(pending.lastAt || 0) < 9 * 60 * 1000) return;
-  props.deleteProperty(PRICES_PENDING_KEY);
-  var day = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
-  var sent = String(props.getProperty(PRICES_EMAIL_DAY_KEY) || '').split(':');
-  var count = sent[0] === day ? Number(sent[1] || 0) : 0;
-  if (count >= PRICES_EMAILS_PER_DAY) return;
-  var baseline = chunkedJson_(props, PRICES_BASELINE);
-  var before = chunkedJson_(props, PRICES_EMAIL_BASELINE);
-  var lines = [];
-  var handEdits = pending.items.some(function (it) {
-    return !it.system;
-  });
-  if (handEdits) lines = before && baseline ? describeChanges_(before, baseline) : pending.items.reduce(function (all, it) {
-    return it.system ? all : all.concat(it.lines);
-  }, []);
-  var system = [];
-  pending.items.forEach(function (it) {
-    if (it.system) system = system.concat(it.lines);
-  });
-  // Edits that net to nothing (typed and undone) and no system notice: nothing to tell.
-  var netNothing = before && baseline && before.hash === baseline.hash;
-  if (netNothing && !system.length) return;
-  if (netNothing) lines = [];
-  lines = clipLines_(lines.concat(system), 30);
-  var status = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{"valid":true}');
-  var body = ['שינוי בגיליון המחירים:', ''];
-  lines.forEach(function (l) {
-    body.push('• ' + l);
-  });
-  body.push('');
-  if (status.valid) body.push('הגיליון תקין, והמחירים באתר מעודכנים לפיו.');
-  else {
-    body.push('הגיליון לא תקין, ולכן האתר ממשיך לעבוד עם המחירון התקין האחרון' + (status.since ? ' (מ־' + status.since.slice(0, 16).replace('T', ' ') + ')' : '') + '. מה צריך לתקן:');
-    (status.problems || []).forEach(function (p) {
-      body.push('• ' + p);
+  // Under the lock, so an operator run can't move the baselines while this reads and moves them.
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    raw = props.getProperty(PRICES_PENDING_KEY);
+    if (!raw) return;
+    pending = JSON.parse(raw);
+    var day = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
+    var sent = String(props.getProperty(PRICES_EMAIL_DAY_KEY) || '').split(':');
+    var count = sent[0] === day ? Number(sent[1] || 0) : 0;
+    if (count >= PRICES_EMAILS_PER_DAY) {
+      // Over the daily cap: the dashboard's notice still shows these.
+      props.deleteProperty(PRICES_PENDING_KEY);
+      return;
+    }
+    var baseline = chunkedJson_(props, PRICES_BASELINE);
+    var before = chunkedJson_(props, PRICES_EMAIL_BASELINE);
+    var lines = [];
+    var handEdits = pending.items.some(function (it) {
+      return !it.system;
     });
+    if (handEdits) lines = before && baseline ? describeChanges_(before, baseline) : pending.items.reduce(function (all, it) {
+      return it.system ? all : all.concat(it.lines);
+    }, []);
+    var system = [];
+    pending.items.forEach(function (it) {
+      if (it.system) system = system.concat(it.lines);
+    });
+    // Edits that net to nothing (typed and undone) and no system notice: nothing to tell.
+    var netNothing = before && baseline && before.hash === baseline.hash;
+    if (netNothing && !system.length) {
+      props.deleteProperty(PRICES_PENDING_KEY);
+      return;
+    }
+    if (netNothing) lines = [];
+    lines = clipLines_(lines.concat(system), 30);
+    var status = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{"valid":true}');
+    var body = ['שינוי בגיליון המחירים:', ''];
+    lines.forEach(function (l) {
+      body.push('• ' + l);
+    });
+    body.push('');
+    if (status.valid) body.push('הגיליון תקין, והמחירים באתר מעודכנים לפיו.');
+    else {
+      body.push('הגיליון לא תקין, ולכן האתר ממשיך לעבוד עם המחירון התקין האחרון' + (status.since ? ' (מ־' + status.since.slice(0, 16).replace('T', ' ') + ')' : '') + '. מה צריך לתקן:');
+      (status.problems || []).forEach(function (p) {
+        body.push('• ' + p);
+      });
+    }
+    body.push('', 'הגיליון: https://docs.google.com/spreadsheets/d/' + CONFIG.pricesSheetId + '/edit');
+    body.push('את המחירים מנהלים מהדשבורד; עדיף לא לערוך את הגיליון ידנית.');
+    // Sent first: if it throws (the mail quota), the pending items stay for the next run.
+    MailApp.sendEmail({ to: CONFIG.ownerEmail, subject: 'שורשים: שינוי בגיליון המחירים', body: body.join('\n'), name: 'שורשים – מחירים' });
+    props.deleteProperty(PRICES_PENDING_KEY);
+    props.setProperty(PRICES_EMAIL_DAY_KEY, day + ':' + (count + 1));
+    if (baseline) chunkedEntries_(props, PRICES_EMAIL_BASELINE, JSON.stringify(baseline));
+    logEvent_('prices.email', { lines: lines.length, valid: !!status.valid }, 'system');
+  } finally {
+    lock.releaseLock();
   }
-  body.push('', 'הגיליון: https://docs.google.com/spreadsheets/d/' + CONFIG.pricesSheetId + '/edit');
-  body.push('את המחירים מנהלים מהדשבורד; עדיף לא לערוך את הגיליון ידנית.');
-  MailApp.sendEmail({ to: CONFIG.ownerEmail, subject: 'שורשים: שינוי בגיליון המחירים', body: body.join('\n'), name: 'שורשים – מחירים' });
-  props.setProperty(PRICES_EMAIL_DAY_KEY, day + ':' + (count + 1));
-  if (baseline) chunkedEntries_(props, PRICES_EMAIL_BASELINE, JSON.stringify(baseline));
-  logEvent_('prices.email', { lines: lines.length, valid: !!status.valid }, 'system');
 }
 
 // ---------------------------------------------------------------------------
@@ -533,15 +551,7 @@ function priceRun_(kind, opts) {
     }
     var text = JSON.stringify(list);
     var changed = props.getProperty(PRICES_VERSION_KEY) !== list.version;
-    if (changed) {
-      var history = chunkedJson_(props, PRICES_HISTORY) || [];
-      history = history.filter(function (h) {
-        return h.version !== list.version;
-      });
-      history.push(list);
-      while (history.length > PRICES_HISTORY_MAX) history.shift();
-      chunkedEntries_(props, PRICES_HISTORY, JSON.stringify(history));
-    }
+    if (changed) pushHistory_(props, list);
     var extra = {};
     extra[PRICES_VERSION_KEY] = list.version;
     chunkedEntries_(props, PRICES_COPY, text, extra);
@@ -564,6 +574,16 @@ function priceRun_(kind, opts) {
   }
 }
 
+/** Keeps the last few published lists, so the owner's email can say what an older page showed. */
+function pushHistory_(props, list) {
+  var history = (chunkedJson_(props, PRICES_HISTORY) || []).filter(function (h) {
+    return h.version !== list.version;
+  });
+  history.push(list);
+  while (history.length > PRICES_HISTORY_MAX) history.shift();
+  chunkedEntries_(props, PRICES_HISTORY, JSON.stringify(history));
+}
+
 /**
  * The last published list without its minimums, stored as the new copy when it had any (Script
  * Properties only, so it works when the sheet can't be read). Returns the list's text, or null.
@@ -582,6 +602,10 @@ function stripMinimums_(props, today) {
   var extra = {};
   extra[PRICES_VERSION_KEY] = list.version;
   chunkedEntries_(props, PRICES_COPY, stripped, extra);
+  pushHistory_(props, list);
+  var status = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{}');
+  status.version = list.version;
+  props.setProperty(PRICES_STATUS_KEY, JSON.stringify(status));
   CacheService.getScriptCache().remove(PRICES_CACHE_KEY_V2);
   logEvent_('prices.minimums_stripped', { version: list.version }, 'system');
   return stripped;
@@ -764,6 +788,8 @@ function writePlan_(sheet, rows, plan) {
       data.push({ range: title + 'A' + n + ':I' + n, values: [plan.rows[t.row].slice(0, 9)] });
     }
   });
+  // Grid growth and formats are buffered SpreadsheetApp operations: applied before the API write.
+  SpreadsheetApp.flush();
   Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: data }, sheet.getParent().getId());
   return true;
 }
@@ -819,6 +845,11 @@ function restorePlan_(sheet, rows, props) {
       seenIds[id] = true;
       var cells = row.slice(0, 9).map(text);
       cells[0] = id;
+      // Text the owner typed in column A isn't lost: it becomes the name, or is listed.
+      if (key && !UPDATE_ID_RE.test(key)) {
+        if (!cells[1]) cells[1] = cleanName(key);
+        else summary.dropped.push('עמודה A בשורה ' + (r + 1) + ': ' + key);
+      }
       updates.push(cells);
     } else {
       notes.push(row.slice(0, 9).map(function (v) {
@@ -1113,10 +1144,14 @@ function pricesSignedAction_(body) {
     }
     var published = flagged.ok && flagged.valid !== false;
     if (!body.value && !published) {
-      // Off must hold even when nothing could be republished: strip the minimums from the copy the
-      // web app prices from (the published tab follows on the next run).
+      // Off must hold even when nothing could be republished: the minimums leave the copy the web
+      // app prices from now, and a queued run (publish pending) rebuilds the published tab without
+      // them, even if a run holding the lock wrote them back meanwhile.
       stripMinimums_(flagProps, today_());
+      flagProps.setProperty(PRICES_PUBLISH_PENDING_KEY, '1');
+      schedulePriceRetry_();
       flagged.minimumsEnabled = false;
+      flagged.retryQueued = true;
       return flagged;
     }
     if (body.value && !published) {

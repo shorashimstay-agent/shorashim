@@ -145,6 +145,10 @@ console (O9); emails sent before that open this page, so it stays covered.
 - G14: a prep day on D is followed by another bride's night before + prep day for D+1 (check-in 17:30
   on D), while a couple stay on the night of D is refused by its span. Both approve; cancelling the
   first frees only its own time (the night before it), not the second bride's.
+- G16: the signed operator actions against real Google: `applyPriceChanges` as a dry run (writes
+  nothing), a real run (published, seen by `diag` and gviz), a replay with the same requestId (no
+  second row) and a remove (back to the original version); `restoreStructure` as a dry run; the
+  minimums flag on and off. Operator changes leave no pending hand edit.
 - G15: the published price tab survives its accidents. gviz returns a 45,000-character cell whole
   (the size cap); a hand edit of the published tab is repaired; when the hidden tab is deleted, the
   web app recreates it under the same gid (Sheets API `addSheet`), hidden, and gviz serves it again.
