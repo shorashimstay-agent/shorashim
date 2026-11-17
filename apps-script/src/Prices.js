@@ -1233,6 +1233,7 @@ function pricesForConsole_() {
     return {
       row: e.row,
       id: e.id,
+      code: e.reason,
       reason: PRICE_PROBLEMS_HE[e.reason] || e.reason,
       cells: row.slice(0, 8).map(function (v) {
         return v === null || v === undefined ? '' : String(v);
@@ -1283,18 +1284,14 @@ function pricesConsoleCall_(body) {
   }
   if (body.op === 'ackPriceEdit') {
     // Clears only what the owner's screen showed: an edit recorded after it stays in the notice.
-    var props = PropertiesService.getScriptProperties();
-    var notice = JSON.parse(props.getProperty(PRICES_NOTICE_KEY) || 'null');
-    var seenAt = Number(args.seenAt || 0);
-    if (notice && Number(notice.lastAt || 0) > seenAt) {
-      notice.items = notice.items.filter(function (it) {
-        return Date.parse(it.at) > seenAt;
-      });
-      notice.older = 0;
-      props.setProperty(PRICES_NOTICE_KEY, JSON.stringify(notice));
-    } else props.deleteProperty(PRICES_NOTICE_KEY);
-    logEvent_('console.ackPriceEdit', {}, 'console');
-    return { ok: true };
+    // Under the lock, as pricesRecordEdit_ writes the same property.
+    var ackLock = LockService.getScriptLock();
+    if (!ackLock.tryLock(8000)) throw new Error('price section busy; retry');
+    try {
+      return ackNotice_(args);
+    } finally {
+      ackLock.releaseLock();
+    }
   }
   if (body.op === 'restorePrices') {
     var restored = priceRun_('restore', { dryRun: !!args.dryRun, token: args.token ? String(args.token) : '' });
@@ -1302,6 +1299,22 @@ function pricesConsoleCall_(body) {
     return restored;
   }
   return null;
+}
+
+/** The dashboard's "ראיתי": the notice keeps only what was recorded after the screen loaded. */
+function ackNotice_(args) {
+  var props = PropertiesService.getScriptProperties();
+  var notice = JSON.parse(props.getProperty(PRICES_NOTICE_KEY) || 'null');
+  var seenAt = Number(args.seenAt || 0);
+  if (notice && Number(notice.lastAt || 0) > seenAt) {
+    notice.items = notice.items.filter(function (it) {
+      return Date.parse(it.at) > seenAt;
+    });
+    notice.older = 0;
+    props.setProperty(PRICES_NOTICE_KEY, JSON.stringify(notice));
+  } else props.deleteProperty(PRICES_NOTICE_KEY);
+  logEvent_('console.ackPriceEdit', {}, 'console');
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
