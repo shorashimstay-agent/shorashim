@@ -76,7 +76,18 @@ A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
 - **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
   ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and
   manual events, with **סגירת תאריכים**), הזמנות (website and phone bookings, then the closed dates
-  with a reopen button; each upcoming website or phone booking has **ביטול**), ערוצים.
+  with a reopen button; each upcoming website or phone booking has **ביטול**), מחירים, ערוצים.
+- **מחירים** (`src/Prices.js`): the prices sheet as it is now.
+  - **Base prices and packages:** one form.
+  - **Price check:** a stay's price, minimum and availability, priced from the published list plus
+    the update being edited.
+  - **Updates by date:** one form for a range or a single date. A single date takes one "מחיר ללילה"
+    (saved in the column of its weekday) and an optional two-night total, with the computed
+    departure date. Conflicts and a preview show before saving.
+  - **Saving:** every save carries the token of the sheet the screen read, so a sheet changed since
+    refuses it. While the sheet is invalid, only saves that fix or remove a marked row are accepted.
+  - **Notices:** a hand-edit notice with **ראיתי**, the sheet's warnings, and **שחזור מבנה** (shows
+    what will move or be dropped, then asks to confirm).
 - **Closing dates** (`block`, `unblock`, `extendHold`; rules in `validateBlock`, shared/rules.js). The
   owner picks the first night and the check-out day, as on the website, then one of three kinds:
   **סגירה** (closed until reopened, with a reason and a private note), **הזמנה טלפונית** (a booking

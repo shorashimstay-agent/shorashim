@@ -19,7 +19,9 @@ import {
   waitFor,
   webApp,
 } from './lib/backend';
-import { e2e, runTag, staging as cfg } from './lib/env';
+import { e2e, pricesCsvUrl, runId, runTag, staging as cfg } from './lib/env';
+import { checkPriceList, estimatePrice } from '../../shared/rules.js';
+import { parseCsv } from '../../src/lib/csv';
 
 const api = webApp(cfg);
 
@@ -279,6 +281,15 @@ test('O10: closing dates in the console blocks them on the site at once, and reo
   await (await calendarDay(page, end)).click();
   await page.getByRole('button', { name: 'המשך' }).click();
 
+  // The phone booking's suggested price is the site's own estimate, from the published list.
+  await page.locator('#block-panel [data-choice="kind"]', { hasText: 'הזמנה טלפונית' }).click();
+  const cell = parseCsv(await (await page.request.get(pricesCsvUrl(cfg))).text())[0]?.[0];
+  const list = cell ? checkPriceList(JSON.parse(cell)) : null;
+  if (list && list.ok) {
+    const suggested = estimatePrice('couple', 3, 2, list.list, start)!;
+    await expect(page.locator('#block-panel')).toContainText(`מחושב: ₪${suggested.toLocaleString('en-US')}`);
+  }
+
   // The form passes axe in each of its three forms.
   for (const kind of ['הזמנה טלפונית', 'שמירה זמנית', 'סגירה']) {
     await page.locator('#block-panel [data-choice="kind"]', { hasText: kind }).click();
@@ -482,4 +493,73 @@ test('O13: cancelling bookings logs them, frees the nights, and emails the guest
   expect((await api.console('overview')).bookings.find((x: any) => x.id === inProgress.iCalUID)).toMatchObject({ cancellable: false, cancelFees: null });
   expect(await api.console('cancelBooking', { id: inProgress.iCalUID, args: refuse })).toMatchObject({ ok: false, error: 'started' });
   expect(await api.console('cancelBooking', { id: `${runTag}-missing@google.com`, args: refuse })).toMatchObject({ ok: false, error: 'not_found' });
+});
+
+test('O14: the prices screen adds, edits and removes an update through the real backend, and refuses a stale save', async ({ page }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  test.skip(!cfg.pricesSheetId, 'staging has no prices sheet');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await api.setPrices(null);
+  await api.resetPrices();
+  // A single date far ahead, so the test never changes a price anyone books.
+  const date = addDays(israelToday(), 330);
+  const name = `E2E ${runId}`;
+  try {
+    await openConsole(page);
+    await page.locator('nav.tabs').getByRole('button', { name: 'מחירים' }).click();
+    await expect(page.locator('#pb-perNight')).not.toHaveValue('', { timeout: 120_000 });
+    const axe = await new AxeBuilder({ page }).include('#screen-prices').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`)).toEqual([]);
+
+    await page.getByRole('button', { name: '＋ הוספת עדכון' }).click();
+    await page.locator('#pf-name').fill(name);
+    await page.locator('#pf-from').fill(date);
+    await page.locator('#pf-from').blur();
+    await page.locator('#pf-night').fill('1777');
+    await page.locator('#pf-two').fill('3111');
+    await expect(page.locator('#pf-preview')).toContainText('₪1,777');
+    await expect(page.locator('#pf-preview')).toContainText('₪3,111');
+    await page.getByRole('button', { name: 'שמירה' }).click();
+    await expect(page.locator('#prices-msg')).toContainText('נשמר, והמחירים באתר עודכנו', { timeout: 120_000 });
+    const card = page.locator('.ucard', { hasText: name });
+    await expect(card).toContainText('₪3,111');
+    // The site's list has it (the published tab, as the site reads it).
+    await waitFor('the update in the published list', async () => {
+      const cell = parseCsv(await (await page.request.get(pricesCsvUrl(cfg))).text())[0]?.[0];
+      const list = cell ? checkPriceList(JSON.parse(cell)) : null;
+      return list && list.ok && list.list.updates.some((u) => u.name === name && u.twoNight === 3111);
+    }, 120_000, 10_000);
+
+    // Edited, then a save from a screen the sheet has moved past is refused.
+    await card.getByRole('button', { name: `עריכת ${name}` }).click();
+    await expect(page.locator('#pf-two')).toHaveValue('3111');
+    await page.locator('#pf-two').fill('3222');
+    await page.getByRole('button', { name: 'שמירה' }).click();
+    await expect(page.locator('#prices-msg')).toContainText('נשמר', { timeout: 120_000 });
+    await expect(page.locator('.ucard', { hasText: name })).toContainText('₪3,222');
+    const rows = await owner.values(cfg.pricesSheetId!, 'מחירים!A1:C20');
+    const row = rows.findIndex((r) => r[0] === 'bride_day') + 1;
+    const original = rows[row - 1][2];
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[Number(original) + 1]]);
+    try {
+      await page.locator('#pb-bride_day').fill(String(Number(original) + 2));
+      await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
+      await expect(page.locator('#prices-msg')).toContainText('המחירון השתנה מאז שנפתח המסך', { timeout: 120_000 });
+    } finally {
+      await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original]]);
+      await api.resetPrices();
+    }
+
+    // Removed.
+    await page.locator('nav.tabs').getByRole('button', { name: 'מחירים' }).click();
+    page.once('dialog', (d) => d.accept());
+    await page.locator('.ucard', { hasText: name }).getByRole('button', { name: `הסרת ${name}` }).click();
+    await expect(page.locator('#prices-msg')).toContainText('נשמר', { timeout: 120_000 });
+    await expect(page.locator('.ucard', { hasText: name })).toHaveCount(0);
+  } finally {
+    // Whatever the test left in the sheet goes: the operator action removes the update by its id.
+    const left = (await owner.values(cfg.pricesSheetId!, 'מחירים!A1:B80')).filter((r) => r[1] === name).map((r) => r[0]);
+    if (left.length) await api.applyPrices({ removes: left }, `e2e-o14-${runId}`);
+    await api.resetPrices();
+  }
 });
