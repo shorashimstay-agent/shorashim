@@ -559,6 +559,37 @@ test('G10: the web app publishes the prices sheet, and follows a hand edit', asy
   }
 });
 
+test('G15: a deleted published tab comes back under the same gid, and gviz serves a near-full cell', async ({ request }) => {
+  test.skip(!cfg.pricesSheetId || !cfg.pricesPublishedGid, 'staging has no prices sheet or published gid');
+  const gid = cfg.pricesPublishedGid!;
+  const cellOf = async () => parseCsv(await (await request.get(pricesCsvUrl(cfg))).text())[0]?.[0] ?? '';
+  await api.setPrices(null);
+  const start = await api.resetPrices();
+  expect(start).toMatchObject({ ok: true, valid: true });
+  try {
+    // gviz returns the whole cell at the size cap the web app keeps to (PUBLISHED_MAX_CHARS).
+    const big = 'x'.repeat(45_000);
+    await owner.setValues(cfg.pricesSheetId!, `'מחירון פעיל'!A1`, [[big]]);
+    await waitFor('gviz serves the whole 45,000-character cell', async () => (await cellOf()).length === big.length, 120_000, 10_000);
+    // The web app repairs a hand edit of the published tab.
+    await api.resetPrices();
+    await waitFor('the published tab is repaired', async () => (await cellOf()).includes(start.version), 120_000, 10_000);
+    // Someone deletes the hidden tab: it comes back with the same gid, so the site's URL still works.
+    await owner.deleteTab(cfg.pricesSheetId!, gid);
+    // The recreate is throttled to once a minute; the run that hits the throttle leaves it to a retry.
+    await waitFor('the published tab is recreated', async () => {
+      await api.resetPrices();
+      return (await owner.tabs(cfg.pricesSheetId!)).some((t) => t.sheetId === gid);
+    }, 180_000, 20_000);
+    const tab = (await owner.tabs(cfg.pricesSheetId!)).find((t) => t.sheetId === gid)!;
+    expect(tab.hidden).toBe(true);
+    await waitFor('gviz serves the recreated tab', async () => (await cellOf()).includes(start.version), 120_000, 10_000);
+  } finally {
+    await api.resetPrices();
+    await api.setPrices(pricesFile);
+  }
+});
+
 test('G9: the web app prices requests from the prices it is given, not from its own code', async ({ page }) => {
   const changed = buildPriceList({ ...pricesFile.base, perNight: pricesFile.base.perNight + 111 }, pricesFile.updates, '', false);
   expect(await api.setPrices(changed)).toMatchObject({ ok: true, version: changed.version });
