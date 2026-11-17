@@ -237,3 +237,21 @@ test('a base save leaves an open update form as it was', async ({ page }) => {
   await expect(page.locator('#prices-msg')).toContainText('נשמר');
   await expect(page.locator('#pf-name')).toHaveValue('טיוטה');
 });
+
+test('conflicting updates are marked on their cards by name', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fakeConsole(page);
+  state.updates.push({ id: 'uhol0001', name: 'חגים', from: '2026-12-20', to: '2027-01-05', weekday: 900 });
+  await page.route('https://script.google.com/macros/s/ci-fake/exec**', async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '{}');
+    if (body.op !== 'prices') return route.fallback();
+    return route.fulfill({ json: {
+      ok: true, today: TODAY, minimumsEnabled: false, token: 't1', base: BASE, updates: state.updates, invalidRows: [], warnings: [], structure: '',
+      valid: false, problems: ['העדכונים ״דצמבר 2026״ ו־״חגים״ סותרים'], conflicts: [{ a: 'udec2026', b: 'uhol0001', field: 'weekday' }],
+      status: { valid: false }, notice: null, published: buildPriceList(BASE, [DECEMBER], TODAY, false),
+    } });
+  });
+  await openPrices(page);
+  await expect(page.locator('.ucard.bad[data-update="udec2026"]')).toContainText('סותר את ״חגים״');
+  await expect(page.locator('.ucard.bad[data-update="uhol0001"]')).toContainText('סותר את ״דצמבר 2026״');
+});

@@ -922,3 +922,14 @@ test('an invalid base value shows its raw cell and a Hebrew problem, and can be 
   const fixed = consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 850 } });
   assert.equal(fixed.valid, true, JSON.stringify(fixed));
 });
+
+test('the screen gets the raw cell only for a base value that does not read, and conflicts by name', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', ''], ['uhol0001', 'חגים', '2026-12-20', '2027-01-05', '900', '', '', '', '']]) });
+  e.source.cells[5][2] = '1,850';
+  e.ctx.priceRun_('setup');
+  const screen = consoleOp(e, 'prices');
+  assert.equal(screen.rawBase.bride_day, undefined, '"1,850" reads as 1850');
+  assert.equal(screen.base.bride_day, 1850);
+  assert.equal(screen.conflicts.length, 1);
+  assert.ok(screen.problems.some((p) => p.includes('״דצמבר״') && p.includes('״חגים״')), JSON.stringify(screen.problems));
+});

@@ -255,8 +255,13 @@ function sourceProblems_(read) {
   read.rowErrors.forEach(function (e) {
     out.push('שורה ' + e.row + ': ' + (PRICE_PROBLEMS_HE[e.reason] || e.reason));
   });
+  var names = {};
+  read.updates.forEach(function (u) {
+    names[u.id] = '״' + (u.name || '(ללא שם)') + '״ (שורה ' + (read.idRows[u.id] || '?') + ')';
+  });
   read.conflicts.forEach(function (c) {
-    out.push(c.field === 'date' ? 'שתי שורות לאותו תאריך (' + c.a + ', ' + c.b + ')' : 'שני עדכונים סותרים באותו שדה (' + c.a + ', ' + c.b + ')');
+    var pair = (names[c.a] || c.a) + ' ו־' + (names[c.b] || c.b);
+    out.push(c.field === 'date' ? 'שתי שורות לאותו תאריך: ' + pair : 'העדכונים ' + pair + ' סותרים: טווחים חופפים עם אותו מחיר או מינימום');
   });
   return out;
 }
@@ -1258,7 +1263,10 @@ function pricesForConsole_() {
   var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
   rows.forEach(function (row, r) {
     var key = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
-    if (baseKeys.indexOf(key) >= 0 && (!read.headerRow || r < read.headerRow - 1)) out.rawBase[key] = row[2] === null || row[2] === undefined ? '' : String(row[2]);
+    if (baseKeys.indexOf(key) < 0 || (read.headerRow && r >= read.headerRow - 1)) return;
+    var value = row[2];
+    var n = typeof value === 'number' ? value : parseSheetInt(value);
+    if (n !== null && isNaN(n)) out.rawBase[key] = String(value);
   });
   out.structure = read.structure;
   out.updates = read.updates;
@@ -1275,6 +1283,7 @@ function pricesForConsole_() {
     };
   });
   out.problems = sourceProblems_(read);
+  out.conflicts = read.conflicts;
   out.warnings = sourceWarnings_(read);
   out.valid = sourceIsValid(read);
   return out;
@@ -1300,7 +1309,7 @@ function pricesConsoleSave_(op, args) {
     if (op === 'editUpdate') changes.mustExist = true;
   } else changes.removes = [String(args.id || '')];
   var res = priceRun_('save', { changes: changes, token: String(args.token || '') });
-  if (!res.ok && ['busy', 'moved', 'unreadable', 'source_missing'].indexOf(res.error) >= 0) throw new Error('price section ' + res.error + '; retry');
+  if (!res.ok && ['busy', 'moved', 'unreadable'].indexOf(res.error) >= 0) throw new Error('price section ' + res.error + '; retry');
   if (res.ok && changes.upserts) res.id = changes.upserts[0].id;
   return res;
 }
