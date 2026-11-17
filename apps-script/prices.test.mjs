@@ -759,7 +759,92 @@ test('restore keeps comments as typed, and the dry run prices chosen stays', () 
   const t = Date.now();
   const changes = { upserts: [DEC, NYE] };
   const rid = 'req-dry-12345';
-  const sig = e.ctx.sign_('applyPrices:' + t + ':' + rid + ':1:' + JSON.stringify(changes));
-  const dry = e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes, requestId: rid, dryRun: true, sig, quotes: [{ start: '2026-12-31', nights: 2, adults: 3 }] });
+  const quotes = [{ start: '2026-12-31', nights: 2, adults: 3 }, { start: 'x', nights: 9 }, { start: '2027-01-04', nights: 1e8 }];
+  const sig = e.ctx.sign_('applyPrices:' + t + ':' + rid + ':1:' + JSON.stringify(changes) + ':' + JSON.stringify(quotes));
+  assert.equal(e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes, requestId: rid, dryRun: true, sig, quotes: [] }), null, 'the quotes are signed');
+  const dry = e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes, requestId: rid, dryRun: true, sig, quotes });
+  assert.equal(dry.quotes.length, 2, 'a bad date is dropped');
+  assert.equal(dry.quotes[1].nights, 14, 'nights are capped');
   assert.equal(dry.quotes[0].price, 2100 + 735);
+});
+
+/** A dashboard call, as consoleCall_ hands it to the price operations. */
+function consoleOp(e, op, args = {}) {
+  return e.ctx.pricesConsoleCall_({ op, args: { requestId: 'req-' + Math.random().toString(36).slice(2, 12), ...args } });
+}
+
+test('the dashboard reads the sheet with its token, and saves an update, an edit and a removal', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  let screen = consoleOp(e, 'prices');
+  assert.equal(screen.valid, true);
+  assert.equal(screen.base.perNight, 850);
+  assert.ok(screen.token);
+  const added = consoleOp(e, 'addUpdate', { token: screen.token, update: { name: 'סילבסטר', from: '2026-12-31', to: '2026-12-31', weekend: 1250, twoNight: 2100 } });
+  assert.equal(added.valid, true, JSON.stringify(added));
+  assert.match(added.id, /^u[0-9a-z]{8}$/);
+  assert.equal(e.published().updates[0].twoNight, 2100);
+  const edited = consoleOp(e, 'editUpdate', { token: added.token, update: { id: added.id, name: 'סילבסטר', from: '2026-12-31', to: '2026-12-31', weekend: 1300, twoNight: 2100 } });
+  assert.equal(edited.valid, true);
+  assert.equal(e.published().updates[0].weekend, 1300);
+  const removed = consoleOp(e, 'removeUpdate', { token: edited.token, id: added.id });
+  assert.equal(removed.valid, true);
+  assert.equal(e.published().updates.length, 0);
+  const base = consoleOp(e, 'saveBase', { token: removed.token, base: { perNight: 1050, weekendPerNight: 1200 } });
+  assert.equal(base.valid, true);
+  assert.equal(e.published().base.weekendPerNight, 1200);
+  assert.equal(e.store.has('prices:pending'), false, 'dashboard saves are not hand edits');
+});
+
+test('a save from a screen that is out of date is refused', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const screen = consoleOp(e, 'prices');
+  e.source.cells[1][2] = 900; // a hand edit after the screen loaded
+  const res = consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 1000 } });
+  assert.equal(res.error, 'stale');
+  assert.equal(e.source.cells[1][2], 900);
+});
+
+test('while the sheet is invalid only a fix is saved; other rows still invalid keep it off the site', () => {
+  const e = env({ cells: sourceCells([['ubad0001', 'שבור', '2026-12-05', '2026-12-01', '900', '', '', '', ''], ['ubad0002', 'שבור 2', '2027-01-09', '2027-01-02', '900', '', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  const v = e.store.get('prices:version');
+  let screen = consoleOp(e, 'prices');
+  assert.equal(screen.valid, false);
+  assert.equal(screen.invalidRows.length, 2);
+  const other = consoleOp(e, 'addUpdate', { token: screen.token, update: { name: 'חדש', from: '2027-02-01', to: '2027-02-02', weekday: 900 } });
+  assert.equal(other.error, 'fix_first');
+  const fix = consoleOp(e, 'editUpdate', { token: screen.token, update: { id: 'ubad0001', name: 'תוקן', from: '2026-12-01', to: '2026-12-05', weekday: 900 } });
+  assert.equal(fix.ok, true);
+  assert.equal(fix.valid, false, 'saved, but one row is still invalid');
+  assert.equal(e.store.get('prices:version'), v, 'nothing reached the site');
+  const last = consoleOp(e, 'removeUpdate', { token: fix.token, id: 'ubad0002' });
+  assert.equal(last.valid, true);
+  assert.equal(e.published().updates[0].name, 'תוקן');
+});
+
+test('the notice is cleared by "ראיתי", and restore runs from the dashboard with a dry run first', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = 900;
+  e.ctx.priceRun_('handler');
+  assert.ok(consoleOp(e, 'prices').notice.items.length);
+  assert.equal(consoleOp(e, 'ackPriceEdit').ok, true);
+  assert.equal(consoleOp(e, 'prices').notice, null);
+  e.source.cells.push(['perNight', '', 950]);
+  assert.equal(consoleOp(e, 'prices').structure, 'base_below_header');
+  const dry = consoleOp(e, 'restorePrices', { dryRun: true });
+  assert.deepEqual([...dry.summary.duplicateKeys], ['perNight']);
+  assert.equal(consoleOp(e, 'restorePrices', {}).valid, true);
+});
+
+test('a save while the section is busy throws, so the retry runs', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const screen = consoleOp(e, 'prices');
+  e.lockState.busy = true;
+  assert.throws(() => consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 1000 }, requestId: 'req-busy-0001' }), /busy; retry/);
+  e.lockState.busy = false;
+  assert.equal(consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 1000 }, requestId: 'req-busy-0001' }).valid, true);
 });

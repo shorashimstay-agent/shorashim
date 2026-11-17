@@ -132,7 +132,7 @@ export class GoogleAccount {
     return r.values ?? [];
   }
 
-  /** Deletes the tab with this gid (the published price tab, in G12). */
+  /** Deletes the tab with this gid (the published price tab, in G15). */
   deleteTab(sheetId: string, gid: number): Promise<unknown> {
     return this.api('POST', `${SHEETS}/${sheetId}:batchUpdate`, { body: { requests: [{ deleteSheet: { sheetId: gid } }] } });
   }
