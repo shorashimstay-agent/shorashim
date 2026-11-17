@@ -634,6 +634,28 @@ test('G16: the operator actions write and publish through real Google: apply (dr
   }
 });
 
+test('G17: a stay below its minimum: price_changed with the minimum for a new page, invalid for an old one; a changed price is refused', async ({ page }) => {
+  const checkIn = slot(12);
+  // The pinned list (as a published list with minimums on): 2 nights at least from checkIn.
+  const withMinimum = buildPriceList(pricesFile.base, [{ id: `umin${runId.toLowerCase()}`, name: 'מינימום', from: checkIn, to: checkIn, minimum: 2 }], '', true);
+  expect(await api.setPrices(withMinimum)).toMatchObject({ ok: true, version: withMinimum.version });
+  try {
+    await openBooking(page);
+    const base = { stayType: 'couple', checkIn, checkOut: addDays(checkIn, 1), adults: 2, phone: randomPhone(), pricesVersion: withMinimum.version };
+    const v2 = await postRequest(page, { ...base, name: guestName('מינימום חדש'), pricingV2: true, shownPrice: estimatePrice('couple', 1, 2, withMinimum, checkIn) });
+    expect(v2).toMatchObject({ ok: false, error: 'price_changed', minimum: 2 });
+    const old = await postRequest(page, { ...base, name: guestName('מינימום ישן'), phone: randomPhone() });
+    expect(old).toMatchObject({ ok: false, error: 'invalid', fields: { checkOut: 'minimum' }, minimum: 2 });
+    // Two nights meet the minimum, but the page showed a different price: price_changed, nothing booked.
+    const twoNights = { ...base, checkOut: addDays(checkIn, 2), name: guestName('מחיר שונה'), phone: randomPhone(), pricingV2: true };
+    const real = estimatePrice('couple', 2, 2, withMinimum, checkIn)!;
+    expect(await postRequest(page, { ...twoNights, shownPrice: real + 1 })).toMatchObject({ ok: false, error: 'price_changed', price: real });
+    expect(await requestEvents(cfg, guestName('מחיר שונה'))).toHaveLength(0);
+  } finally {
+    await api.setPrices(pricesFile);
+  }
+});
+
 test('G9: the web app prices requests from the prices it is given, not from its own code', async ({ page }) => {
   const changed = buildPriceList({ ...pricesFile.base, perNight: pricesFile.base.perNight + 111 }, pricesFile.updates, '', false);
   expect(await api.setPrices(changed)).toMatchObject({ ok: true, version: changed.version });

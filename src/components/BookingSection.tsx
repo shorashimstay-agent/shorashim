@@ -298,10 +298,15 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               </>
             )}
             <div className="booking-gate-actions">
+              {gate.state === 'dates' && gate.extendTo && (
+                <button type="button" className="primary-action" autoFocus onClick={() => { gatePanel.current?.close(); form.extendStay(gate.extendTo!); }}>
+                  להאריך ל־{daysBetween(form.checkIn, gate.extendTo)} לילות
+                </button>
+              )}
               {gate.state === 'checking' ? null : gate.state === 'failed' ? (
                 <button type="button" className="primary-action" autoFocus onClick={() => { gatePanel.current?.close(); void form.continueToDetails(); }}>לנסות שוב</button>
               ) : (
-                <button type="button" className={gate.state === 'taken' && !brideStay && gate.alternatives.length ? 'secondary-action' : 'primary-action'} autoFocus onClick={backToDates}>לבחירת תאריכים</button>
+                <button type="button" className={(gate.state === 'taken' && !brideStay && gate.alternatives.length) || (gate.state === 'dates' && gate.extendTo) ? 'secondary-action' : 'primary-action'} autoFocus={!(gate.state === 'dates' && gate.extendTo)} onClick={backToDates}>לבחירת תאריכים</button>
               )}
               {(gate.state === 'taken' || gate.state === 'failed') && (
                 <>
@@ -463,13 +468,26 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               <button
                 type="button"
                 id="submit-booking-request"
-                onClick={form.submit}
+                onClick={() => void form.submit()}
                 disabled={form.sending}
                 className="primary-action w-full gap-2.5 disabled:opacity-70 disabled:cursor-wait"
               >
                 {form.sending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" /> : <Send className="w-4 h-4" />}
                 <span>{form.sending ? form.sendingLabel : 'שליחת בקשה למארחים'}</span>
               </button>
+
+              {form.priceChange && (
+                <div role="alert" className="booking-price-change mt-3 p-3 border border-[#8C7A62]/60 bg-[#F7EDD8] text-[#4D3A1F] text-sm rounded-[6px]">
+                  <p className="mb-2">
+                    המחיר עודכן ל־{form.priceChange.price === null ? 'מחיר בתיאום אישי' : <span dir="ltr">₪{form.priceChange.price.toLocaleString('he-IL')}</span>}
+                    {form.priceChange.shown !== null && <> (במקום <span dir="ltr">₪{form.priceChange.shown.toLocaleString('he-IL')}</span>)</>}.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="primary-action" onClick={() => form.acceptPriceChange()}>שליחה במחיר המעודכן</button>
+                    <button type="button" className="secondary-action" onClick={() => { form.dismissPriceChange(); contactPanel.current?.close(); }}>שינוי תאריכים</button>
+                  </div>
+                </div>
+              )}
 
               {submission.state === 'failed' && (
                 <div role="alert" className="mt-3 p-3 border border-[#9b2525]/50 bg-[#FCE8E6] text-[#8C1D18] text-sm text-center rounded-[6px]">

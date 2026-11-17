@@ -26,6 +26,8 @@ interface AvailabilityCalendarProps {
   checkIn: string;
   checkOut: string;
   onChange: (checkIn: string, checkOut: string) => void;
+  /** Whether a stay is shorter than its minimum nights (the price list's); such check-outs are off. */
+  tooShort?: (checkIn: string, checkOut: string) => boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface AvailabilityCalendarProps {
  * check-out may fall on a day whose night is taken. Wedding stays pick the wedding date. A choice
  * fits when the stay's span (staySpan: its hours, not just its nights) overlaps no busy time.
  */
-export default function AvailabilityCalendar({ stayType, blocked, busy, windowEnd, checkIn, checkOut, onChange }: AvailabilityCalendarProps) {
+export default function AvailabilityCalendar({ stayType, blocked, busy, windowEnd, checkIn, checkOut, onChange, tooShort }: AvailabilityCalendarProps) {
   const wedding = isWeddingStay(stayType);
   const today = israelToday();
   const firstDate = wedding ? addDays(today, 1) : today;
@@ -45,7 +47,7 @@ export default function AvailabilityCalendar({ stayType, blocked, busy, windowEn
     if (d < firstDate) return true;
     if (wedding) return d > lastNight || !stayFits(busy, stayType, d, '');
     if (pickingCheckOut && d > checkIn) {
-      return d > addDays(lastNight, 1) || daysBetween(checkIn, d) > MAX_NIGHTS || !stayFits(busy, stayType, checkIn, d);
+      return d > addDays(lastNight, 1) || daysBetween(checkIn, d) > MAX_NIGHTS || !stayFits(busy, stayType, checkIn, d) || Boolean(tooShort?.(checkIn, d));
     }
     return d > lastNight || !stayFits(busy, stayType, d, addDays(d, 1));
   };

@@ -40,7 +40,9 @@ export function DatePicker({ form, className }: { form: BookingForm; className?:
         checkIn={form.checkIn}
         checkOut={form.checkOut}
         onChange={form.changeDates}
+        tooShort={form.tooShort}
       />
+      {form.minimumNote && <p className="booking-minimum-note" role="status">{form.minimumNote}</p>}
     </div>
   );
 }

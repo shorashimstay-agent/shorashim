@@ -145,6 +145,10 @@ console (O9); emails sent before that open this page, so it stays covered.
 - G14: a prep day on D is followed by another bride's night before + prep day for D+1 (check-in 17:30
   on D), while a couple stay on the night of D is refused by its span. Both approve; cancelling the
   first frees only its own time (the night before it), not the second bride's.
+- G17: minimum nights and changed prices on the request path: with a pinned list holding a minimum,
+  a one-night request below it gets `price_changed` with the minimum from a page that sends
+  `pricingV2`, and `invalid` on `checkOut` from one that doesn't; a request whose shown price differs
+  gets `price_changed` with the server's price and books nothing.
 - G16: the signed operator actions against real Google: `applyPriceChanges` as a dry run (writes
   nothing), a real run (published, seen by `diag` and gviz), a replay with the same requestId (no
   second row) and a remove (back to the original version); `restoreStructure` as a dry run; the

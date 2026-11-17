@@ -57,6 +57,12 @@ export function loadLivePrices(): Promise<void> {
   return loading;
 }
 
+/** Reads the price list again: the web app answered `price_changed`, so the page's copy is old. */
+export function reloadPrices(): Promise<void> {
+  loading = null;
+  return loadLivePrices();
+}
+
 // The first component that shows a price starts the fetch.
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
