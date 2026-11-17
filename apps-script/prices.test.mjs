@@ -233,7 +233,7 @@ test('the email: one per quiet period, the net change, and a daily cap', () => {
   e.store.set('prices:pending', JSON.stringify(pending));
   e.ctx.pricesEmailDue_();
   assert.equal(e.mails.length, 1);
-  assert.match(e.mails[0].body, /perNight: 850 ← 950/, 'the net change, not each step');
+  assert.match(e.mails[0].body, /מחיר בסיס א׳–ד׳: 850 ← 950/, 'the net change, not each step');
   assert.match(e.mails[0].body, /הגיליון תקין/);
   e.ctx.pricesEmailDue_();
   assert.equal(e.mails.length, 1, 'nothing pending any more');
@@ -384,7 +384,7 @@ test('a hand edit not processed yet is still recorded when an operator write run
   e.ctx.priceRun_('setup');
   e.source.cells[2][2] = 1111;
   assert.equal(apply(e, { upserts: [DEC] }).valid, true);
-  assert.ok(JSON.parse(e.store.get('prices:pending')).items[0].lines.some((l) => l.includes('weekendPerNight')));
+  assert.ok(JSON.parse(e.store.get('prices:pending')).items[0].lines.some((l) => l.includes('מחיר בסיס ה׳–ש׳')));
 });
 
 test('a sort that moves a base row below the header: nothing overwritten, and restore repairs it', () => {
@@ -441,7 +441,7 @@ test('a hand edit landing during an operator write is recorded, not absorbed', (
     e.source.cells[5][2] = 1999; // someone types in bride_day at the same moment
   };
   assert.equal(apply(e, { upserts: [DEC] }).valid, true);
-  assert.ok(JSON.parse(e.store.get('prices:pending')).items.some((it) => it.lines.some((l) => l.includes('bride_day'))));
+  assert.ok(JSON.parse(e.store.get('prices:pending')).items.some((it) => it.lines.some((l) => l.includes('יום כלה'))));
 });
 
 test('the change handler never creates a missing published tab itself; the section does, and tells the owner', () => {
@@ -579,8 +579,8 @@ test("operator changes don't reach the owner's email as hand edits", () => {
   e.store.set('prices:pending', JSON.stringify(pending));
   e.ctx.pricesEmailDue_();
   assert.equal(e.mails.length, 1);
-  assert.match(e.mails[0].body, /bride_day: 1850 ← 1999/);
-  assert.doesNotMatch(e.mails[0].body, /perNight|דצמבר/);
+  assert.match(e.mails[0].body, /יום כלה: 1850 ← 1999/);
+  assert.doesNotMatch(e.mails[0].body, /מחיר בסיס|דצמבר/);
 });
 
 test('base values must be whole numbers, never text', () => {
