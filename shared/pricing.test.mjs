@@ -141,6 +141,7 @@ test('conflicts: partial or equal overlaps on the same field; nested ranges are 
   assert.equal(updateConflicts([r('a', '2026-12-01', '2026-12-05'), r('b', '2026-12-03', '2026-12-07')]).length, 1);
   assert.deepEqual(updateConflicts([r('a', '2026-12-01', '2026-12-31'), r('b', '2026-12-20', '2027-01-05', { weekend: 1300 })]), [], 'different fields');
   assert.equal(updateConflicts([r('a', '2026-12-31', '2026-12-31'), r('b', '2026-12-31', '2026-12-31')]).length, 1);
+  assert.equal(updateConflicts([r('a', '2026-12-31', '2026-12-31'), r('b', '2026-12-31', '2026-12-31', { twoNight: 2100 })]).length, 1, 'one date, one row, whatever the fields');
   assert.deepEqual(updateConflicts([r('a', '2026-12-31', '2026-12-31'), r('b', '2026-12-01', '2026-12-31')]), [], 'a single date over a range');
 });
 

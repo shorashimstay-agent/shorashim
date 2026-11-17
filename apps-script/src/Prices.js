@@ -207,6 +207,33 @@ var PRICE_PROBLEMS_HE = {
   name_long: 'השם ארוך מדי',
 };
 
+var HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/**
+ * What the owner should know although the sheet is valid, in Hebrew: a price in the column that
+ * doesn't apply to its date, an unknown key, a minimum that isn't active yet, a two-night total
+ * that can't apply.
+ */
+function sourceWarnings_(read) {
+  var byId = {};
+  read.updates.forEach(function (u) {
+    byId[u.id] = u;
+  });
+  return clipLines_(read.warnings.map(function (w) {
+    var where = 'שורה ' + w.row + ': ';
+    if (w.reason === 'unknown_key') return where + 'המפתח "' + w.key + '" לא מוכר, והמחיר בשורה לא נקרא';
+    if (w.reason === 'minimum_off') return where + 'מינימום הלילות עוד לא פעיל באתר, ולכן לא חל';
+    if (w.reason === 'twoNight_unreachable') return where + 'המחיר לשני לילות לא יחול, כי באחד הלילות נדרשים יותר משני לילות';
+    if (w.reason === 'price_unused') {
+      var u = byId[w.id] || {};
+      var day = u.from ? HE_DAYS[new Date(toDayNumber(u.from) * 86400000).getUTCDay()] : '';
+      var weekend = u.from && isWeekendNight(u.from);
+      return where + 'המחיר לא חל: ' + (u.from ? u.from.split('-').reverse().join('.') + ' הוא יום ' + day + ', ' : '') + 'ולכן המחיר צריך להיות בעמודת ' + (weekend ? 'ה׳–ש׳' : 'א׳–ד׳');
+    }
+    return where + w.reason;
+  }), 20);
+}
+
 /** The reasons a read source can't be published, in Hebrew. */
 function sourceProblems_(read) {
   var out = [];
@@ -377,6 +404,12 @@ function pricesEmailDue_() {
         body.push('• ' + p);
       });
     }
+    if ((status.warnings || []).length) {
+      body.push('', 'שימו לב:');
+      status.warnings.forEach(function (w) {
+        body.push('• ' + w);
+      });
+    }
     body.push('', 'הגיליון: https://docs.google.com/spreadsheets/d/' + CONFIG.pricesSheetId + '/edit');
     body.push('את המחירים מנהלים מהדשבורד; עדיף לא לערוך את הגיליון ידנית.');
     // Sent first: if it throws (the mail quota), the pending items stay for the next run.
@@ -472,7 +505,14 @@ function priceRun_(kind, opts) {
     } else if (kind === 'apply') {
       var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled);
       if (planned.error) return { ok: false, error: planned.error, problems: planned.problems };
-      if (opts.dryRun) return { ok: true, dryRun: true, list: planned.list };
+      if (opts.dryRun) {
+        // Chosen stays priced with the resulting list, for the operator to check before the real run.
+        var quotes = (opts.quotes || []).map(function (q) {
+          var quote = quoteStay(planned.list, q.stayType || 'couple', q.start, Number(q.nights) || 1, Number(q.adults) || 2);
+          return { start: q.start, nights: Number(q.nights) || 1, adults: Number(q.adults) || 2, stayType: q.stayType || 'couple', price: quote.price, minimum: quote.minimum };
+        });
+        return { ok: true, dryRun: true, list: planned.list, quotes: quotes };
+      }
       expected = snapshotOf_(planned.rows);
       props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: kind, expected: expected.hash }));
       if (!writePlan_(sheet, rows, planned)) {
@@ -536,7 +576,7 @@ function priceRun_(kind, opts) {
     var previous = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{}');
     if (!valid) {
       var since = props.getProperty(PRICES_VERSION_KEY) ? previous.since || '' : '';
-      props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: clipLines_(problems, 20), since: since }));
+      props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: clipLines_(problems, 20), warnings: sourceWarnings_(read), since: since }));
       props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
       props.setProperty(PRICES_PUBLISHED_DAY_KEY, today);
       // The site keeps the last valid list: the published tab is still checked against it. With
@@ -560,14 +600,15 @@ function priceRun_(kind, opts) {
     props.deleteProperty(PRICES_LAST_GOOD_KEY);
     // `since` is when this version was first published, for "the site keeps the list from …".
     var stamp = changed || !previous.valid || !previous.since ? new Date().toISOString() : previous.since;
-    props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: true, since: stamp, version: list.version }));
+    var warnings = sourceWarnings_(read);
+    props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: true, since: stamp, version: list.version, warnings: warnings }));
     props.setProperty(PRICES_PUBLISHED_DAY_KEY, today);
     chunkedEntries_(props, PRICES_LAST_VALID, JSON.stringify(snap));
 
     // 6. The published tab.
     var published = syncPublishedTab_(ss, props, text, changed, stamp);
     if (changed) logEvent_('prices.published', { version: list.version, kind: kind, updates: list.updates.length }, 'system');
-    return { ok: true, valid: true, version: list.version, published: published, list: kind === 'apply' ? list : undefined, restored: restored || undefined };
+    return { ok: true, valid: true, version: list.version, published: published, warnings: warnings, list: kind === 'apply' ? list : undefined, restored: restored || undefined };
   } finally {
     priceRunActive_ = false;
     lock.releaseLock();
@@ -918,11 +959,17 @@ function restorePlan_(sheet, rows, props) {
 /** Writes a restore plan over columns A–I (columns J on are refused by restorePlan_). */
 function writeRestore_(sheet, rows, out) {
   ensureGrid_(sheet, out.length + 20, 9);
-  var height = Math.max(sheet.getLastRow(), out.length, 1);
-  sheet.getRange(1, 1, height, 9).clearContent();
-  sheet.getRange(PRICES_HEADER_ROW, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW + 1, 1), 9).setNumberFormat('@');
+  // Text everywhere except the base prices (column C of rows 1–21), so labels and comments ("10%")
+  // are kept as typed rather than re-read as numbers.
+  sheet.getRange(1, 1, PRICES_HEADER_ROW - 1, 2).setNumberFormat('@');
+  sheet.getRange(1, 4, PRICES_HEADER_ROW - 1, 6).setNumberFormat('@');
   sheet.getRange(1, 3, PRICES_HEADER_ROW - 1, 1).setNumberFormat('0');
-  sheet.getRange(1, 1, out.length, 9).setValues(out);
+  sheet.getRange(PRICES_HEADER_ROW, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW + 1, 1), 9).setNumberFormat('@');
+  // One write over the whole height (blank rows below the new layout): never a cleared, empty tab.
+  var height = Math.max(sheet.getLastRow(), out.length, 1);
+  var full = out.slice();
+  while (full.length < height) full.push(['', '', '', '', '', '', '', '', '']);
+  sheet.getRange(1, 1, height, 9).setValues(full);
 }
 
 // ---------------------------------------------------------------------------
@@ -1120,7 +1167,7 @@ function pricesSignedAction_(body) {
     var payload = JSON.stringify(body.changes || {});
     var signed = 'applyPrices:' + body.t + ':' + String(body.requestId || '') + ':' + (body.dryRun ? 1 : 0) + ':' + payload;
     if (!validSig_(signed, body.sig)) return null;
-    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true });
+    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true, quotes: Array.isArray(body.quotes) ? body.quotes.slice(0, 50) : [] });
     if (!/^[\w-]{8,64}$/.test(String(body.requestId || ''))) return { ok: false, error: 'bad_request' };
     return consoleOnce_('applyPrices', body.requestId, function () {
       var res = priceRun_('apply', { changes: body.changes });
@@ -1142,7 +1189,7 @@ function pricesSignedAction_(body) {
     } catch (err) {
       flagged = { ok: false, error: 'server_error' };
     }
-    var published = flagged.ok && flagged.valid !== false;
+    var published = flagged.ok && flagged.valid !== false && flagged.error !== 'budget';
     if (!body.value && !published) {
       // Off must hold even when nothing could be republished: the minimums leave the copy the web
       // app prices from now, and a queued run (publish pending) rebuilds the published tab without

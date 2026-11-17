@@ -733,3 +733,33 @@ test('a failed send keeps the pending edits for the next run', () => {
   assert.throws(() => e.ctx.pricesEmailDue_());
   assert.ok(e.store.has('prices:pending'));
 });
+
+test("the sheet's warnings reach the status and the owner's email", () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['', 'סילבסטר', '2026-12-31', '2026-12-31', '1250', '', '2', '', '']);
+  const res = e.ctx.priceRun_('handler');
+  assert.equal(res.valid, true);
+  const status = JSON.parse(e.store.get('prices:status'));
+  assert.ok(status.warnings.some((w) => w.includes('31.12.2026 הוא יום חמישי') && w.includes('ה׳–ש׳')), JSON.stringify(status.warnings));
+  assert.ok(status.warnings.some((w) => w.includes('מינימום הלילות עוד לא פעיל')));
+  const pending = JSON.parse(e.store.get('prices:pending'));
+  pending.lastAt = 0;
+  e.store.set('prices:pending', JSON.stringify(pending));
+  e.ctx.pricesEmailDue_();
+  assert.match(e.mails[0].body, /שימו לב:[\s\S]*יום חמישי/);
+});
+
+test('restore keeps comments as typed, and the dry run prices chosen stays', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[2][4] = '10%';
+  e.ctx.priceRun_('restore');
+  assert.equal(e.source.formats['1:4'], '@', 'comments kept as text');
+  const t = Date.now();
+  const changes = { upserts: [DEC, NYE] };
+  const rid = 'req-dry-12345';
+  const sig = e.ctx.sign_('applyPrices:' + t + ':' + rid + ':1:' + JSON.stringify(changes));
+  const dry = e.ctx.pricesSignedAction_({ action: 'applyPriceChanges', t, changes, requestId: rid, dryRun: true, sig, quotes: [{ start: '2026-12-31', nights: 2, adults: 3 }] });
+  assert.equal(dry.quotes[0].price, 2100 + 735);
+});
