@@ -182,9 +182,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   // An updated price belongs to the stay it was quoted for: another stay drops it.
   useEffect(() => setPriceChange(null), [stayType, checkIn, checkOut, adultsCount]);
   // One request at a time: a second tap while one is on its way does nothing (state is stale in the
-  // closure, so a ref), and a late refusal never replaces a request that was received.
+  // closure, so a ref), so a refusal can never land after, and undo, a request that was received.
   const sendingRef = useRef(false);
-  const sentRef = useRef(false);
 
   // Minimum nights (the price list's; couple stays only). The calendar doesn't offer a check-out that
   // is too short, and a line under it says the minimum from the chosen arrival.
@@ -424,7 +423,6 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   };
 
   const submitOnce = async (acceptedPrice?: number | null) => {
-    sentRef.current = false;
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length) {
@@ -464,7 +462,6 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       shownPrice: acceptedPrice !== undefined ? acceptedPrice : estimate,
     });
     if (result.ok) {
-      sentRef.current = true;
       const { ref, holdHours } = result;
       // Marketing (only with consent): once per accepted request; never for the honeypot's fake success.
       if (!website) void trackLead(ref, stayType, { name: fullName, phone, email });
@@ -487,8 +484,6 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       void continueToDetails(undefined, { takenNights: result.nights?.length ? result.nights : nightsOf(held.start, held.end) });
       return;
     }
-    // A request that was received is never undone on screen by a later refusal.
-    if (sentRef.current) return;
     if (result.error === 'price_changed') {
       // The page's price list is older than the web app's: read it again, and let the guest decide.
       setSubmission({ state: 'idle' });
@@ -500,7 +495,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
         showGate({ state: 'dates', key: chosenKey.current, reason: message, extendTo: result.minimum <= MAX_NIGHTS ? addDays(checkIn, result.minimum) : undefined });
         return;
       }
-      setPriceChange({ price: result.price ?? null, shown: estimate });
+      setPriceChange({ price: result.price ?? null, shown: acceptedPrice !== undefined ? acceptedPrice : estimate });
       return;
     }
     if (result.error === 'invalid' && result.fields) {

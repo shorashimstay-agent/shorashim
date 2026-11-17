@@ -764,6 +764,7 @@ dialog#faq { padding: 0; }
 .booking-gate-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 16px; margin-top: 22px; }
 .booking-gate-actions .primary-action { min-width: 140px; }
 .booking-minimum-note { margin: 10px 0 0; font-size: 14px; color: #5e574d; }
+.booking-minimum-note:empty { margin: 0; }
 .booking-dates-free { display: inline-block; margin-bottom: 6px; padding: 4px 12px; border-radius: 999px; background: #e3eadc; color: #2f4a26; font-weight: 500; }
 .booking-bar-continue[aria-disabled='true'] { cursor: wait; opacity: 0.85; }
 
