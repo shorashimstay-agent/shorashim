@@ -99,6 +99,7 @@ export default function AvailabilityCalendar({ stayType, blocked, busy, windowEn
           if (range && d === range.start) return `${text}, תאריך ההגעה שנבחר`;
           if (range && d === range.end) return `${text}, תאריך העזיבה שנבחר`;
           if (taken(d)) return `${text}, תפוס`;
+          if (pickingCheckOut && d > checkIn && tooShort?.(checkIn, d)) return `${text}, קצר ממינימום הלילות`;
           if (modifiers.disabled) return `${text}, לא זמין לבחירה`;
           return text;
         },

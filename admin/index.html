@@ -1783,7 +1783,7 @@
       var el = $(id);
       if (!el) return;
       // Any change is a new save: a cached answer for the old values must not come back.
-      if (!rerender) el.oninput = function () { f[key] = el.value; f.requestId = requestId(); previewForm(); };
+      if (!rerender) el.oninput = function () { f[key] = el.value; f.requestId = requestId(); previewForm(true); };
       if (rerender) el.onchange = function () {
         var wasSingle = f.from && f.from === f.to;
         var oldFrom = f.from;
@@ -1802,8 +1802,8 @@
     };
     bind('pf-name', 'name'); bind('pf-from', 'from', true); bind('pf-to', 'to', true);
     bind('pf-night', 'night'); bind('pf-two', 'twoNight'); bind('pf-weekday', 'weekday'); bind('pf-weekend', 'weekend'); bind('pf-min', 'minimum');
-    if ($('pf-clearmin')) $('pf-clearmin').onchange = function () { f.clearMinimum = this.checked; previewForm(); };
-    $('pf-cancel').onclick = function () { state.pform = null; renderPriceForm(); renderPriceCheck(); $('price-add').focus(); };
+    if ($('pf-clearmin')) $('pf-clearmin').onchange = function () { f.clearMinimum = this.checked; previewForm(true); };
+    $('pf-cancel').onclick = function () { stopPriceSpeech(); state.pform = null; renderPriceForm(); renderPriceCheck(); $('price-add').focus(); };
     $('price-form').onsubmit = function (e) {
       e.preventDefault();
       var change = formChange();
@@ -1823,7 +1823,7 @@
   }
 
   /** Under the form: what the change does to the price, before saving (the published list plus this change). */
-  function previewForm() {
+  function previewForm(speak) {
     var change = formChange(), el = $('pf-preview');
     if (!el || !change) return;
     $('pf-error').textContent = change.problem && (change.problem === 'conflict' || state.pform.from) ? change.message : '';
@@ -1843,10 +1843,12 @@
       if (firstWeekday) lines.push('לילה ב־' + heFull(firstWeekday) + ' (א׳–ד׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekday, 1, 2).price) + '</b>');
       if (firstWeekend) lines.push('לילה ב־' + heFull(firstWeekend) + ' (ה׳–ש׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekend, 1, 2).price) + '</b>');
     }
-    // The preview is spoken once the typing pauses.
+    // The preview is spoken once the typing pauses, and only after the owner typed.
     clearTimeout(state.ppreviewTimer);
-    var spokenPreview = 'תצוגה מקדימה: ' + lines.join('. ').replace(/<[^>]+>/g, '');
-    state.ppreviewTimer = setTimeout(function () { announce(spokenPreview); }, 900);
+    if (speak) {
+      var spokenPreview = 'תצוגה מקדימה: ' + lines.join('. ').replace(/<[^>]+>/g, '');
+      state.ppreviewTimer = setTimeout(function () { announce(spokenPreview); }, 900);
+    }
     el.innerHTML = '<span class="hint">' + (state.prices.valid === false ? 'תצוגה מקדימה לפי הגיליון כפי שהוא עכשיו (חלקו עוד לא באתר), לפני שמירה:' : 'תצוגה מקדימה, לפני שמירה:') + '</span><br>' + lines.join('<br>');
     quoteCheck();
   }
@@ -1861,7 +1863,14 @@
   }
 
   /** One save; the answer says whether it reached the site. */
+  /** Pending announcements of a form that is going away are dropped. */
+  function stopPriceSpeech() {
+    clearTimeout(state.ppreviewTimer);
+    clearTimeout(state.pquoteTimer);
+  }
+
   function savePrice(op, args) {
+    stopPriceSpeech();
     var p = state.prices;
     if (state.psaving) return Promise.resolve();
     state.psaving = true;
@@ -1955,6 +1964,7 @@
       });
       document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
       // The prices screen reads the sheet fresh every time it opens.
+      if (typeof stopPriceSpeech === 'function') stopPriceSpeech();
       if (state.tab === 'prices') { state.pmsg = null; loadPrices(); }
       window.scrollTo(0, 0);
       var h = document.querySelector('#screen-' + state.tab + ' h2');

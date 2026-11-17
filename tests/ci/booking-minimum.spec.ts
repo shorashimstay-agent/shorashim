@@ -2,7 +2,7 @@
 // backend. The CI site's price list has a minimum of 2 nights on MIN_DATE (playwright.ci.config.ts).
 import { expect, test, type Page } from '@playwright/test';
 import { CI_PRICE_LIST, FAKE_API, MIN_DATE, NYE_DATE } from '../../playwright.ci.config';
-import { addDays, estimatePrice } from '../../shared/rules.js';
+import { addDays, daysBetween, estimatePrice } from '../../shared/rules.js';
 import { openBooking, showMonthOf } from '../e2e/lib/site';
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
@@ -52,7 +52,7 @@ test('a check-out below the minimum is not offered, and a line says the minimum 
   await expect(day(page, addDays(MIN_DATE, 2)).locator('button')).toBeEnabled();
   // A new arrival three nights earlier: its first night has no minimum, so the note goes.
   await pick(page, addDays(MIN_DATE, -3));
-  await expect(page.locator('#booking .booking-minimum-note')).toHaveCount(0);
+  await expect(page.locator('#booking .booking-minimum-note')).toHaveText('');
 });
 
 test('a minimum the server knows of offers to extend the stay, and checks the longer stay', async ({ page }) => {
@@ -107,6 +107,8 @@ test('a double tap on "שליחה במחיר המעודכן" sends once, and the
 });
 
 test('on a phone, through the booking bar: a minimum on New Year\'s Eve, picked across the year boundary', async ({ page }) => {
+  // From 29 to 31 December the coming New Year's Eve stay ends beyond the bookable year.
+  test.skip(daysBetween(israelToday(), NYE_DATE) + 2 > 360, 'the coming year boundary is outside the bookable window today');
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeBackend(page);
   await page.goto('/');
@@ -137,4 +139,21 @@ test('on a phone, through the booking bar: a minimum on New Year\'s Eve, picked 
   await expect(details.getByText('התאריכים שבחרתם פנויים')).toBeVisible();
   const price = estimatePrice('couple', 2, 2, CI_PRICE_LIST, NYE_DATE)!;
   await expect(details).toContainText(price.toLocaleString('he-IL'));
+});
+
+test('the price-change banner goes when the stay changes, and "שינוי תאריכים" returns to a calendar day', async ({ page }) => {
+  const checkIn = addDays(israelToday(), 80);
+  await fakeBackend(page, [{ ok: false, error: 'price_changed', price: 2222, minimum: 1 }, { ok: false, error: 'price_changed', price: 2222, minimum: 1 }]);
+  await openBooking(page);
+  await page.locator('#booking [data-stay-type="couple"]').click();
+  await pick(page, checkIn);
+  await pick(page, addDays(checkIn, 2));
+  await fillGuest(page);
+  await page.locator('#submit-booking-request').click();
+  await expect(page.locator('.booking-price-change')).toBeVisible();
+  await page.locator('#booking [data-adults="3"]').click();
+  await expect(page.locator('.booking-price-change'), 'another stay: the old figures go').toHaveCount(0);
+  await page.locator('#submit-booking-request').click();
+  await page.locator('.booking-price-change').getByRole('button', { name: 'שינוי תאריכים' }).click();
+  await expect(page.locator('.shorashim-calendar button:focus')).toHaveCount(1);
 });
