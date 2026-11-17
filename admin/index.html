@@ -1430,8 +1430,8 @@
   var PRICE_SAVE_ERRORS = {
     busy: 'המערכת עסוקה, נסו שוב בעוד רגע.', server_error: 'המערכת עסוקה, נסו שוב בעוד רגע.', in_progress: 'השמירה הקודמת עוד מתבצעת. נסו שוב בעוד רגע.',
     unknown_id: 'העדכון כבר לא קיים בגיליון. המסך נטען מחדש.', no_header: 'טבלת העדכונים חסרה בגיליון. אפשר להשתמש ב"שחזור מבנה".',
-    no_room: 'אין מקום למחיר נוסף באזור מחירי הבסיס בגיליון.', base_not_number: 'מחיר בסיס חייב להיות מספר שלם.', unknown_key: 'מחיר לא מוכר.',
-    extra_columns: 'יש בגיליון עמודות מעבר ל-I, ולכן אי אפשר לשחזר אוטומטית.', structure: 'מבנה הגיליון השתבש: קודם "שחזור מבנה", ואז אפשר לשמור.', source_missing: 'לשונית המחירים חסרה בגיליון.', bad_request: 'הבקשה לא תקינה.',
+    no_room: 'אין מקום למחיר נוסף באזור מחירי הבסיס בגיליון.', source_missing: 'לשונית המחירים חסרה בגיליון: "שחזור מבנה" יבנה אותה מחדש.', base_not_number: 'מחיר בסיס חייב להיות מספר שלם.', unknown_key: 'מחיר לא מוכר.',
+    extra_columns: 'יש בגיליון עמודות מעבר ל-I, ולכן אי אפשר לשחזר אוטומטית.', structure: 'מבנה הגיליון השתבש: קודם "שחזור מבנה", ואז אפשר לשמור.', bad_request: 'הבקשה לא תקינה.',
   };
   state.prices = null;
   state.pform = null;
@@ -1525,13 +1525,16 @@
         priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
         return loadPrices();
       });
-    }, function () { priceMessage(PRICE_SAVE_ERRORS.busy, true); }).then(function () { state.prestoring = false; });
+    }).catch(function (err) {
+      if (!err || err.message !== 'unauthorized') priceMessage(PRICE_SAVE_ERRORS.busy, true);
+    }).then(function () { state.prestoring = false; });
   }
 
   function renderPriceBase(p) {
     // What the sheet holds now (raw, so an invalid value can be fixed); unsaved typing is kept.
     if (state.pbaseDirty && $('pb-perNight')) return;
     var sheetValue = function (k) { return p.rawBase && k in p.rawBase ? p.rawBase[k] : p.base && p.base[k] != null ? String(p.base[k]) : ''; };
+    var sameValue = function (typed, k) { var a = intOrNull(typed), b = intOrNull(base[k]); return a === b || (isNaN(a) && isNaN(b) && a !== null && b !== null); };
     var base = {};
     BASE_FIELDS.forEach(function (f) { base[f[0]] = sheetValue(f[0]); });
     var html = '<div class="pgrid">' + BASE_FIELDS.map(function (f) {
@@ -1545,7 +1548,7 @@
       var changes = {};
       BASE_FIELDS.forEach(function (f) {
         var typed = $('pb-' + f[0]).value.trim();
-        if (typed !== String(base[f[0]]).trim()) changes[f[0]] = intOrNull(typed);
+        if (!sameValue(typed, f[0])) changes[f[0]] = intOrNull(typed);
       });
       if (!Object.keys(changes).length) return priceMessage('לא שונה דבר.');
       var cleared = Object.keys(changes).filter(function (k) { return changes[k] === null; });
@@ -1629,12 +1632,21 @@
     var list = (p.updates || []).slice().sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
     var current = list.filter(function (u) { return u.to >= today; });
     var past = list.filter(function (u) { return u.to < today; });
+    var nameOf = {};
+    (p.updates || []).forEach(function (u) { nameOf[u.id] = u.name || '(ללא שם)'; });
+    var clashes = {};
+    (p.conflicts || []).forEach(function (c) {
+      (clashes[c.a] = clashes[c.a] || []).push(nameOf[c.b]);
+      (clashes[c.b] = clashes[c.b] || []).push(nameOf[c.a]);
+    });
     var card = function (u, isPast) {
       var single = u.from === u.to;
-      return '<article class="ucard' + (isPast ? ' past' : '') + '" data-update="' + esc(u.id) + '"><h4>' + esc(u.name || '(ללא שם)') + '</h4>' +
+      var clash = clashes[u.id];
+      return '<article class="ucard' + (isPast ? ' past' : '') + (clash ? ' bad' : '') + '" data-update="' + esc(u.id) + '"><h4>' + esc(u.name || '(ללא שם)') + '</h4>' +
+        (clash ? '<p class="when">סותר את ' + clash.map(function (n) { return '״' + esc(n) + '״'; }).join(', ') + ': טווחים חופפים עם אותו שדה. שנו את אחד מהם או הסירו אותו.</p>' : '') +
         '<p class="when">' + (single ? heFull(u.from) + ' · ' + dayName(u.from) : range(u.from, u.to)) + '</p>' +
         '<dl>' + updateLines(u).map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>' +
-        '<div class="acts"><button type="button" class="btn quiet" data-edit="' + esc(u.id) + '" aria-label="עריכת ' + esc(u.name || 'עדכון') + '">עריכה</button>' +
+        '<div class="acts">' + (isPast ? '<span class="hint">הסתיים</span>' : '<button type="button" class="btn quiet" data-edit="' + esc(u.id) + '" aria-label="עריכת ' + esc(u.name || 'עדכון') + '">עריכה</button>') +
         '<button type="button" class="btn danger" data-remove="' + esc(u.id) + '" aria-label="הסרת ' + esc(u.name || 'עדכון') + '">הסרה</button></div></article>';
     };
     var bad = (p.invalidRows || []).map(function (r) {
@@ -1795,6 +1807,7 @@
     markInvalid(change.problem);
     if (change.problem) { el.innerHTML = ''; quoteCheck(); return; }
     var list = candidateList(change.update), u = change.update;
+    if (!list) { el.innerHTML = '<span class="hint">אין מחירון פורסם לתצוגה מקדימה.</span>'; quoteCheck(); return; }
     var lines = [];
     if (u.from === u.to) {
       lines.push('לילה ב־' + heFull(u.from) + ': <b>' + shekel(quoteStay(list, 'couple', u.from, 1, 2).price) + '</b>');
@@ -1839,7 +1852,7 @@
     return call(op, { args: args }).then(function (res) {
       if (res.ok && res.error === 'budget') {
         done();
-        priceMessage('נשמר. האתר יתעדכן תוך כדקה.');
+        priceMessage(state.prices && state.prices.valid === false ? 'נשמר. אם הגיליון תקין, האתר יתעדכן תוך כדקה.' : 'נשמר. האתר יתעדכן תוך כדקה.');
       } else if (res.ok && res.valid !== false) {
         done();
         priceMessage('נשמר, והמחירים באתר עודכנו.');
@@ -1847,7 +1860,8 @@
         done();
         priceMessage('נשמר, עדיין לא באתר: נותרו ' + (res.problems || []).length + ' בעיות לתיקון.', true);
       } else if (res.error === 'stale') {
-        priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש; בדקו ונסו שוב.', true);
+        priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש עם הערכים מהגיליון; בדקו ונסו שוב.', true);
+        state.pbaseDirty = false;
       } else if (res.error === 'fix_first') {
         priceMessage('קודם צריך לתקן או להסיר את השורות שסומנו: ' + (res.problems || []).join(' · '), true);
       } else if (res.error === 'invalid') {
