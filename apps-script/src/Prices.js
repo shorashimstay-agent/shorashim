@@ -855,7 +855,15 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled, fixOnly) {
     if (fixOnly && sourceProblems_(result).length < sourceProblems_(read).length) {
       return { rows: next, touched: touched, list: null, remaining: sourceProblems_(result), expected: rows };
     }
-    return { error: fixOnly ? 'fix_first' : 'invalid', problems: sourceProblems_(fixOnly ? read : result) };
+    if (fixOnly) {
+      // A save that fixes one problem but adds another: name the new one.
+      var before = sourceProblems_(read);
+      var added = sourceProblems_(result).filter(function (x) {
+        return before.indexOf(x) < 0;
+      });
+      return { error: 'fix_first', problems: added.length ? added : before };
+    }
+    return { error: 'invalid', problems: sourceProblems_(result) };
   }
   return { rows: next, touched: touched, list: buildPriceList(result.base, result.updates, today, minimumsEnabled), expected: rows };
 }

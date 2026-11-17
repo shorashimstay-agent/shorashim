@@ -223,6 +223,7 @@ test('an invalid base value is shown as typed in the sheet and can be fixed back
   await page.getByRole('button', { name: 'מחירים' }).click();
   await expect(page.locator('#pb-perNight')).toHaveValue('');
   await expect(page.locator('#pb-weekendPerNight'), 'the other base values still show').toHaveValue('1200');
+  await expect(page.locator('#pb-perNight-raw'), 'what the sheet holds is shown').toContainText('1o50');
   await page.locator('#pb-perNight').fill('1050');
   await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
   await expect(page.locator('#prices-msg')).toContainText('נשמר');
