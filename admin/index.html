@@ -1542,7 +1542,10 @@
     }).join('') + '</div><p class="hint">א׳–ד׳ הם לילות ראשון עד רביעי; ה׳–ש׳ הם לילות חמישי, שישי ושבת.</p>' +
       '<div class="row" style="margin-top:14px"><button type="submit" class="btn primary" style="flex:1">שמירת מחירי בסיס</button></div>';
     $('prices-base').innerHTML = html;
-    $('prices-base').oninput = function () { state.pbaseDirty = true; };
+    $('prices-base').oninput = function () {
+      if (!state.pbaseDirty) state.pbaseToken = p.token;
+      state.pbaseDirty = true;
+    };
     $('prices-base').onsubmit = function (e) {
       e.preventDefault();
       var changes = {};
@@ -1552,7 +1555,11 @@
       });
       if (!Object.keys(changes).length) return priceMessage('לא שונה דבר.');
       var cleared = Object.keys(changes).filter(function (k) { return changes[k] === null; });
-      if (cleared.length && !window.confirm('לרוקן את ' + cleared.map(function (k) { return BASE_FIELDS.filter(function (f) { return f[0] === k; })[0][1]; }).join(', ') + '? באתר יוצג "מחיר בתיאום אישי".')) return;
+      var clearText = cleared.map(function (k) {
+        var label = BASE_FIELDS.filter(function (f) { return f[0] === k; })[0][1];
+        return k === 'thirdGuestPercent' ? label + ' (יחזור ל-35%)' : label + ' (באתר יוצג "מחיר בתיאום אישי")';
+      }).join(', ');
+      if (cleared.length && !window.confirm('לרוקן את ' + clearText + '?')) return;
       savePrice('saveBase', { base: changes });
     };
   }
@@ -1684,6 +1691,8 @@
     var nightPrice = single ? (isWeekendNight(u.from) ? (u.weekend != null ? u.weekend : u.weekday) : (u.weekday != null ? u.weekday : u.weekend)) : null;
     var wrongColumn = single && (isWeekendNight(u.from) ? u.weekend == null && u.weekday != null : u.weekday == null && u.weekend != null);
     state.pform = {
+      // The sheet this form was opened from: a save is refused if the sheet changed since.
+      token: state.prices.token,
       wrongColumn: wrongColumn,
       id: u.id || '', name: u.name || '', from: u.from || '', to: u.to || '',
       weekday: u.weekday == null ? '' : u.weekday, weekend: u.weekend == null ? '' : u.weekend, night: nightPrice == null ? '' : nightPrice,
@@ -1765,12 +1774,13 @@
       if (!rerender) el.oninput = function () { f[key] = el.value; f.requestId = requestId(); previewForm(); };
       if (rerender) el.onchange = function () {
         var wasSingle = f.from && f.from === f.to;
+        var oldFrom = f.from;
         f[key] = el.value;
         f.requestId = requestId();
         if (key === 'from' && f.from && (!f.to || f.to < f.from)) f.to = f.from;
         var single = f.from && f.from === f.to;
         // Switching between one night and a range keeps the prices typed so far.
-        if (wasSingle && !single && f.night !== '') { if (isWeekendNight(f.from)) f.weekend = f.weekend || f.night; else f.weekday = f.weekday || f.night; }
+        if (wasSingle && !single && f.night !== '') { if (isWeekendNight(oldFrom)) f.weekend = f.weekend || f.night; else f.weekday = f.weekday || f.night; }
         if (!wasSingle && single && f.night === '') f.night = isWeekendNight(f.from) ? f.weekend : f.weekday;
         var keep = document.activeElement && document.activeElement.id;
         renderPriceForm();
@@ -1839,7 +1849,9 @@
     if (state.psaving) return Promise.resolve();
     state.psaving = true;
     setPriceButtons(true);
-    args.token = p.token;
+    // The token of the sheet the owner's form showed, not of the latest read.
+    args.token = (op === 'addUpdate' || op === 'editUpdate') && state.pform ? state.pform.token
+      : op === 'saveBase' && state.pbaseDirty && state.pbaseToken ? state.pbaseToken : p.token;
     args.requestId = args.requestId || requestId();
     priceMessage('שומרים…');
     var closed = false;
@@ -1862,6 +1874,7 @@
       } else if (res.error === 'stale') {
         priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש עם הערכים מהגיליון; בדקו ונסו שוב.', true);
         state.pbaseDirty = false;
+        state.reopenAfterStale = op === 'editUpdate' || op === 'addUpdate' ? op : '';
       } else if (res.error === 'fix_first') {
         priceMessage('קודם צריך לתקן או להסיר את השורות שסומנו: ' + (res.problems || []).join(' · '), true);
       } else if (res.error === 'invalid') {
@@ -1873,6 +1886,19 @@
       if (!res.ok && state.pform) state.pform.requestId = requestId();
       // After the reload has closed the form: focus "הוספת עדכון", where the next step starts.
       return loadPrices().then(function () {
+        if (state.reopenAfterStale && state.pform) {
+          var reopen = state.reopenAfterStale;
+          state.reopenAfterStale = '';
+          if (reopen === 'editUpdate') {
+            var fresh = (state.prices.updates || []).filter(function (u) { return u.id === state.pform.id; })[0];
+            if (fresh) openPriceForm(fresh);
+            else { state.pform = null; renderPriceForm(); priceMessage('העדכון הוסר מהגיליון בינתיים.', true); }
+          } else {
+            // A new update keeps what was typed; it is checked again against the sheet as it is now.
+            state.pform.token = state.prices.token;
+            renderPriceForm();
+          }
+        }
         if (closed && $('price-add')) $('price-add').focus();
         else if ($('prices-msg')) $('prices-msg').focus();
       });

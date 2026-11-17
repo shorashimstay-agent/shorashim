@@ -801,7 +801,8 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled, fixOnly) {
   (changes.removes || []).forEach(function (id) {
     var found = false;
     for (var r = header + 1; r < next.length; r++) if (String(next[r][0]).trim() === id) {
-      for (var c = 1; c < 9; c++) next[r][c] = '';
+      // The whole row, id included: no orphan id is left behind, and the row is reused.
+      for (var c = 0; c < 9; c++) next[r][c] = '';
       touched.push({ row: r, id: id });
       found = true;
     }
