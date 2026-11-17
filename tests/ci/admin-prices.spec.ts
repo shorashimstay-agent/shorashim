@@ -20,7 +20,9 @@ async function fakeConsole(page: Page, { stale = false, copiedId = false, badBas
     ok: true, today: TODAY, minimumsEnabled: false, token: `t${state.token}`, updates: state.updates,
     // badBase: perNight typed as "1o50" in the sheet, so the base doesn't read until it is fixed.
     base: badBase && state.base.perNight === BASE.perNight ? null : state.base,
-    rawBase: Object.fromEntries(Object.entries(state.base).map(([k, v]) => [k, badBase && k === 'perNight' && v === BASE.perNight ? '1o50' : String(v)])),
+    // As the real reply: every cell as the sheet holds it, and the raw text only for one that doesn't read.
+    sheetBase: Object.fromEntries(Object.entries(state.base).map(([k, v]) => [k, badBase && k === 'perNight' && v === BASE.perNight ? '1o50' : String(v)])),
+    rawBase: badBase && state.base.perNight === BASE.perNight ? { perNight: '1o50' } : {},
     // copiedId: a pasted row that kept the id of December's row.
     invalidRows: copiedId ? [{ row: 24, id: 'udec2026', code: 'id', reason: 'מזהה שורה חסר או כפול', cells: ['udec2026', 'ינואר', '2027-01-05', '2027-01-10', '900', '', '', ''] }] : [],
     problems: copiedId ? ['שורה 24: מזהה שורה חסר או כפול'] : [], warnings: [], valid: !copiedId, structure: '', status: { valid: true }, notice: null,
@@ -50,7 +52,7 @@ async function fakeConsole(page: Page, { stale = false, copiedId = false, badBas
     if (body.op === 'removeUpdate') state.updates = state.updates.filter((u) => u.id !== args.id);
     if (body.op === 'saveBase') Object.assign(state.base, args.base);
     state.token++;
-    return route.fulfill({ json: { ok: true, valid: true, version: prices().published.version, token: `t${state.token}` } });
+    return route.fulfill({ json: { ok: true, valid: true, version: prices().published.version, token: `t${state.token}`, expected: `t${state.token}` } });
   });
   return state;
 }
@@ -220,6 +222,7 @@ test('an invalid base value is shown as typed in the sheet and can be fixed back
   await page.goto('/admin/');
   await page.getByRole('button', { name: 'מחירים' }).click();
   await expect(page.locator('#pb-perNight')).toHaveValue('');
+  await expect(page.locator('#pb-weekendPerNight'), 'the other base values still show').toHaveValue('1200');
   await page.locator('#pb-perNight').fill('1050');
   await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
   await expect(page.locator('#prices-msg')).toContainText('נשמר');
@@ -271,4 +274,23 @@ test('an edit refused as stale reopens with the sheet\'s values, so the next sav
   await page.getByRole('button', { name: 'שמירה' }).click();
   await expect(page.locator('#prices-msg')).toContainText('נשמר');
   expect(state.saves.at(-1)).toMatchObject({ op: 'editUpdate', args: { update: { id: 'udec2026', weekend: 1111 } } });
+});
+
+test('saving one form leaves the other open form able to save', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fakeConsole(page);
+  state.updates.push({ id: 'uwin0001', name: 'חורף', from: '2027-02-01', to: '2027-02-05', weekday: 900 });
+  await openPrices(page);
+  await page.getByRole('button', { name: 'עריכת דצמבר 2026' }).click();
+  await page.locator('#pf-name').fill('דצמבר חדש');
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'הסרת חורף' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  await page.locator('#pb-perNight').fill('1070');
+  await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  await expect(page.locator('#pf-name')).toHaveValue('דצמבר חדש');
+  await page.getByRole('button', { name: 'שמירה' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  expect(state.saves.at(-1)).toMatchObject({ op: 'editUpdate', args: { update: { name: 'דצמבר חדש' } } });
 });

@@ -595,7 +595,7 @@ function priceRun_(kind, opts) {
     if (!props.getProperty(PRICES_PENDING_KEY) || !props.getProperty(PRICES_EMAIL_BASELINE + ':n')) chunkedEntries_(props, PRICES_EMAIL_BASELINE, JSON.stringify(snap));
     if (Date.now() - started > PRICES_BUDGET_MS) {
       schedulePriceRetry_();
-      return { ok: true, saved: wrote, published: false, error: 'budget' };
+      return { ok: true, saved: wrote, published: false, error: 'budget', token: snap.hash, expected: expected ? expected.hash : undefined };
     }
 
     // 5. Validate and publish.
@@ -619,11 +619,11 @@ function priceRun_(kind, opts) {
       // minimums off, that list loses its minimums at once (the first step of a step-4 rollback).
       var lastText = minimumsEnabled ? chunkedRead_(props, PRICES_COPY) : stripMinimums_(props, today);
       if (lastText) syncPublishedTab_(ss, props, lastText, false, since || new Date().toISOString());
-      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined, token: snap.hash };
+      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined, token: snap.hash, expected: expected ? expected.hash : undefined };
     }
     if (Date.now() - started > PRICES_BUDGET_MS) {
       schedulePriceRetry_();
-      return { ok: true, saved: wrote, published: false, error: 'budget' };
+      return { ok: true, saved: wrote, published: false, error: 'budget', token: snap.hash, expected: expected ? expected.hash : undefined };
     }
     var text = JSON.stringify(list);
     var changed = props.getProperty(PRICES_VERSION_KEY) !== list.version;
@@ -644,7 +644,7 @@ function priceRun_(kind, opts) {
     // 6. The published tab.
     var published = syncPublishedTab_(ss, props, text, changed, stamp);
     if (changed) logEvent_('prices.published', { version: list.version, kind: kind, updates: list.updates.length }, 'system');
-    return { ok: true, valid: true, version: list.version, published: published, warnings: warnings, list: kind === 'apply' ? list : undefined, restored: restored || undefined, token: snap.hash };
+    return { ok: true, valid: true, version: list.version, published: published, warnings: warnings, list: kind === 'apply' ? list : undefined, restored: restored || undefined, token: snap.hash, expected: expected ? expected.hash : undefined };
   } finally {
     priceRunActive_ = false;
     lock.releaseLock();
@@ -801,7 +801,7 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled, fixOnly) {
   (changes.removes || []).forEach(function (id) {
     var found = false;
     for (var r = header + 1; r < next.length; r++) if (String(next[r][0]).trim() === id) {
-      // The whole row, id included: no orphan id is left behind, and the row is reused.
+      // The whole row, id included: no orphan id is left behind (a blank row in the middle is ignored).
       for (var c = 0; c < 9; c++) next[r][c] = '';
       touched.push({ row: r, id: id });
       found = true;
@@ -1261,6 +1261,7 @@ function pricesForConsole_() {
   out.base = read.base;
   // The base cells as they are in the sheet, so an invalid one can be fixed from the form.
   out.rawBase = {};
+  out.sheetBase = {};
   var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
   rows.forEach(function (row, r) {
     var key = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
@@ -1268,6 +1269,7 @@ function pricesForConsole_() {
     var value = row[2];
     var n = typeof value === 'number' ? value : parseSheetInt(value);
     if (n !== null && isNaN(n)) out.rawBase[key] = String(value);
+    out.sheetBase[key] = n === null ? '' : isNaN(n) ? String(value) : String(n);
   });
   out.structure = read.structure;
   out.updates = read.updates;

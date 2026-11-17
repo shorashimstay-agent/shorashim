@@ -933,3 +933,17 @@ test('the screen gets the raw cell only for a base value that does not read, and
   assert.equal(screen.conflicts.length, 1);
   assert.ok(screen.problems.some((p) => p.includes('״דצמבר״') && p.includes('״חגים״')), JSON.stringify(screen.problems));
 });
+
+test('the screen gets every base cell as the sheet holds it, even when one is out of range', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[1][2] = 50;
+  e.ctx.priceRun_('handler');
+  const screen = consoleOp(e, 'prices');
+  assert.equal(screen.base, null);
+  assert.equal(screen.sheetBase.perNight, '50');
+  assert.equal(screen.sheetBase.weekendPerNight, '1050');
+  const saved = consoleOp(e, 'saveBase', { token: screen.token, base: { perNight: 850 } });
+  assert.equal(saved.valid, true);
+  assert.equal(saved.token, saved.expected, 'nothing else changed the sheet');
+});
