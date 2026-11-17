@@ -183,6 +183,11 @@ function cellText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+/** An update's name: trimmed, without a leading = + - @ that a spreadsheet could read as a formula. */
+export function cleanName(value) {
+  return cellText(value).replace(/^[=+\-@\s]+/, '');
+}
+
 /** A price is a whole number of shekels in [PRICE_MIN, max]. */
 function isPrice(n, max) {
   return typeof n === 'number' && Math.floor(n) === n && n >= PRICE_MIN && n <= (max || PRICE_MAX);
@@ -343,7 +348,7 @@ export function readPriceSource(rows, opts) {
     }
     ids[id] = true;
     out.idRows[id] = r + 1;
-    var u = { id: id, name: cellText(row[1]), from: parseSheetDate(row[2]), to: parseSheetDate(row[3]) };
+    var u = { id: id, name: cleanName(row[1]), from: parseSheetDate(row[2]), to: parseSheetDate(row[3]) };
     var bad = '';
     var fields = { weekday: row[4], weekend: row[5], minimum: row[6], twoNight: row[7] };
     for (var f in fields) {

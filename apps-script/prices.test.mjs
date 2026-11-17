@@ -154,7 +154,7 @@ function env({ cells = sourceCells([], { header: false }), testHooks = false } =
       base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
       base64Decode: (text) => Buffer.from(text, 'base64'),
       formatDate: (d, tz, fmt) => (fmt === 'yyyy-MM-dd' ? d.toISOString().slice(0, 10) : '17.11.2026 10:00'),
-      getUuid: () => '1234abcd-0000-0000-0000-' + String(Math.random()).slice(2, 14),
+      getUuid: () => crypto.randomUUID(),
       computeHmacSha256Signature: (value, key) => crypto.createHmac('sha256', key).update(value).digest(),
       base64EncodeWebSafe: (bytes) => Buffer.from(bytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
       Charset: { UTF_8: 'UTF-8' },
@@ -546,7 +546,7 @@ test('restore keeps a row typed while the layout was broken, the last copy of a 
   assert.equal(dry.summary.updates, 2);
   assert.equal(dry.summary.newIds, 1);
   assert.equal(dry.summary.notes, 1);
-  assert.equal(dry.summary.dropped.length, 0);
+  assert.equal(dry.summary.dropped.length, 1, 'the earlier perNight copy, listed');
   const res = e.ctx.priceRun_('restore');
   assert.equal(res.valid, true, JSON.stringify(res));
   assert.equal(e.published().base.perNight, 900, 'the last copy, as the email described');
@@ -638,4 +638,57 @@ test('the request checks: minimum, changed price, a page with no price, and the 
   assert.match(e.ctx.requestPriceCheck_({ pricesVersion: 'sheet-850-1050' }, fine, priced).note, /המחירון השתנה/);
   assert.equal(e.ctx.requestPriceCheck_({ pricesVersion: on.version }, fine, priced).note, '');
   assert.equal(e.ctx.requestPriceCheck_({}, fine, { version: 'none', prices: null }).note, '');
+});
+
+test('turning minimums off holds even while the source is invalid; turning them on then reverts', () => {
+  const e = env({ cells: sourceCells([['uhol0001', 'חג', '2027-04-21', '2027-04-22', '', '', '3', '', '']]) });
+  e.store.set('pricesMinimumsEnabled', 'true');
+  e.ctx.priceRun_('setup');
+  assert.equal(e.published().updates[0].minimum, 3);
+  e.source.cells[1][2] = 'לא מספר';
+  const t = Date.now();
+  const off = e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: false, sig: e.ctx.sign_('pricesFlag:' + t + ':0') });
+  assert.equal(off.minimumsEnabled, false);
+  assert.equal(e.published().updates.length, 0, 'the published tab lost its minimum');
+  assert.equal(e.ctx.currentPrices_('').prices.updates.length, 0, 'and so did the copy the web app prices from');
+  const on = e.ctx.pricesSignedAction_({ action: 'setPricesFlag', t, value: true, sig: e.ctx.sign_('pricesFlag:' + t + ':1') });
+  assert.equal(on.minimumsEnabled, false, 'not republished, so put back');
+  assert.equal(e.store.get('pricesMinimumsEnabled'), 'false');
+});
+
+test('restore keeps comments beside the prices and lists an earlier duplicate as dropped', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells[0][3] = 'הערות';
+  e.source.cells[1][3] = 'הועלה בנובמבר';
+  e.source.cells.push(['perNight', 'עותק', 900]);
+  const dry = e.ctx.priceRun_('restore', { dryRun: true });
+  assert.ok(dry.summary.dropped.some((d) => d.includes('perNight') && d.includes('הועלה בנובמבר')), JSON.stringify(dry.summary));
+  e.source.cells[1][3] = '';
+  e.source.cells[e.source.cells.length - 1][3] = 'המחיר החדש';
+  e.ctx.priceRun_('restore');
+  assert.equal(e.source.cells[0][3], 'הערות');
+  assert.ok(e.source.cells.some((r) => r[0] === 'perNight' && r[3] === 'המחיר החדש'));
+});
+
+test('applyPriceChanges gives hand-typed rows their ids, refuses unknown removes, and cleans names', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['', 'נכתב ידנית', '2027-02-01', '2027-02-02', '900', '', '', '', '']);
+  e.ctx.priceRun_('handler');
+  e.source.cells.push(['', 'עוד אחד', '2027-03-01', '2027-03-02', '950', '', '', '', '']);
+  assert.equal(apply(e, { removes: ['unot00000'] }).error, 'unknown_id');
+  const res = apply(e, { upserts: [{ ...DEC, name: '=HYPERLINK("x")' }] });
+  assert.equal(res.valid, true, JSON.stringify(res));
+  assert.ok(e.source.cells.every((r, i) => i < 22 || !r.some((c) => c !== '') || /^u[0-9a-z]{8}$/.test(r[0]) || r[0] === 'udec2026'), 'every update row has an id');
+  assert.equal(e.published().updates.find((u) => u.id === 'udec2026').name, 'HYPERLINK("x")');
+});
+
+test('the owner note names the price the guest saw in a known older list', () => {
+  const e = env({ cells: sourceCells([]) });
+  const old = e.ctx.priceRun_('setup').version;
+  assert.equal(apply(e, { base: { perNight: 1050 } }).valid, true);
+  const current = e.ctx.currentPrices_('');
+  const req = { stayType: 'couple', start: '2027-02-01', nights: 1, adults: 2, estimate: 1050 };
+  assert.match(e.ctx.requestPriceCheck_({ pricesVersion: old }, req, current).note, /האורח ראה מחירון קודם \(₪850\)/);
 });

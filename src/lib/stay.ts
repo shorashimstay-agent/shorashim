@@ -45,7 +45,7 @@ export const isFriday = (date: string) => fromISODate(date).getDay() === 5;
 
 export { getPrices, getPricesVersion, usePrices } from './prices';
 
-/** With `start`, Friday and Saturday nights take the weekend price. Null until the prices arrive. */
+/** With `start`, Thursday to Saturday nights take the weekend price, and dated updates apply. Null until the prices arrive. */
 export const estimatePrice = (type: StayType, nights: number, adults: number, start?: string) =>
   estimateWith(type, nights, adults, getPrices(), start);
 
