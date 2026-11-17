@@ -255,3 +255,20 @@ test('conflicting updates are marked on their cards by name', async ({ page }) =
   await expect(page.locator('.ucard.bad[data-update="udec2026"]')).toContainText('סותר את ״חגים״');
   await expect(page.locator('.ucard.bad[data-update="uhol0001"]')).toContainText('סותר את ״דצמבר 2026״');
 });
+
+test('an edit refused as stale reopens with the sheet\'s values, so the next save keeps the change it was refused for', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fakeConsole(page);
+  await openPrices(page);
+  await page.locator('.ucard', { hasText: 'דצמבר 2026' }).getByRole('button', { name: 'עריכת דצמבר 2026' }).click();
+  await page.locator('#pf-name').fill('דצמבר 2026 מעודכן');
+  // Meanwhile, someone changes December's weekend price in the sheet.
+  state.updates = state.updates.map((u) => (u.id === 'udec2026' ? { ...u, weekend: 1111 } : u));
+  state.token++;
+  await page.getByRole('button', { name: 'שמירה' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('המחירון השתנה');
+  await expect(page.locator('#pf-weekend'), 'the form shows the sheet as it is now').toHaveValue('1111');
+  await page.getByRole('button', { name: 'שמירה' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('נשמר');
+  expect(state.saves.at(-1)).toMatchObject({ op: 'editUpdate', args: { update: { id: 'udec2026', weekend: 1111 } } });
+});
