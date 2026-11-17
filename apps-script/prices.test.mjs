@@ -32,6 +32,7 @@ function fakeSheet(name, id, cells = []) {
       return 0;
     },
     getMaxRows: () => 1000,
+    getLastColumn: () => Math.max(0, ...sheet.cells.map((r) => { for (let c = (r || []).length; c > 0; c--) if (r[c - 1] !== '' && r[c - 1] != null) return c; return 0; })),
     hideSheet: () => { sheet.hidden = true; return sheet; },
     protect: () => { const p = { setDescription: () => p, setWarningOnly: (w) => { p.warning = w; return p; } }; sheet.protections.push(p); return p; },
     getProtections: () => sheet.protections,
@@ -529,4 +530,112 @@ test('test overrides accept a price list or an old flat file', () => {
   assert.equal(e.ctx.currentPrices_('').prices.base.perNight, 900);
   const list = e.ctx.buildPriceList({ perNight: 1000, weekendPerNight: 1200, thirdGuestPercent: 35, bride_day: 1900, bride_night_day: 2700, wedding_night: 1250 }, [DEC], TODAY, false);
   assert.equal(e.ctx.testSetPrices_(list).version, list.version);
+});
+
+test('restore keeps a row typed while the layout was broken, the last copy of a duplicate key, and notes', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['perNight', 'עותק שנערך', 900]); // breaks the layout: a key below the header
+  e.source.cells.push(['', 'פסח', '2027-04-20', '2027-04-27', '1300', '1500', '', '', '']); // typed meanwhile, no id
+  e.source.cells[12] = ['הערה של שרי', 'לבדוק מחירי קיץ', ''];
+  assert.equal(e.ctx.priceRun_('handler').valid, false);
+  const before = JSON.stringify(e.source.cells);
+  const dry = e.ctx.priceRun_('restore', { dryRun: true });
+  assert.equal(JSON.stringify(e.source.cells), before, 'a dry run writes nothing');
+  assert.deepEqual([...dry.summary.duplicateKeys], ['perNight']);
+  assert.equal(dry.summary.updates, 2);
+  assert.equal(dry.summary.newIds, 1);
+  assert.equal(dry.summary.notes, 1);
+  assert.equal(dry.summary.dropped.length, 0);
+  const res = e.ctx.priceRun_('restore');
+  assert.equal(res.valid, true, JSON.stringify(res));
+  assert.equal(e.published().base.perNight, 900, 'the last copy, as the email described');
+  assert.ok(e.published().updates.some((u) => u.name === 'פסח'), 'the row typed meanwhile is kept');
+  assert.ok(e.source.cells.some((r) => r[0] === 'הערה של שרי'), 'the note stays');
+});
+
+test('restore refuses a tab with columns beyond I, and recreates a deleted source tab from the snapshot', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  const v = e.ctx.priceRun_('setup').version;
+  e.source.cells[3][10] = 'טור נוסף';
+  assert.equal(e.ctx.priceRun_('restore').error, 'extra_columns');
+  e.source.cells[3][10] = '';
+  e.ss.sheets = e.ss.sheets.filter((s) => s !== e.source);
+  assert.equal(e.ctx.priceRun_('handler').error, 'source_missing');
+  const res = e.ctx.priceRun_('restore');
+  assert.equal(res.valid, true, JSON.stringify(res));
+  assert.equal(res.version, v, 'the same prices, rebuilt');
+  assert.ok(e.ss.getSheetByName('מחירים'));
+});
+
+test("operator changes don't reach the owner's email as hand edits", () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  assert.equal(apply(e, { upserts: [DEC], base: { perNight: 1050, weekendPerNight: 1200 } }).valid, true);
+  e.source.cells[5][2] = 1999;
+  e.ctx.priceRun_('handler');
+  const pending = JSON.parse(e.store.get('prices:pending'));
+  pending.lastAt = 0;
+  e.store.set('prices:pending', JSON.stringify(pending));
+  e.ctx.pricesEmailDue_();
+  assert.equal(e.mails.length, 1);
+  assert.match(e.mails[0].body, /bride_day: 1850 ← 1999/);
+  assert.doesNotMatch(e.mails[0].body, /perNight|דצמבר/);
+});
+
+test('base values must be whole numbers, never text', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  assert.equal(apply(e, { base: { perNight: '1,050' } }).error, 'base_not_number');
+  assert.equal(typeof e.source.cells[1][2], 'number');
+});
+
+test('while the source is invalid, a deleted published tab comes back with the last valid list', () => {
+  const e = env({ cells: sourceCells([]) });
+  const v = e.ctx.priceRun_('setup').version;
+  e.source.cells[1][2] = 'לא מספר';
+  e.ss.sheets = e.ss.sheets.filter((s) => s.id !== GID);
+  e.cache.remove('prices:recreate');
+  const res = e.ctx.priceRun_('backstop');
+  assert.equal(res.valid, false);
+  assert.equal(e.published().version, v);
+});
+
+test('setup keeps a percentage typed as 35%', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.source.cells[4][2] = 0.35;
+  e.source.formats['5:3'] = '0%';
+  e.ctx.pricesSetup_();
+  assert.equal(e.source.cells[4][2], 35);
+  assert.equal(e.published().base.thirdGuestPercent, 35);
+  assert.equal(e.triggers.length, 2, 'the change and hourly triggers');
+});
+
+test('a new day republishes; `since` marks the publish, not every run', () => {
+  const e = env({ cells: sourceCells([]) });
+  e.ctx.priceRun_('setup');
+  const since = JSON.parse(e.store.get('prices:status')).since;
+  assert.equal(e.ctx.pricesNeedRun_(), false);
+  e.store.set('prices:publishedDay', '2026-11-16');
+  assert.equal(e.ctx.pricesNeedRun_(), true);
+  e.ctx.priceRun_('backstop');
+  assert.equal(JSON.parse(e.store.get('prices:status')).since, since);
+});
+
+test('the request checks: minimum, changed price, a page with no price, and the owner note', () => {
+  const e = env({ cells: sourceCells([]) });
+  const on = e.ctx.buildPriceList({ perNight: 1050, weekendPerNight: 1200, thirdGuestPercent: 35, bride_day: 1850, bride_night_day: 2650, wedding_night: 1150 }, [{ id: 'uhol0001', name: 'חג', from: '2027-04-21', to: '2027-04-21', minimum: 2 }], TODAY, true);
+  const priced = { version: on.version, prices: on };
+  const req = (start, nights, estimate) => ({ stayType: 'couple', start, nights, adults: 2, estimate });
+  const short = req('2027-04-21', 1, 1050);
+  const plain = (o) => JSON.parse(JSON.stringify(o));
+  assert.deepEqual(plain(e.ctx.requestPriceCheck_({ pricingV2: true }, short, priced).response), { ok: false, error: 'price_changed', price: 1050, minimum: 2, version: on.version });
+  assert.deepEqual(plain(e.ctx.requestPriceCheck_({}, short, priced).response.fields), { checkOut: 'minimum' });
+  const fine = req('2027-04-19', 1, 1050);
+  assert.equal(e.ctx.requestPriceCheck_({ pricingV2: true, shownPrice: 1050 }, fine, priced).response, undefined);
+  assert.equal(e.ctx.requestPriceCheck_({ pricingV2: true, shownPrice: 900 }, fine, priced).response.error, 'price_changed');
+  assert.equal(e.ctx.requestPriceCheck_({ pricingV2: true, shownPrice: null }, fine, priced).response, undefined, 'a page that showed no price');
+  assert.match(e.ctx.requestPriceCheck_({ pricesVersion: 'sheet-850-1050' }, fine, priced).note, /המחירון השתנה/);
+  assert.equal(e.ctx.requestPriceCheck_({ pricesVersion: on.version }, fine, priced).note, '');
+  assert.equal(e.ctx.requestPriceCheck_({}, fine, { version: 'none', prices: null }).note, '');
 });

@@ -1883,28 +1883,10 @@ function createRequestOnce_(body) {
   }
   mark('rateLimit');
 
-  // Minimums and changed prices, after reCAPTCHA and the rate limit. A page that sends pricingV2
-  // can show `price_changed` (the server's own price and minimum); older pages get the existing
-  // `invalid` answer for a stay below the minimum. The server always prices the request itself.
-  var priceNote = '';
-  if (priced.prices) {
-    var quote = quoteStay(priced.prices, req.stayType, req.start, req.nights, req.adults);
-    if (req.stayType === 'couple' && quote.minimum > req.nights) {
-      countLogNoise_('request.minimum');
-      if (body.pricingV2) return { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version };
-      return { ok: false, error: 'invalid', fields: { checkOut: 'minimum' }, minimum: quote.minimum };
-    }
-    var shown = body.shownPrice;
-    if (body.pricingV2 && shown !== undefined && shown !== null && shown !== '' && Number(shown) !== Number(req.estimate)) {
-      return { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version };
-    }
-    if (!body.pricingV2 && body.pricesVersion && body.pricesVersion !== priced.version) {
-      var seen = priceListByVersion_(String(body.pricesVersion));
-      var seenPrice = seen ? estimatePrice(req.stayType, req.nights, req.adults, seen, req.start) : null;
-      if (!seen) priceNote = 'המחירון השתנה מאז שהאורח פתח את הדף; המחיר לפי המחירון הנוכחי';
-      else if (seenPrice !== req.estimate) priceNote = 'האורח ראה מחירון קודם (' + (seenPrice ? '₪' + Number(seenPrice).toLocaleString('en-US') : 'ללא מחיר') + '); המחיר לפי המחירון הנוכחי';
-    }
-  }
+  // Minimums and changed prices, after reCAPTCHA and the rate limit (Prices.js).
+  var priceCheck = requestPriceCheck_(body, req, priced);
+  if (priceCheck.response) return priceCheck.response;
+  var priceNote = priceCheck.note;
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
