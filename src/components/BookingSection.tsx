@@ -483,8 +483,8 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
                     {form.priceChange.shown !== null && <> (במקום <span dir="ltr">₪{form.priceChange.shown.toLocaleString('he-IL')}</span>)</>}.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className="primary-action" onClick={() => form.acceptPriceChange()}>שליחה במחיר המעודכן</button>
-                    <button type="button" className="secondary-action" onClick={() => { form.dismissPriceChange(); contactPanel.current?.close(); }}>שינוי תאריכים</button>
+                    <button type="button" className="primary-action" disabled={form.sending} onClick={() => form.acceptPriceChange()}>שליחה במחיר המעודכן</button>
+                    <button type="button" className="secondary-action" disabled={form.sending} onClick={() => { form.dismissPriceChange(); if (!expanded) contactPanel.current?.close(); backToDates(); }}>שינוי תאריכים</button>
                   </div>
                 </div>
               )}

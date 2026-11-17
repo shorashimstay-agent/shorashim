@@ -947,3 +947,13 @@ test('the screen gets every base cell as the sheet holds it, even when one is ou
   assert.equal(saved.valid, true);
   assert.equal(saved.token, saved.expected, 'nothing else changed the sheet');
 });
+
+test('in fix-only mode, a save that fixes one problem but adds another is refused naming the new one', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '', '', '', ''], ['ubad0001', 'חגים', '2026-12-20', '2026-12-10', '900', '', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  const screen = consoleOp(e, 'prices');
+  // The dates are put in order, but the range now partly overlaps December on the same field.
+  const res = consoleOp(e, 'editUpdate', { token: screen.token, update: { id: 'ubad0001', name: 'חגים', from: '2026-12-10', to: '2027-01-05', weekday: 900 } });
+  assert.equal(res.error, 'fix_first');
+  assert.ok(res.problems.some((p) => p.includes('סותרים') && p.includes('״חגים״')), JSON.stringify(res.problems));
+});

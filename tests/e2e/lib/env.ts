@@ -88,11 +88,6 @@ export function pricesCsvUrl(cfg: BackendConfig): string {
   return `https://docs.google.com/spreadsheets/d/${cfg.pricesSheetId}/gviz/tq?tqx=out:csv&gid=${cfg.pricesPublishedGid}&range=A1:B1&headers=0`;
 }
 
-/** The base area of the prices tab, as sites from before price lists read it (rollbacks). */
-export function legacyPricesCsvUrl(cfg: BackendConfig): string {
-  return `https://docs.google.com/spreadsheets/d/${cfg.pricesSheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('מחירים')}&range=A1:C20`;
-}
-
 /** Every run tags what it creates with this, so cleanup can find it even after a crash. */
 export const RUN_PREFIX = 'E2E-';
 export const runId = (process.env.E2E_RUN_ID ??= Date.now().toString(36).slice(-6).toUpperCase());

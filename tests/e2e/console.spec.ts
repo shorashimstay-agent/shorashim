@@ -22,6 +22,7 @@ import {
 import { e2e, pricesCsvUrl, runId, runTag, staging as cfg } from './lib/env';
 import { checkPriceList, estimatePrice } from '../../shared/rules.js';
 import { parseCsv } from '../../src/lib/csv';
+import { openBooking, recaptchaToken } from './lib/site';
 
 const api = webApp(cfg);
 
@@ -560,6 +561,40 @@ test('O14: the prices screen adds, edits and removes an update through the real 
     // Whatever the test left in the sheet goes: the operator action removes the update by its id.
     const left = (await owner.values(cfg.pricesSheetId!, 'מחירים!A1:B80')).filter((r) => r[1] === name).map((r) => r[0]);
     if (left.length) await api.applyPrices({ removes: left }, `e2e-o14-${runId}`);
+    await api.resetPrices();
+  }
+});
+
+test('O15: with minimums on, a minimum entered in the prices screen on a phone is published and enforced on requests', async ({ page }) => {
+  test.skip(!cfg.pricesSheetId, 'staging has no prices sheet');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await api.setPrices(null);
+  await api.resetPrices();
+  const date = addDays(israelToday(), 320);
+  const name = `E2E מינימום ${runId}`;
+  expect(await api.setPricesFlag(true)).toMatchObject({ minimumsEnabled: true });
+  try {
+    await openConsole(page);
+    await page.locator('nav.tabs').getByRole('button', { name: 'מחירים' }).click();
+    await expect(page.locator('#pb-perNight')).not.toHaveValue('', { timeout: 120_000 });
+    await page.getByRole('button', { name: '＋ הוספת עדכון' }).click();
+    await page.locator('#pf-name').fill(name);
+    await page.locator('#pf-from').fill(date);
+    await page.locator('#pf-from').blur();
+    await expect(page.locator('#pf-min')).toBeEnabled();
+    await page.locator('#pf-min').fill('2');
+    await page.getByRole('button', { name: 'שמירה' }).click();
+    await expect(page.locator('#prices-msg')).toContainText('נשמר, והמחירים באתר עודכנו', { timeout: 120_000 });
+    await expect(page.locator('.ucard', { hasText: name })).toContainText('2 לילות');
+    // The backend enforces it: one night from that date is below the minimum.
+    await openBooking(page);
+    const token = await recaptchaToken(page, cfg.recaptchaSiteKey);
+    const res = await api.post({ action: 'request', requestId: `e2e-o15-${runId}`, recaptchaToken: token, stayType: 'couple', checkIn: date, checkOut: addDays(date, 1), adults: 2, name: guestName('מינימום'), phone: randomPhone(), pricingV2: true, shownPrice: null });
+    expect(res).toMatchObject({ ok: false, error: 'price_changed', minimum: 2 });
+  } finally {
+    const left = (await owner.values(cfg.pricesSheetId!, 'מחירים!A1:B80')).filter((r) => r[1] === name).map((r) => r[0]);
+    if (left.length) await api.applyPrices({ removes: left }, `e2e-o15-clean-${runId}`);
+    await api.setPricesFlag(false);
     await api.resetPrices();
   }
 });
