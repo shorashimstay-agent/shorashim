@@ -80,7 +80,8 @@ test('back-to-back stays do not conflict', () => {
 
 test('price estimate matches the site', () => {
   assert.equal(estimatePrice('couple', 2, 2, PRICES), 1700);
-  assert.equal(estimatePrice('couple', 2, 3, PRICES), 2000);
+  // A third guest adds 35% of the lodging (17.11.2026), not a fixed amount per night.
+  assert.equal(estimatePrice('couple', 2, 3, PRICES), 1700 + 595);
   assert.equal(estimatePrice('bride_day', 2, 3, PRICES), 1850);
   assert.equal(estimatePrice('wedding_night', 1, 2, PRICES), 1150);
 });
@@ -93,13 +94,14 @@ test('without prices there is no estimate, and the request is still valid', () =
   assert.equal(res.value.estimate, null);
 });
 
-test('Friday and Saturday nights are priced as weekend nights', () => {
-  assert.deepEqual(['2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'].map(isWeekendNight), [false, true, true, false]);
-  // Thursday to Sunday: one weeknight and two weekend nights; check-out day is not a night.
-  assert.equal(estimatePrice('couple', 3, 2, PRICES, '2026-10-08'), 850 + 1050 + 1050);
-  assert.equal(estimatePrice('couple', 1, 3, PRICES, '2026-10-09'), 1050 + 150);
-  // A month and a year boundary.
-  assert.equal(estimatePrice('couple', 2, 2, PRICES, '2026-12-31'), 850 + 1050);
+test('Thursday, Friday and Saturday nights are priced as weekend nights', () => {
+  assert.deepEqual(['2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'].map(isWeekendNight), [false, true, true, true, false]);
+  // Wednesday to Sunday: one weeknight and three weekend nights; check-out day is not a night.
+  assert.equal(estimatePrice('couple', 4, 2, PRICES, '2026-10-07'), 850 + 1050 * 3);
+  // 35% of 1,050 is 367.5, rounded to 368.
+  assert.equal(estimatePrice('couple', 1, 3, PRICES, '2026-10-09'), 1050 + 368);
+  // A month and a year boundary: 31.12.2026 is a Thursday.
+  assert.equal(estimatePrice('couple', 2, 2, PRICES, '2026-12-31'), 1050 + 1050);
   // Package prices do not depend on the day.
   assert.equal(estimatePrice('wedding_night', 1, 2, PRICES, '2026-10-09'), 1150);
   // Prices from before weekendPerNight existed price every night as a weeknight.
@@ -108,11 +110,11 @@ test('Friday and Saturday nights are priced as weekend nights', () => {
 });
 
 test('estimates use the prices they are given', () => {
-  const prices = { ...PRICES, perNight: 1000, weekendPerNight: 1200, thirdGuestPerNight: 300, bride_day: 2000 };
-  assert.equal(estimatePrice('couple', 2, 3, prices), 2600);
+  const prices = { ...PRICES, perNight: 1000, weekendPerNight: 1200, thirdGuestPercent: 30, bride_day: 2000 };
+  assert.equal(estimatePrice('couple', 2, 3, prices), 2000 + 600);
   assert.equal(estimatePrice('bride_day', 2, 2, prices), 2000);
-  // valid is Thursday and Friday night.
-  assert.equal(validateRequest({ ...valid }, '2026-09-15', prices).value.estimate, 1000 + 1200);
+  // valid is Thursday and Friday night, both weekend nights.
+  assert.equal(validateRequest({ ...valid }, '2026-09-15', prices).value.estimate, 1200 + 1200);
 });
 
 test('the prices spreadsheet rows become a checked prices file', () => {
@@ -189,7 +191,7 @@ test('a valid request is normalized', () => {
   const res = validateRequest({ ...valid, email: '', notes: '  ' }, '2026-09-15', PRICES);
   assert.equal(res.ok, true);
   assert.equal(res.value.nights, 2);
-  assert.equal(res.value.estimate, 850 + 1050, 'Thursday and Friday night');
+  assert.equal(res.value.estimate, 1050 + 1050, 'Thursday and Friday night');
   assert.equal(res.value.notes, '');
 });
 
