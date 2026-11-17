@@ -1244,6 +1244,9 @@ function consoleCall_(body) {
   if (body.op === 'cancelBooking') return consoleOnce_('cancelBooking', body.args && body.args.requestId, function () {
     return logConsole_('cancelBooking', body.id, cancelBooking_(String(body.id || ''), body.args || {}));
   });
+  // The prices screen (Prices.js).
+  var priced = pricesConsoleCall_(body);
+  if (priced) return priced;
   if (body.op === 'logoutAll') {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(CONSOLE_SESSION_VERSION_KEY, String(Number(props.getProperty(CONSOLE_SESSION_VERSION_KEY) || 1) + 1));
@@ -1862,7 +1865,8 @@ function createRequestOnce_(body) {
     last = now;
   }
 
-  // The current list, never a re-read on the caller's say: sheet reads only after reCAPTCHA.
+  // The current list from the web app's own copy, never a re-read on the caller's say. Only when the
+  // copy is missing does currentPrices_ read the sheet here, at most once a minute.
   var priced = currentPrices_('');
   var check = validateRequest(body, today_(), priced.prices);
   if (!check.ok) {

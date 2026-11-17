@@ -243,7 +243,7 @@ function sourceProblems_(read) {
     out.push('שורה ' + e.row + ': ' + (PRICE_PROBLEMS_HE[e.reason] || e.reason));
   });
   read.conflicts.forEach(function (c) {
-    out.push('שני עדכונים סותרים באותו שדה (' + c.a + ', ' + c.b + ')');
+    out.push(c.field === 'date' ? 'שתי שורות לאותו תאריך (' + c.a + ', ' + c.b + ')' : 'שני עדכונים סותרים באותו שדה (' + c.a + ', ' + c.b + ')');
   });
   return out;
 }
@@ -443,7 +443,7 @@ function priceRun_(kind, opts) {
       schedulePriceRetry_();
       return { ok: false, error: 'busy' };
     }
-  } else if (!lock.tryLock(kind === 'setup' ? 30000 : 15000)) {
+  } else if (!lock.tryLock(kind === 'setup' ? 30000 : kind === 'save' ? 8000 : 15000)) {
     if (kind === 'first' || kind === 'backstop') schedulePriceRetry_();
     return { ok: false, error: 'busy' };
   }
@@ -502,14 +502,20 @@ function priceRun_(kind, opts) {
       writeRestore_(sheet, rows, plan.rows);
       restored = plan.summary;
       wrote = true;
-    } else if (kind === 'apply') {
-      var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled);
+    } else if (kind === 'apply' || kind === 'save') {
+      // A dashboard save carries the token of the sheet its screen showed: any change since refuses it.
+      if (kind === 'save' && opts.token !== snap.hash) return { ok: false, error: 'stale', token: snap.hash };
+      var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled, kind === 'save' && !sourceIsValid(read));
       if (planned.error) return { ok: false, error: planned.error, problems: planned.problems };
       if (opts.dryRun) {
         // Chosen stays priced with the resulting list, for the operator to check before the real run.
-        var quotes = (opts.quotes || []).map(function (q) {
-          var quote = quoteStay(planned.list, q.stayType || 'couple', q.start, Number(q.nights) || 1, Number(q.adults) || 2);
-          return { start: q.start, nights: Number(q.nights) || 1, adults: Number(q.adults) || 2, stayType: q.stayType || 'couple', price: quote.price, minimum: quote.minimum };
+        var quotes = (opts.quotes || []).filter(function (q) {
+          return q && DATE_RE.test(String(q.start)) && STAY_TYPES[q.stayType || 'couple'];
+        }).map(function (q) {
+          var nights = Math.min(Math.max(Math.floor(Number(q.nights)) || 1, 1), MAX_NIGHTS);
+          var adults = Number(q.adults) === 3 ? 3 : 2;
+          var quote = planned.list ? quoteStay(planned.list, q.stayType || 'couple', q.start, nights, adults) : { price: null, minimum: 1 };
+          return { start: q.start, nights: nights, adults: adults, stayType: q.stayType || 'couple', price: quote.price, minimum: quote.minimum };
         });
         return { ok: true, dryRun: true, list: planned.list, quotes: quotes };
       }
@@ -583,7 +589,7 @@ function priceRun_(kind, opts) {
       // minimums off, that list loses its minimums at once (the first step of a step-4 rollback).
       var lastText = minimumsEnabled ? chunkedRead_(props, PRICES_COPY) : stripMinimums_(props, today);
       if (lastText) syncPublishedTab_(ss, props, lastText, false, since || new Date().toISOString());
-      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined };
+      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined, token: snap.hash };
     }
     if (Date.now() - started > PRICES_BUDGET_MS) {
       schedulePriceRetry_();
@@ -608,7 +614,7 @@ function priceRun_(kind, opts) {
     // 6. The published tab.
     var published = syncPublishedTab_(ss, props, text, changed, stamp);
     if (changed) logEvent_('prices.published', { version: list.version, kind: kind, updates: list.updates.length }, 'system');
-    return { ok: true, valid: true, version: list.version, published: published, warnings: warnings, list: kind === 'apply' ? list : undefined, restored: restored || undefined };
+    return { ok: true, valid: true, version: list.version, published: published, warnings: warnings, list: kind === 'apply' ? list : undefined, restored: restored || undefined, token: snap.hash };
   } finally {
     priceRunActive_ = false;
     lock.releaseLock();
@@ -719,7 +725,7 @@ function assignIds_(sheet, rows, ids) {
  * must be valid. changes: { base: { key: value }, upserts: [update], removes: [id] }. Upserts carry
  * their ids, so a retry is a no-op.
  */
-function applyPlan_(rows, read, changes, today, minimumsEnabled) {
+function applyPlan_(rows, read, changes, today, minimumsEnabled, fixOnly) {
   var next = rows.map(function (r) {
     return r.slice();
   });
@@ -798,7 +804,14 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled) {
     return (e.id || '') + ': ' + (PRICE_PROBLEMS_HE[e.error] || e.error);
   }) };
   var result = readPriceSource(next, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: true });
-  if (!sourceIsValid(result)) return { error: 'invalid', problems: sourceProblems_(result) };
+  if (!sourceIsValid(result)) {
+    // While the source is invalid, a save that fixes or removes a problem is written even if others
+    // remain ("נשמר, עדיין לא באתר"); any other save is refused until the problems are fixed.
+    if (fixOnly && sourceProblems_(result).length < sourceProblems_(read).length) {
+      return { rows: next, touched: touched, list: null, remaining: sourceProblems_(result), expected: rows };
+    }
+    return { error: fixOnly ? 'fix_first' : 'invalid', problems: sourceProblems_(fixOnly ? read : result) };
+  }
   return { rows: next, touched: touched, list: buildPriceList(result.base, result.updates, today, minimumsEnabled), expected: rows };
 }
 
@@ -846,6 +859,14 @@ function writePlan_(sheet, rows, plan) {
  */
 function restorePlan_(sheet, rows, props) {
   if (typeof sheet.getLastColumn === 'function' && sheet.getLastColumn() > 9) return { error: 'extra_columns' };
+  var formulas = [];
+  if (rows.length && typeof sheet.getRange(1, 1, rows.length, 9).getFormulas === 'function') {
+    sheet.getRange(1, 1, rows.length, 9).getFormulas().forEach(function (row, r) {
+      row.forEach(function (f, c) {
+        if (f) formulas.push(String.fromCharCode(65 + c) + (r + 1));
+      });
+    });
+  }
   var lastValid = chunkedJson_(props, PRICES_LAST_VALID);
   var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
   var summary = { keys: 0, updates: 0, newIds: 0, duplicateKeys: [], notes: 0, restoredFromSnapshot: [], dropped: [] };
@@ -953,6 +974,10 @@ function restorePlan_(sheet, rows, props) {
     out.push(u);
   });
   summary.updates = updates.length;
+  // Formulas can't be moved as formulas: their current values are kept, and the cells are listed.
+  formulas.forEach(function (cell) {
+    summary.dropped.push('נוסחה בתא ' + cell + ' (נשמר הערך שלה)');
+  });
   return { rows: out, summary: summary };
 }
 
@@ -963,7 +988,12 @@ function writeRestore_(sheet, rows, out) {
   // are kept as typed rather than re-read as numbers.
   sheet.getRange(1, 1, PRICES_HEADER_ROW - 1, 2).setNumberFormat('@');
   sheet.getRange(1, 4, PRICES_HEADER_ROW - 1, 6).setNumberFormat('@');
-  sheet.getRange(1, 3, PRICES_HEADER_ROW - 1, 1).setNumberFormat('0');
+  // Column C: a number format only for the base keys' rows; note rows keep their text ("10%").
+  var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
+  for (var r = 0; r < PRICES_HEADER_ROW - 1; r++) {
+    var isKey = out[r] && baseKeys.indexOf(String(out[r][0])) >= 0;
+    sheet.getRange(r + 1, 3).setNumberFormat(isKey ? '0' : '@');
+  }
   sheet.getRange(PRICES_HEADER_ROW, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW + 1, 1), 9).setNumberFormat('@');
   // One write over the whole height (blank rows below the new layout): never a cleared, empty tab.
   var height = Math.max(sheet.getLastRow(), out.length, 1);
@@ -1154,6 +1184,105 @@ function requestPriceCheck_(body, req, priced) {
 }
 
 // ---------------------------------------------------------------------------
+// The dashboard (admin/index.html, "מחירים"): read the sheet as it is now, save one change, clear
+// the hand-edit notice, rebuild the layout. Called from consoleCall_ with a valid session.
+
+/**
+ * The prices screen's data, read fresh (no lock): the source's base and updates with their problems
+ * and warnings, the published list the site and the backend price from, the hand-edit notice, and the
+ * token a save must carry.
+ */
+function pricesForConsole_() {
+  var props = PropertiesService.getScriptProperties();
+  var minimumsEnabled = pricesMinimumsEnabled_();
+  var today = today_();
+  var out = { ok: true, today: today, minimumsEnabled: minimumsEnabled };
+  var published = chunkedRead_(props, PRICES_COPY);
+  var checked = published ? checkPriceList(JSON.parse(published)) : null;
+  out.published = checked && checked.ok ? checked.list : null;
+  out.status = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || 'null');
+  out.notice = JSON.parse(props.getProperty(PRICES_NOTICE_KEY) || 'null');
+  var ss = SpreadsheetApp.openById(CONFIG.pricesSheetId);
+  var sheet = ss.getSheetByName(PRICES_TAB);
+  if (!sheet) {
+    out.structure = 'source_missing';
+    out.problems = [PRICE_PROBLEMS_HE.source_missing];
+    out.valid = false;
+    return out;
+  }
+  var rows = readSourceRows_(ss, sheet);
+  var read = readPriceSource(rows, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: true });
+  out.token = snapshotOf_(rows).hash;
+  out.base = read.base;
+  out.structure = read.structure;
+  out.updates = read.updates;
+  out.invalidRows = read.rowErrors.map(function (e) {
+    var row = rows[e.row - 1] || [];
+    return {
+      row: e.row,
+      id: e.id,
+      reason: PRICE_PROBLEMS_HE[e.reason] || e.reason,
+      cells: row.slice(0, 8).map(function (v) {
+        return v === null || v === undefined ? '' : String(v);
+      }),
+    };
+  });
+  out.problems = sourceProblems_(read);
+  out.warnings = sourceWarnings_(read);
+  out.valid = sourceIsValid(read);
+  return out;
+}
+
+/**
+ * One dashboard save: { token, base }, { token, update } (an upsert by id; a new update gets its id
+ * here) or { token, id } for a removal. A busy section throws, so consoleOnce_ lets a retry with the
+ * same requestId run again.
+ */
+function pricesConsoleSave_(op, args) {
+  var changes = {};
+  if (op === 'saveBase') changes.base = args.base || {};
+  else if (op === 'addUpdate' || op === 'editUpdate') {
+    var u = args.update || {};
+    var id = op === 'addUpdate' ? newUpdateId_() : String(u.id || '');
+    if (!UPDATE_ID_RE.test(id)) return { ok: false, error: 'bad_request' };
+    var clean = { id: id, name: cleanName(u.name), from: String(u.from || ''), to: String(u.to || '') };
+    ['weekday', 'weekend', 'minimum', 'twoNight'].forEach(function (f) {
+      if (u[f] !== null && u[f] !== undefined && u[f] !== '') clean[f] = Number(u[f]);
+    });
+    changes.upserts = [clean];
+  } else changes.removes = [String(args.id || '')];
+  var res = priceRun_('save', { changes: changes, token: String(args.token || '') });
+  if (!res.ok && ['busy', 'moved', 'unreadable', 'source_missing'].indexOf(res.error) >= 0) throw new Error('price section ' + res.error + '; retry');
+  if (res.ok && changes.upserts) res.id = changes.upserts[0].id;
+  return res;
+}
+
+/** The dashboard's price operations, or null for other ops. */
+function pricesConsoleCall_(body) {
+  var args = body.args || {};
+  if (body.op === 'prices') return pricesForConsole_();
+  if (['saveBase', 'addUpdate', 'editUpdate', 'removeUpdate'].indexOf(body.op) >= 0) {
+    if (!/^[\w-]{8,64}$/.test(String(args.requestId || ''))) return { ok: false, error: 'bad_request' };
+    return consoleOnce_(body.op, args.requestId, function () {
+      var res = pricesConsoleSave_(body.op, args);
+      logEvent_('console.' + body.op, { ok: res.ok, error: res.error, version: res.version, valid: res.valid }, 'console');
+      return res;
+    });
+  }
+  if (body.op === 'ackPriceEdit') {
+    PropertiesService.getScriptProperties().deleteProperty(PRICES_NOTICE_KEY);
+    logEvent_('console.ackPriceEdit', {}, 'console');
+    return { ok: true };
+  }
+  if (body.op === 'restorePrices') {
+    var restored = priceRun_('restore', { dryRun: !!args.dryRun });
+    if (!args.dryRun) logEvent_('console.restorePrices', { ok: restored.ok, error: restored.error, valid: restored.valid }, 'console');
+    return restored;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Signed operator actions (doPost). Each has its own signing prefix covering its arguments.
 
 function pricesSignedAction_(body) {
@@ -1165,9 +1294,10 @@ function pricesSignedAction_(body) {
   if (body.action === 'applyPriceChanges') {
     // The signature covers the changes themselves, not a hash of them.
     var payload = JSON.stringify(body.changes || {});
-    var signed = 'applyPrices:' + body.t + ':' + String(body.requestId || '') + ':' + (body.dryRun ? 1 : 0) + ':' + payload;
+    // The quotes (dry run) are signed too.
+    var signed = 'applyPrices:' + body.t + ':' + String(body.requestId || '') + ':' + (body.dryRun ? 1 : 0) + ':' + payload + (body.quotes ? ':' + JSON.stringify(body.quotes) : '');
     if (!validSig_(signed, body.sig)) return null;
-    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true, quotes: Array.isArray(body.quotes) ? body.quotes.slice(0, 50) : [] });
+    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true, quotes: Array.isArray(body.quotes) ? body.quotes.slice(0, 20) : [] });
     if (!/^[\w-]{8,64}$/.test(String(body.requestId || ''))) return { ok: false, error: 'bad_request' };
     return consoleOnce_('applyPrices', body.requestId, function () {
       var res = priceRun_('apply', { changes: body.changes });
