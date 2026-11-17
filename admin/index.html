@@ -1576,20 +1576,20 @@
       '<div id="pc-out" class="pquote"></div>';
     $('prices-check').innerHTML = html;
     $('prices-check').onsubmit = function (e) { e.preventDefault(); };
-    $('pc-from').onchange = function () { c.from = this.value; if (c.from && (!c.to || c.to <= c.from)) { c.to = addDays(c.from, 1); $('pc-to').value = c.to; } quoteCheck(); };
-    $('pc-to').onchange = function () { c.to = this.value; quoteCheck(); };
+    $('pc-from').onchange = function () { c.from = this.value; if (c.from && (!c.to || c.to <= c.from)) { c.to = addDays(c.from, 1); $('pc-to').value = c.to; } quoteCheck(true); };
+    $('pc-to').onchange = function () { c.to = this.value; quoteCheck(true); };
     $('prices-check').querySelectorAll('[data-adults]').forEach(function (b) {
       b.onclick = function () {
         c.adults = Number(b.getAttribute('data-adults'));
         $('prices-check').querySelectorAll('[data-adults]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-        quoteCheck();
+        quoteCheck(true);
       };
     });
     quoteCheck();
   }
 
   /** The price check: price and minimum from the published list (with the open form's change), and availability. */
-  function quoteCheck() {
+  function quoteCheck(speak) {
     var c = state.pcheck, out = $('pc-out');
     if (!out) return;
     if (!c.from || !c.to || c.to <= c.from) { out.innerHTML = '<span class="hint">בחרו תאריכי הגעה ועזיבה.</span>'; return; }
@@ -1605,8 +1605,12 @@
       '<br><span id="pc-avail" class="hint">בודקים זמינות…</span>';
     out.innerHTML = html;
     // Screen readers hear the price once the typing pauses, not on every keystroke.
-    clearTimeout(state.pquoteTimer);
-    state.pquoteTimer = setTimeout(function () { announce('מחיר: ' + shekel(q.price) + ' ל' + nightsText(nights)); }, 900);
+    if (speak) {
+      // Spoken once the typing pauses, and only after the owner changed the check.
+      clearTimeout(state.pquoteTimer);
+      var spoken = 'מחיר: ' + shekel(q.price) + ' ל' + nightsText(nights) + (q.minimum > 1 ? ', מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ', השהייה קצרה מדי' : '') : '');
+      state.pquoteTimer = setTimeout(function () { announce(spoken); }, 900);
+    }
     // Availability is asked once per pair of dates, not on every keystroke in the form.
     var key = c.from + '|' + c.to;
     if (state.pavail && state.pavail.key === key) {
@@ -1839,6 +1843,10 @@
       if (firstWeekday) lines.push('לילה ב־' + heFull(firstWeekday) + ' (א׳–ד׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekday, 1, 2).price) + '</b>');
       if (firstWeekend) lines.push('לילה ב־' + heFull(firstWeekend) + ' (ה׳–ש׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekend, 1, 2).price) + '</b>');
     }
+    // The preview is spoken once the typing pauses.
+    clearTimeout(state.ppreviewTimer);
+    var spokenPreview = 'תצוגה מקדימה: ' + lines.join('. ').replace(/<[^>]+>/g, '');
+    state.ppreviewTimer = setTimeout(function () { announce(spokenPreview); }, 900);
     el.innerHTML = '<span class="hint">' + (state.prices.valid === false ? 'תצוגה מקדימה לפי הגיליון כפי שהוא עכשיו (חלקו עוד לא באתר), לפני שמירה:' : 'תצוגה מקדימה, לפני שמירה:') + '</span><br>' + lines.join('<br>');
     quoteCheck();
   }

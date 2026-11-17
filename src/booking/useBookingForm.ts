@@ -179,6 +179,12 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   const priceList = usePrices();
   const estimate = estimatePrice(stayType, Math.max(nights, 1), adultsCount, checkIn || undefined);
   const [priceChange, setPriceChange] = useState<PriceChange | null>(null);
+  // An updated price belongs to the stay it was quoted for: another stay drops it.
+  useEffect(() => setPriceChange(null), [stayType, checkIn, checkOut, adultsCount]);
+  // One request at a time: a second tap while one is on its way does nothing (state is stale in the
+  // closure, so a ref), and a late refusal never replaces a request that was received.
+  const sendingRef = useRef(false);
+  const sentRef = useRef(false);
 
   // Minimum nights (the price list's; couple stays only). The calendar doesn't offer a check-out that
   // is too short, and a line under it says the minimum from the chosen arrival.
@@ -408,6 +414,17 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
   };
 
   const submit = async (acceptedPrice?: number | null) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      await submitOnce(acceptedPrice);
+    } finally {
+      sendingRef.current = false;
+    }
+  };
+
+  const submitOnce = async (acceptedPrice?: number | null) => {
+    sentRef.current = false;
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length) {
@@ -423,6 +440,7 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       return;
     }
     setAnnouncement('שולחים את הבקשה...');
+    setPriceChange(null);
     let token = '';
     try {
       token = await recaptchaToken('booking_request');
@@ -445,9 +463,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       // The price the guest agreed to: the one shown, or the updated one after "שליחה במחיר המעודכן".
       shownPrice: acceptedPrice !== undefined ? acceptedPrice : estimate,
     });
-    setPriceChange(null);
-
     if (result.ok) {
+      sentRef.current = true;
       const { ref, holdHours } = result;
       // Marketing (only with consent): once per accepted request; never for the honeypot's fake success.
       if (!website) void trackLead(ref, stayType, { name: fullName, phone, email });
@@ -470,6 +487,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
       void continueToDetails(undefined, { takenNights: result.nights?.length ? result.nights : nightsOf(held.start, held.end) });
       return;
     }
+    // A request that was received is never undone on screen by a later refusal.
+    if (sentRef.current) return;
     if (result.error === 'price_changed') {
       // The page's price list is older than the web app's: read it again, and let the guest decide.
       setSubmission({ state: 'idle' });
@@ -482,7 +501,6 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
         return;
       }
       setPriceChange({ price: result.price ?? null, shown: estimate });
-      setAnnouncement(`המחיר עודכן ל־${result.price ? '₪' + result.price.toLocaleString('he-IL') : 'מחיר בתיאום אישי'}.`);
       return;
     }
     if (result.error === 'invalid' && result.fields) {

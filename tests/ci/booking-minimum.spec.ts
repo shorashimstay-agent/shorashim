@@ -1,14 +1,14 @@
 // The booking form with minimum nights and a changed price (the pricing plan's step 4), against a fake
 // backend. The CI site's price list has a minimum of 2 nights on MIN_DATE (playwright.ci.config.ts).
 import { expect, test, type Page } from '@playwright/test';
-import { CI_PRICE_LIST, FAKE_API, MIN_DATE } from '../../playwright.ci.config';
+import { CI_PRICE_LIST, FAKE_API, MIN_DATE, NYE_DATE } from '../../playwright.ci.config';
 import { addDays, estimatePrice } from '../../shared/rules.js';
 import { openBooking, showMonthOf } from '../e2e/lib/site';
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 
 /** Availability and the live check say free; requests answer `answers` in turn, then success. */
-async function fakeBackend(page: Page, answers: Record<string, unknown>[] = []) {
+async function fakeBackend(page: Page, answers: Record<string, unknown>[] = [], { delayMs = 0 } = {}) {
   const posts: Record<string, any>[] = [];
   const checks: string[] = [];
   await page.route('https://www.google.com/recaptcha/**', (route) =>
@@ -23,6 +23,7 @@ async function fakeBackend(page: Page, answers: Record<string, unknown>[] = []) 
       return route.fulfill({ json: { ok: true, free: true, conflicts: [], from, to: addDays(from, 366), blocked: [], busy: [] } });
     }
     posts.push(JSON.parse(req.postData() ?? 'null'));
+    if (delayMs && posts.length > 1) await new Promise((r) => setTimeout(r, delayMs));
     return route.fulfill({ json: answers[posts.length - 1] ?? { ok: true, ref: 'SH-CI000', holdHours: 24 } });
   });
   return { posts, checks };
@@ -49,7 +50,7 @@ test('a check-out below the minimum is not offered, and a line says the minimum 
   await expect(page.locator('#booking .booking-minimum-note')).toContainText('אפשר להזמין לפחות 2 לילות');
   await expect(day(page, addDays(MIN_DATE, 1)).locator('button')).toBeDisabled();
   await expect(day(page, addDays(MIN_DATE, 2)).locator('button')).toBeEnabled();
-  // The night before: a one-night stay ends on MIN_DATE and is fine.
+  // A new arrival three nights earlier: its first night has no minimum, so the note goes.
   await pick(page, addDays(MIN_DATE, -3));
   await expect(page.locator('#booking .booking-minimum-note')).toHaveCount(0);
 });
@@ -88,4 +89,52 @@ test('a changed price is shown, and the guest sends again at the new price', asy
   await expect(page.locator('#booking').getByText('מספר הבקשה:')).toBeVisible();
   expect(posts[1]).toMatchObject({ pricingV2: true, shownPrice: shown + 200 });
   expect(posts[1].requestId, 'a new request, not the cached refusal').not.toBe(posts[0].requestId);
+});
+
+test('a double tap on "שליחה במחיר המעודכן" sends once, and the guest sees the request was received', async ({ page }) => {
+  const checkIn = addDays(israelToday(), 75);
+  const { posts } = await fakeBackend(page, [{ ok: false, error: 'price_changed', price: 2000, minimum: 1 }, { ok: true, ref: 'SH-CI001', holdHours: 24 }, { ok: false, error: 'unavailable', nights: [checkIn] }], { delayMs: 1500 });
+  await openBooking(page);
+  await page.locator('#booking [data-stay-type="couple"]').click();
+  await pick(page, checkIn);
+  await pick(page, addDays(checkIn, 2));
+  await fillGuest(page);
+  await page.locator('#submit-booking-request').click();
+  await page.locator('.booking-price-change').getByRole('button', { name: 'שליחה במחיר המעודכן' }).dblclick();
+  await expect(page.locator('#booking').getByText('מספר הבקשה:')).toBeVisible();
+  expect(posts, 'the second tap sent nothing').toHaveLength(2);
+  await expect(page.locator('.booking-gate')).not.toBeVisible();
+});
+
+test('on a phone, through the booking bar: a minimum on New Year\'s Eve, picked across the year boundary', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeBackend(page);
+  await page.goto('/');
+  const booking = page.locator('#booking');
+  await booking.evaluate((el) => el.scrollIntoView({ behavior: 'instant' }));
+  const panel = booking.locator('.booking-bar-dates');
+  if (!(await panel.evaluate((el) => (el as HTMLDetailsElement).open))) await panel.locator('summary').click();
+  // The bar's own calendar (the page has another, inside the details panel).
+  const barDay = (d: string) => panel.locator(`.shorashim-calendar [data-day="${d}"]`);
+  const showInBar = async (d: string) => {
+    for (let i = 0; i < 14 && !(await barDay(d).isVisible()); i++) await panel.locator('.rdp-button_next').click();
+    await expect(barDay(d)).toBeVisible();
+  };
+  const pickInBarDay = async (d: string) => {
+    if (!(await panel.evaluate((el) => (el as HTMLDetailsElement).open))) await panel.locator('summary').click();
+    await showInBar(d);
+    await barDay(d).locator('button').click();
+  };
+  await pickInBarDay(NYE_DATE);
+  await expect(panel.locator('.booking-minimum-note')).toContainText('אפשר להזמין לפחות 2 לילות');
+  // 1 January is in the next month and year: shown, and not offered as a check-out.
+  if (!(await panel.evaluate((el) => (el as HTMLDetailsElement).open))) await panel.locator('summary').click();
+  await showInBar(addDays(NYE_DATE, 1));
+  await expect(barDay(addDays(NYE_DATE, 1)).locator('button')).toBeDisabled();
+  await pickInBarDay(addDays(NYE_DATE, 2));
+  await booking.locator('.booking-bar-continue').click();
+  const details = page.locator('.booking-request-screen');
+  await expect(details.getByText('התאריכים שבחרתם פנויים')).toBeVisible();
+  const price = estimatePrice('couple', 2, 2, CI_PRICE_LIST, NYE_DATE)!;
+  await expect(details).toContainText(price.toLocaleString('he-IL'));
 });
