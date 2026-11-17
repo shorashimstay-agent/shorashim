@@ -1540,7 +1540,9 @@
     var base = {};
     BASE_FIELDS.forEach(function (f) { base[f[0]] = sheetValue(f[0]); });
     var html = '<div class="pgrid">' + BASE_FIELDS.map(function (f) {
-      return '<div><label for="pb-' + f[0] + '">' + f[1] + '</label><input id="pb-' + f[0] + '" data-key="' + f[0] + '" type="number" inputmode="numeric" min="0" step="1" value="' + esc(base[f[0]] == null ? '' : base[f[0]]) + '"></div>';
+      var raw = p.rawBase && p.rawBase[f[0]];
+      return '<div><label for="pb-' + f[0] + '">' + f[1] + '</label><input id="pb-' + f[0] + '" data-key="' + f[0] + '" type="number" inputmode="numeric" min="0" step="1" value="' + esc(base[f[0]] == null ? '' : base[f[0]]) + '"' + (raw ? ' aria-describedby="pb-' + f[0] + '-raw"' : '') + '>' +
+        (raw ? '<p class="fielderr" id="pb-' + f[0] + '-raw">בגיליון רשום: ' + esc(raw) + '</p>' : '') + '</div>';
     }).join('') + '</div><p class="hint">א׳–ד׳ הם לילות ראשון עד רביעי; ה׳–ש׳ הם לילות חמישי, שישי ושבת.</p>' +
       '<div class="row" style="margin-top:14px"><button type="submit" class="btn primary" style="flex:1">שמירת מחירי בסיס</button></div>';
     $('prices-base').innerHTML = html;
@@ -1571,7 +1573,7 @@
     var html = '<div class="pgrid"><div><label for="pc-from">הגעה</label><input id="pc-from" type="date" value="' + esc(c.from) + '"></div>' +
       '<div><label for="pc-to">עזיבה</label><input id="pc-to" type="date" value="' + esc(c.to) + '"></div></div>' +
       '<p class="label" style="font-size:11px;letter-spacing:.16em;color:var(--accent);margin:14px 0 6px">אורחים</p><div class="choices" role="group" aria-label="אורחים"><button type="button" data-adults="2" aria-pressed="' + (c.adults === 2) + '">זוג</button><button type="button" data-adults="3" aria-pressed="' + (c.adults === 3) + '">3 אורחים</button></div>' +
-      '<div id="pc-out" class="pquote" aria-live="polite"></div>';
+      '<div id="pc-out" class="pquote"></div>';
     $('prices-check').innerHTML = html;
     $('prices-check').onsubmit = function (e) { e.preventDefault(); };
     $('pc-from').onchange = function () { c.from = this.value; if (c.from && (!c.to || c.to <= c.from)) { c.to = addDays(c.from, 1); $('pc-to').value = c.to; } quoteCheck(); };
@@ -1602,6 +1604,9 @@
       (q.minimum > 1 ? '<br>מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ' — <b style="font-size:inherit;color:var(--bad)">השהייה קצרה מדי</b>' : '') : '') +
       '<br><span id="pc-avail" class="hint">בודקים זמינות…</span>';
     out.innerHTML = html;
+    // Screen readers hear the price once the typing pauses, not on every keystroke.
+    clearTimeout(state.pquoteTimer);
+    state.pquoteTimer = setTimeout(function () { announce('מחיר: ' + shekel(q.price) + ' ל' + nightsText(nights)); }, 900);
     // Availability is asked once per pair of dates, not on every keystroke in the form.
     var key = c.from + '|' + c.to;
     if (state.pavail && state.pavail.key === key) {
@@ -1756,7 +1761,8 @@
     } else {
       html += '<div class="pgrid"><div><label for="pf-weekday">מחיר א׳–ד׳ (₪)</label><input id="pf-weekday" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.weekday) + '"></div>' +
         '<div><label for="pf-weekend">מחיר ה׳–ש׳ (₪)</label><input id="pf-weekend" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.weekend) + '"></div></div>' +
-        '<p class="hint">שדה ריק: המחיר לפי עדכון רחב יותר או מחיר הבסיס.</p>';
+        '<p class="hint">שדה ריק: המחיר לפי עדכון רחב יותר או מחיר הבסיס.</p>' +
+        (f.twoNight !== '' && f.twoNight != null ? '<p class="fielderr">מחיר לשני לילות (' + esc(f.twoNight) + ') חל רק בתאריך יחיד, ולכן לא יישמר בטווח.</p>' : '');
     }
     if (p.minimumsEnabled) {
       html += '<label for="pf-min">מינימום לילות (לא חובה)</label><input id="pf-min" type="number" inputmode="numeric" min="1" max="14" step="1" value="' + esc(f.minimum) + '">';
@@ -1766,7 +1772,7 @@
     } else {
       html += '<label for="pf-min">מינימום לילות</label><input id="pf-min" type="number" disabled placeholder="זמין בקרוב">';
     }
-    html += '<div id="pf-preview" class="pquote" aria-live="polite"></div><p class="fielderr" id="pf-error"></p>' +
+    html += '<div id="pf-preview" class="pquote"></div><p class="fielderr" id="pf-error"></p>' +
       '<div class="actions two" style="margin-top:14px"><button type="submit" class="btn primary">שמירה</button><button type="button" class="btn quiet" id="pf-cancel">ביטול</button></div></form>';
     $('price-form-slot').innerHTML = html;
     var bind = function (id, key, rerender) {
@@ -1778,6 +1784,7 @@
         var wasSingle = f.from && f.from === f.to;
         var oldFrom = f.from;
         f[key] = el.value;
+        f.wrongColumn = false;
         f.requestId = requestId();
         if (key === 'from' && f.from && (!f.to || f.to < f.from)) f.to = f.from;
         var single = f.from && f.from === f.to;
@@ -1940,7 +1947,7 @@
       });
       document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
       // The prices screen reads the sheet fresh every time it opens.
-      if (state.tab === 'prices') loadPrices();
+      if (state.tab === 'prices') { state.pmsg = null; loadPrices(); }
       window.scrollTo(0, 0);
       var h = document.querySelector('#screen-' + state.tab + ' h2');
       if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
