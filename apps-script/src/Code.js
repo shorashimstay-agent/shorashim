@@ -1245,7 +1245,7 @@ function syncAdminSheet_() {
 }
 
 // ---------------------------------------------------------------------------
-// Owner console: the page at shorashimstay.com/admin (public/admin/index.html). The page is public
+// Owner console: the page at shorashimstay.com/admin (admin/index.html, built by Vite). The page is public
 // and holds no secrets. The owner logs in with a password checked here against a salted hash in
 // CONFIG (from booking-config.json, never in the repo), and gets a session token signed with the
 // HMAC secret. Sessions do not expire; "log out everywhere" bumps a version that every token names.

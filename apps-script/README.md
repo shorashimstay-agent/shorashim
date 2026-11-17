@@ -71,7 +71,7 @@ Calendars cannot be stored in Drive folders; they stay in Google Calendar.
 ## Owner console (`shorashimstay.com/admin`)
 
 A page for the owner, made for the phone, at **https://shorashimstay.com/admin**
-(`public/admin/index.html`). It logs in with a password and then stays logged in on that device.
+(`admin/index.html`, built by Vite like the other pages). It logs in with a password and then stays logged in on that device.
 
 - **Tabs:** בקשות (pending requests with אישור / דחייה, each confirmed with a second tap, then a
   ready-made WhatsApp message; recent decisions), יומן (month view of bookings, holds, channels and

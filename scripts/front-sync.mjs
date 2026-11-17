@@ -58,7 +58,7 @@ const PROTECTED = [
   /^(en\/)?(terms|privacy|accessibility)\//,
   /^playwright\.config\.ts$/,
   /^public\/CNAME$/,
-  /^public\/admin\//,
+  /^admin\//,
   /^src\/lib\//,
   /^src\/booking\//,
   /^src\/legal\//,

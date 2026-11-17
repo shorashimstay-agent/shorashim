@@ -50,7 +50,7 @@ every check passes.
 
 | Owner | Files | Rule |
 |---|---|---|
-| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `public/admin/`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
+| Production | `package*.json`, `tsconfig.json`, `vite.config.ts`, `.env*`, `.github/`, `.githooks/`, `apps-script/`, `shared/`, `scripts/`, `tests/`, `docs/`, legal pages, `public/CNAME`, `admin/`, `src/lib/`, `src/booking/`, `src/legal/`, `AvailabilityCalendar`, `AccessibilityMenu`, `Picture`, `bookingConfig.ts`, generated images | front-2's changes are listed in the report and never taken; `check` fails if a sync changes them |
 | Design | everything else under `src/` and `public/`, and `index.html` | three-way merge: front-2's change is taken where the site did not change the same lines |
 | Ignored | anything else front-2 has (`metadata.json`, AI Studio config) | not taken |
 
@@ -71,8 +71,8 @@ Prices are in neither repo. They live in one place, the owner's Google Sheet
 **"שורשים — מחירים (Shorashim prices)"** (`pricesSheetId` in `booking-config.json`), tab `מחירים`,
 one row per key: `perNight` (weeknights), `weekendPerNight` (Friday and Saturday nights),
 `thirdGuestPerNight`, `bride_day`, `bride_night_day`, `wedding_night`, and `bride_day_wedding_night`
-(optional: without it that package shows "מחיר בתיאום אישי" and every other price holds). The owner and the front
-agent's account (`sarayagent@gmail.com`) edit column C; anyone with the link can view it. This
+(optional: without it that package shows "מחיר בתיאום אישי" and every other price holds). Only the owner's account edits it (the front agent's account,
+`sarayagent@gmail.com`, is view-only since 17.11.2026); anyone with the link can view it. This
 sheet is separate from the admin and availability sheets and holds nothing else.
 
 - **Both sites read the sheet directly** as a public CSV when a page opens (`PRICES_CSV_URL` in
