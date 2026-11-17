@@ -345,7 +345,7 @@
 <script type="module">
   // Built by Vite (vite.config.ts), so the console prices with the same shared rules as the website
   // and the web app: one place for the price logic.
-  import { estimatePrice, quoteStay, buildPriceList, updateProblem, updateConflicts, isWeekendNight, MAX_NIGHTS } from '../shared/rules.js';
+  import { estimatePrice, quoteStay, buildPriceList, updateProblem, updateConflicts, isWeekendNight, parseSheetDate, MAX_NIGHTS } from '../shared/rules.js';
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
   var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null, cancel: null };
   // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
@@ -1522,7 +1522,8 @@
       // The sheet the owner confirmed: a change since refuses the run.
       return call('restorePrices', { args: { token: dry.token } }).then(function (res) {
         if (!res.ok) return priceMessage(res.error === 'stale' ? 'הגיליון השתנה מאז הבדיקה. נסו שוב.' : 'לא ניתן לשחזר את המבנה: ' + (PRICE_SAVE_ERRORS[res.error] || res.error), true);
-        priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
+        if (res.error === 'budget') priceMessage('המבנה שוחזר. האתר יתעדכן תוך כדקה.');
+        else priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
         return loadPrices();
       });
     }).catch(function (err) {
@@ -1533,7 +1534,8 @@
   function renderPriceBase(p) {
     // What the sheet holds now (raw, so an invalid value can be fixed); unsaved typing is kept.
     if (state.pbaseDirty && $('pb-perNight')) return;
-    var sheetValue = function (k) { return p.rawBase && k in p.rawBase ? p.rawBase[k] : p.base && p.base[k] != null ? String(p.base[k]) : ''; };
+    // Each cell as the sheet holds it (sheetBase), even while another base value is invalid.
+    var sheetValue = function (k) { return p.sheetBase && k in p.sheetBase ? p.sheetBase[k] : p.rawBase && k in p.rawBase ? p.rawBase[k] : p.base && p.base[k] != null ? String(p.base[k]) : ''; };
     var sameValue = function (typed, k) { var a = intOrNull(typed), b = intOrNull(base[k]); return a === b || (isNaN(a) && isNaN(b) && a !== null && b !== null); };
     var base = {};
     BASE_FIELDS.forEach(function (f) { base[f[0]] = sheetValue(f[0]); });
@@ -1674,7 +1676,7 @@
         var r = p.invalidRows.filter(function (x) { return String(x.row) === b.getAttribute('data-fix'); })[0];
         var c = r.cells;
         var minimum = intOrNull(c[6]);
-        openPriceForm({ id: r.id, name: c[1], from: /^\d{4}-\d{2}-\d{2}$/.test(c[2]) ? c[2] : '', to: /^\d{4}-\d{2}-\d{2}$/.test(c[3]) ? c[3] : '', weekday: intOrNull(c[4]), weekend: intOrNull(c[5]), minimum: p.minimumsEnabled ? minimum : null, inactiveMinimum: p.minimumsEnabled ? null : minimum, twoNight: intOrNull(c[7]) });
+        openPriceForm({ id: r.id, name: c[1], from: parseSheetDate(c[2]), to: parseSheetDate(c[3]), weekday: intOrNull(c[4]), weekend: intOrNull(c[5]), minimum: p.minimumsEnabled ? minimum : null, inactiveMinimum: p.minimumsEnabled ? null : minimum, twoNight: intOrNull(c[7]) });
       };
     });
     $('price-updates').querySelectorAll('[data-remove]').forEach(function (b) {
@@ -1861,7 +1863,13 @@
       if (op === 'addUpdate' || op === 'editUpdate') { state.pform = null; closed = true; }
       if (op === 'saveBase') state.pbaseDirty = false;
     };
+    var sentToken = args.token;
     return call(op, { args: args }).then(function (res) {
+      // The sheet changed only by this save: the screen's other forms move to the new token.
+      if (res.ok && res.token && res.expected && res.token === res.expected) {
+        if (state.pform && state.pform.token === sentToken) state.pform.token = res.token;
+        if (state.pbaseDirty && state.pbaseToken === sentToken) state.pbaseToken = res.token;
+      }
       if (res.ok && res.error === 'budget') {
         done();
         priceMessage(state.prices && state.prices.valid === false ? 'נשמר. אם הגיליון תקין, האתר יתעדכן תוך כדקה.' : 'נשמר. האתר יתעדכן תוך כדקה.');
@@ -1875,6 +1883,9 @@
         priceMessage('המחירון השתנה מאז שנפתח המסך. המסך נטען מחדש עם הערכים מהגיליון; בדקו ונסו שוב.', true);
         state.pbaseDirty = false;
         state.reopenAfterStale = op === 'editUpdate' || op === 'addUpdate' ? op : '';
+      } else if (res.error === 'unknown_id' && op === 'editUpdate') {
+        state.pform = null;
+        priceMessage('העדכון הוסר מהגיליון בינתיים.', true);
       } else if (res.error === 'fix_first') {
         priceMessage('קודם צריך לתקן או להסיר את השורות שסומנו: ' + (res.problems || []).join(' · '), true);
       } else if (res.error === 'invalid') {
