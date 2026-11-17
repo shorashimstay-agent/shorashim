@@ -13,8 +13,8 @@ const PORT = 4174;
 export const FAKE_API = 'https://booking-api.test/exec';
 export const FAKE_SITE_KEY = 'ci-recaptcha-site-key';
 
-const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8')).prices as Record<string, number>;
-const testPricesCsv = Object.entries(testPrices).map(([key, price]) => `"${key}","","${price}"`).join('\n');
+// The fixture is a published price list; the site reads it as the published tab's one cell.
+const testPricesCsv = `"${fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8').replace(/"/g, '""')}",""`;
 
 // Locally (WSL) the bundled Chromium never runs IntersectionObserver; see playwright.config.ts.
 // CI always uses the bundled browser.

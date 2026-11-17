@@ -845,7 +845,8 @@
   function suggestPrice(f, start, end) {
     var nights = 0;
     for (var n = start; n < end; n = addDays(n, 1)) nights++;
-    return estimatePrice(f.stayType, nights, Number(f.adults), state.data.prices || null, start) || 0;
+    // priceList carries the dated updates; a web app from before price lists sends only `prices`.
+    return estimatePrice(f.stayType, nights, Number(f.adults), state.data.priceList || state.data.prices || null, start) || 0;
   }
 
   function startBlock() {

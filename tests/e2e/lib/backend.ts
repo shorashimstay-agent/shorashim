@@ -77,6 +77,21 @@ export const webApp = (cfg: BackendConfig) => ({
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testSetPrices', file, t, sig: sign(cfg, 'test:' + t) } }, (j) => j.ok === false || 'version' in j || 'cleared' in j);
   },
+  /** Staging only: runs the prices sheet's change handler, as a hand edit in the Sheets UI would. */
+  firePriceEdit: () => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testFirePriceEdit', t, sig: sign(cfg, 'test:' + t) } }, (j) => 'version' in j);
+  },
+  /** Staging only: clears the pending price edits and republishes the sheet as an operator change. */
+  resetPrices: () => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testResetPrices', t, sig: sign(cfg, 'test:' + t) } }, (j) => 'ok' in j);
+  },
+  /** Staging only: the published version, the sheet's status and the pending hand edits. */
+  priceState: () => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'testPriceState', t, sig: sign(cfg, 'test:' + t) } }, (j) => 'version' in j);
+  },
   /** Staging only: removes the ביטולים lines whose guest name carries `tag`. */
   pruneCancellations: (tag: string) => {
     const t = String(Date.now());

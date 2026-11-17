@@ -167,7 +167,8 @@ test('the legal pages are built in both languages', async ({ request }) => {
   }
 });
 
-const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8')).prices as Record<string, number>;
+// The test site's price list (playwright.ci.config.ts builds it in).
+const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8'));
 
 /** The home page with the booking bar as a visitor sees it (not the #booking direct link). */
 async function openBar(page: Page) {

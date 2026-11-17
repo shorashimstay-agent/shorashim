@@ -1,9 +1,9 @@
 // Read-only checks of the live site and production backend (tests/e2e/PLAN.md §5). Writes nothing.
 import { expect, test } from '@playwright/test';
 import { snapshot, webApp } from './lib/backend';
-import { pricesCsvUrl, production as cfg } from './lib/env';
+import { legacyPricesCsvUrl, pricesCsvUrl, production as cfg } from './lib/env';
 import { recaptchaToken } from './lib/site';
-import { pricesFromRows } from '../../shared/rules.js';
+import { checkPriceList, pricesFromRows } from '../../shared/rules.js';
 import { parseCsv } from '../../src/lib/csv';
 
 const api = webApp(cfg);
@@ -44,14 +44,21 @@ test('production availability, snapshot and triggers are healthy', async () => {
   expect(diag.eventLog.backoffMs).toBeLessThanOrEqual(3600_000);
 });
 
-test('the prices sheet is public, and the production web app prices from the same sheet', async ({ request }) => {
-  // What every page reads: the sheet's CSV, with no login.
-  const csv = await (await request.get(pricesCsvUrl(cfg))).text();
-  const live = pricesFromRows(parseCsv(csv));
-  if (!live.ok) throw new Error(`the prices sheet fails the checks: ${live.error}`);
-  // Passing the version, as a page does, makes the web app re-read the sheet if its copy is older.
-  expect((await api.diag(live.version)).pricesVersion).toBe(live.version);
-  expect(typeof live.prices.bride_day_wedding_night, 'the prep day + wedding night row is missing from the prices sheet').toBe('number');
+test('the published price list is public, and the production web app prices from the same list', async ({ request }) => {
+  // What every page reads: the published tab's one cell, with no login. gviz falls back to the
+  // first tab when the gid is wrong, which would not parse as a price list.
+  const cell = parseCsv(await (await request.get(pricesCsvUrl(cfg))).text())[0]?.[0] ?? '';
+  const live = checkPriceList(JSON.parse(cell || 'null'));
+  if (!live.ok) throw new Error(`the published price list fails the checks: ${live.error}`);
+  expect((await api.diag()).pricesVersion).toBe(live.list.version);
+  expect(typeof live.list.base.bride_day_wedding_night, 'the prep day + wedding night price is missing').toBe('number');
+});
+
+test('the base area still reads as before, for rollbacks and pages from before price lists', async ({ request }) => {
+  // Until step 4 of the pricing plan clears thirdGuestPerNight, A1:C20 still passes the old checks.
+  const csv = await (await request.get(legacyPricesCsvUrl(cfg))).text();
+  const old = pricesFromRows(parseCsv(csv));
+  expect(old.ok, old.ok ? '' : old.error).toBe(true);
 });
 
 test('the live availability check answers, and "להזמנה" without dates asks for them', async ({ page }) => {

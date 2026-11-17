@@ -26,8 +26,10 @@ export interface BackendConfig {
   recaptchaSiteKey: string;
   adminSheetId: string;
   availabilitySheetId: string;
-  /** The owner's prices spreadsheet, which the web app reads (shared/rules.js pricesFromRows). */
+  /** The owner's prices spreadsheet, which the web app reads and publishes (apps-script/src/Prices.js). */
   pricesSheetId?: string;
+  /** The gid of its published tab (מחירון פעיל), which the site reads. */
+  pricesPublishedGid?: number;
   testHooks?: boolean;
   /** Staging only: the /admin console password, so the suite can log in (production keeps only a hash). */
   consolePassword?: string;
@@ -81,8 +83,13 @@ export function snapshotCsvUrl(cfg: BackendConfig): string {
   return `https://docs.google.com/spreadsheets/d/${cfg.availabilitySheetId}/gviz/tq?tqx=out:csv&range=A1:D2&headers=0`;
 }
 
-/** CSV export of the prices sheet, as the site reads it (src/data/bookingConfig.ts). */
+/** CSV export of the published price list, as the site reads it (src/data/bookingConfig.ts). */
 export function pricesCsvUrl(cfg: BackendConfig): string {
+  return `https://docs.google.com/spreadsheets/d/${cfg.pricesSheetId}/gviz/tq?tqx=out:csv&gid=${cfg.pricesPublishedGid}&range=A1:B1&headers=0`;
+}
+
+/** The base area of the prices tab, as sites from before price lists read it (rollbacks). */
+export function legacyPricesCsvUrl(cfg: BackendConfig): string {
   return `https://docs.google.com/spreadsheets/d/${cfg.pricesSheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('מחירים')}&range=A1:C20`;
 }
 
