@@ -225,12 +225,24 @@ function sourceProblems_(read) {
 // The site reads it by gid (CONFIG.pricesPublishedGid); if it is deleted, it is recreated under the
 // same gid through the Sheets API, so the site's URL keeps working.
 
-function publishedTab_(ss, alert) {
+/** The published tab, or null when it is missing. Never creates it (see publishedTab_). */
+function findPublishedTab_(ss) {
   var gid = Number(CONFIG.pricesPublishedGid || 0);
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if ((gid && sheets[i].getSheetId() === gid) || (!gid && sheets[i].getName() === PRICES_PUBLISHED_TAB)) return sheets[i];
   }
+  return null;
+}
+
+/**
+ * The published tab, recreated (under the same gid) when it is missing. Called only inside the
+ * price section and setup, under the lock; the owner is told when a tab that held a list was lost.
+ */
+function publishedTab_(ss, alert) {
+  var found = findPublishedTab_(ss);
+  if (found) return found;
+  var gid = Number(CONFIG.pricesPublishedGid || 0);
   var cache = CacheService.getScriptCache();
   if (cache.get('prices:recreate')) return null;
   cache.put('prices:recreate', '1', 60);
@@ -255,13 +267,6 @@ function publishedTab_(ss, alert) {
   return created;
 }
 
-function publishText_(ss, text) {
-  var tab = publishedTab_(ss);
-  if (!tab) return false;
-  tab.getRange('A1:B1').setValues([[text, new Date().toISOString()]]);
-  return true;
-}
-
 // ---------------------------------------------------------------------------
 // Hand edits: pending items for the owner's email, and the dashboard's notice.
 
@@ -271,20 +276,42 @@ function publishText_(ss, text) {
  * the source missing) are listed as they are. Deduplicated by content, capped at the last 50.
  */
 function pricesRecordEdit_(lines, system) {
-  var props = PropertiesService.getScriptProperties();
-  var key = fnv1a(JSON.stringify(lines));
-  [PRICES_PENDING_KEY, PRICES_NOTICE_KEY].forEach(function (name) {
-    var data = JSON.parse(props.getProperty(name) || '{"items":[],"older":0}');
-    if (data.items.some(function (it) {
-      return it.key === key;
-    })) return;
-    data.items.push({ key: key, at: new Date().toISOString(), lines: lines, system: !!system });
-    while (data.items.length > PRICES_PENDING_MAX) {
-      data.items.shift();
-      data.older++;
-    }
-    data.lastAt = Date.now();
-    props.setProperty(name, JSON.stringify(data));
+  try {
+    var props = PropertiesService.getScriptProperties();
+    lines = clipLines_(lines, 20);
+    var key = fnv1a(JSON.stringify(lines));
+    [PRICES_PENDING_KEY, PRICES_NOTICE_KEY].forEach(function (name) {
+      var data = JSON.parse(props.getProperty(name) || '{"items":[],"older":0}');
+      if (data.items.some(function (it) {
+        return it.key === key;
+      })) return;
+      data.items.push({ key: key, at: new Date().toISOString(), lines: lines, system: !!system });
+      // A Script Properties value is capped at 9 KB: keep the newest items within PRICES_RECORD_BYTES.
+      while (data.items.length > 1 && (data.items.length > PRICES_PENDING_MAX || utf8Length_(JSON.stringify(data)) > PRICES_RECORD_BYTES)) {
+        data.items.shift();
+        data.older++;
+      }
+      data.lastAt = Date.now();
+      props.setProperty(name, JSON.stringify(data));
+    });
+  } catch (err) {
+    // Recording must never block publishing.
+    console.error('could not record a price change', err);
+  }
+}
+
+var PRICES_RECORD_BYTES = 7000;
+var PRICES_LINE_CHARS = 200;
+
+function utf8Length_(text) {
+  return unescape(encodeURIComponent(text)).length;
+}
+
+/** At most `max` lines of at most PRICES_LINE_CHARS characters each. */
+function clipLines_(lines, max) {
+  return (lines || []).slice(0, max).map(function (l) {
+    l = String(l);
+    return l.length > PRICES_LINE_CHARS ? l.slice(0, PRICES_LINE_CHARS - 1) + '…' : l;
   });
 }
 
@@ -314,9 +341,15 @@ function pricesEmailDue_() {
   if (handEdits) lines = before && baseline ? describeChanges_(before, baseline) : pending.items.reduce(function (all, it) {
     return it.system ? all : all.concat(it.lines);
   }, []);
+  var system = [];
   pending.items.forEach(function (it) {
-    if (it.system) lines = lines.concat(it.lines);
+    if (it.system) system = system.concat(it.lines);
   });
+  // Edits that net to nothing (typed and undone) and no system notice: nothing to tell.
+  var netNothing = before && baseline && before.hash === baseline.hash;
+  if (netNothing && !system.length) return;
+  if (netNothing) lines = [];
+  lines = clipLines_(lines.concat(system), 30);
   var status = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{"valid":true}');
   var body = ['שינוי בגיליון המחירים:', ''];
   lines.forEach(function (l) {
@@ -387,11 +420,14 @@ function priceRun_(kind, opts) {
     // 1. Read, and record a hand edit not processed yet, before writing anything.
     var rows = readSourceRows_(ss, sheet);
     var snap = snapshotOf_(rows);
-    var intent = props.getProperty(PRICES_INTENT_KEY);
-    if (baseline && snap.hash !== baseline.hash) {
+    // A write intent left by a run that crashed between its write and its baseline names the content
+    // it expected: only that exact result is its own write, anything else is a hand edit.
+    var intent = JSON.parse(props.getProperty(PRICES_INTENT_KEY) || 'null');
+    if (intent) props.deleteProperty(PRICES_INTENT_KEY);
+    if (baseline && snap.hash !== baseline.hash && !(intent && intent.expected === snap.hash)) {
       var lines = describeChanges_(baseline, snap);
-      if (intent) props.deleteProperty(PRICES_INTENT_KEY);
-      else if (opts.sanctioned) logEvent_('prices.operator_change', { kind: kind, lines: lines.length }, 'system');
+      // Only an operator's sanctioned publish adopts what it finds; every other run tells the owner.
+      if (kind === 'publish' && opts.sanctioned) logEvent_('prices.operator_change', { kind: kind, lines: lines.length }, 'system');
       else pricesRecordEdit_(lines);
     }
 
@@ -400,29 +436,46 @@ function priceRun_(kind, opts) {
     var today = today_();
     var read = readPriceSource(rows, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: !!baseline });
     var wrote = false;
+    var expected = null;
     if (kind === 'restore') {
       wrote = restoreLayout_(sheet, rows, props) || wrote;
     } else if (kind === 'apply') {
       var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled);
       if (planned.error) return { ok: false, error: planned.error, problems: planned.problems };
       if (opts.dryRun) return { ok: true, dryRun: true, list: planned.list };
-      props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: kind, at: Date.now() }));
-      if (!writePlan_(sheet, rows, planned)) return { ok: false, error: 'moved' };
+      expected = snapshotOf_(planned.rows);
+      props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: kind, expected: expected.hash }));
+      if (!writePlan_(sheet, rows, planned)) {
+        props.deleteProperty(PRICES_INTENT_KEY);
+        return { ok: false, error: 'moved' };
+      }
       wrote = true;
     } else {
       if (!read.headerRow && !baseline) wrote = writeHeader_(sheet, rows, kind === 'setup') || wrote;
-      if (read.blankIds.length) {
-        props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: 'ids', at: Date.now() }));
-        wrote = assignIds_(sheet, rows, read.blankIds) || wrote;
+      // Ids only on a sound layout, and only for rows with no id or a copied one (readPriceSource).
+      if (read.blankIds.length && !read.structure) {
+        var ids = {};
+        var next = rows.map(function (r) {
+          return r.slice();
+        });
+        read.blankIds.forEach(function (n) {
+          ids[n] = newUpdateId_();
+          next[n - 1][0] = ids[n];
+        });
+        expected = snapshotOf_(next);
+        props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: 'ids', expected: expected.hash }));
+        wrote = assignIds_(sheet, rows, ids) || wrote;
       }
     }
 
-    // 3. Re-read and store the baseline before publishing.
+    // 3. Re-read and store the baseline before publishing. Anything the re-read holds beyond what this
+    // run wrote is a hand edit that landed in between: it is recorded, not absorbed.
     if (wrote) {
       SpreadsheetApp.flush();
       rows = readSourceRows_(ss, sheet);
       snap = snapshotOf_(rows);
       read = readPriceSource(rows, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: true });
+      if (expected && snap.hash !== expected.hash) pricesRecordEdit_(describeChanges_(expected, snap));
     }
     chunkedEntries_(props, PRICES_BASELINE, JSON.stringify(snap), (function () {
       var e = {};
@@ -449,7 +502,7 @@ function priceRun_(kind, opts) {
     }
     if (!valid) {
       var since = props.getProperty(PRICES_VERSION_KEY) ? JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{}').since || '' : '';
-      props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: problems, since: since }));
+      props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: clipLines_(problems, 20), since: since }));
       props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
       return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '' };
     }
@@ -521,14 +574,15 @@ function newUpdateId_() {
   return 'u' + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
 }
 
-/** Gives a fresh id to each row in `rowNumbers` (1-based), re-checking column A right before writing. */
-function assignIds_(sheet, rows, rowNumbers) {
+/** Writes `ids` ({ row (1-based): id }), re-checking column A of each row right before writing. */
+function assignIds_(sheet, rows, ids) {
   var wrote = false;
-  rowNumbers.forEach(function (n) {
+  Object.keys(ids).forEach(function (key) {
+    var n = Number(key);
     var expected = String(rows[n - 1][0] === null || rows[n - 1][0] === undefined ? '' : rows[n - 1][0]);
     var cell = sheet.getRange(n, 1);
     if (String(cell.getDisplayValue()) !== expected) return;
-    cell.setNumberFormat('@').setValue(newUpdateId_());
+    cell.setNumberFormat('@').setValue(ids[key]);
     wrote = true;
   });
   return wrote;
@@ -546,7 +600,12 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled) {
   var touched = [];
   var header = read.headerRow ? read.headerRow - 1 : -1;
   if (header < 0) return { error: 'no_header' };
+  var baseError = '';
   Object.keys(changes.base || {}).forEach(function (key) {
+    if (PRICE_KEYS.concat(['thirdGuestPercent']).indexOf(key) < 0) {
+      baseError = baseError || 'unknown_key';
+      return;
+    }
     var at = -1;
     for (var r = 0; r < header; r++) if (String(next[r][0]).trim() === key) at = r;
     if (at < 0) {
@@ -556,12 +615,16 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled) {
         at = r;
         break;
       }
-      if (at < 0) return;
+      if (at < 0) {
+        baseError = baseError || 'no_room';
+        return;
+      }
       next[at][0] = key;
     }
     next[at][2] = changes.base[key] === null ? '' : changes.base[key];
     touched.push({ row: at, key: key, base: true });
   });
+  if (baseError) return { error: baseError };
   (changes.removes || []).forEach(function (id) {
     for (var r = header + 1; r < next.length; r++) if (String(next[r][0]).trim() === id) {
       for (var c = 1; c < 9; c++) next[r][c] = '';
@@ -710,7 +773,7 @@ function pricesNeedRun_() {
   var sheet = ss.getSheetByName(PRICES_TAB);
   if (!sheet) return true;
   if (snapshotOf_(readSourceRows_(ss, sheet)).hash !== baseline.hash) return true;
-  var tab = publishedTab_(ss, false);
+  var tab = findPublishedTab_(ss);
   return !tab || fnv1a(String(tab.getRange('A1').getValue() || '')) !== props.getProperty(PRICES_PUBLISHED_TEXT_KEY);
 }
 
@@ -783,7 +846,7 @@ function currentPrices_(wantedVersion) {
     }
   }
   try {
-    var tab = publishedTab_(SpreadsheetApp.openById(CONFIG.pricesSheetId), false);
+    var tab = findPublishedTab_(SpreadsheetApp.openById(CONFIG.pricesSheetId));
     var cell = tab ? JSON.parse(String(tab.getRange('A1').getValue() || 'null')) : null;
     var fromTab = cell ? checkPriceList(cell) : null;
     if (fromTab && fromTab.ok) return { version: fromTab.list.version, prices: fromTab.list };
@@ -829,23 +892,36 @@ function pricesSignedAction_(body) {
     return priceRun_('publish', { sanctioned: !!body.sanctioned });
   }
   if (body.action === 'applyPriceChanges') {
+    // The signature covers the changes themselves, not a hash of them.
     var payload = JSON.stringify(body.changes || {});
-    var signed = 'applyPrices:' + body.t + ':' + fnv1a(payload) + ':' + String(body.requestId || '') + ':' + (body.dryRun ? 1 : 0);
+    var signed = 'applyPrices:' + body.t + ':' + String(body.requestId || '') + ':' + (body.dryRun ? 1 : 0) + ':' + payload;
     if (!validSig_(signed, body.sig)) return null;
-    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true, sanctioned: true });
+    if (body.dryRun) return priceRun_('apply', { changes: body.changes, dryRun: true });
     if (!/^[\w-]{8,64}$/.test(String(body.requestId || ''))) return { ok: false, error: 'bad_request' };
     return consoleOnce_('applyPrices', body.requestId, function () {
-      return priceRun_('apply', { changes: body.changes, sanctioned: true });
+      var res = priceRun_('apply', { changes: body.changes });
+      // Throwing clears consoleOnce_'s key, so a retry with the same requestId runs again.
+      if (!res.ok && (res.error === 'busy' || res.error === 'moved')) throw new Error('price section ' + res.error + '; retry');
+      return res;
     });
   }
   if (body.action === 'restoreStructure' && validSig_('restorePrices:' + body.t, body.sig)) {
-    return priceRun_('restore', { sanctioned: true });
+    return priceRun_('restore');
   }
   if (body.action === 'setPricesFlag' && validSig_('pricesFlag:' + body.t + ':' + (body.value ? 1 : 0), body.sig)) {
-    PropertiesService.getScriptProperties().setProperty(PRICES_MINIMUMS_KEY, body.value ? 'true' : 'false');
-    var res = priceRun_('flag', { sanctioned: true });
-    res.minimumsEnabled = !!body.value;
-    return res;
+    var flagProps = PropertiesService.getScriptProperties();
+    var before = flagProps.getProperty(PRICES_MINIMUMS_KEY);
+    flagProps.setProperty(PRICES_MINIMUMS_KEY, body.value ? 'true' : 'false');
+    var flagged = priceRun_('flag');
+    if (!flagged.ok && flagged.error === 'busy') {
+      // Not republished: put the flag back, so it never disagrees with the published list.
+      if (before === null) flagProps.deleteProperty(PRICES_MINIMUMS_KEY);
+      else flagProps.setProperty(PRICES_MINIMUMS_KEY, before);
+      flagged.minimumsEnabled = before === 'true';
+      return flagged;
+    }
+    flagged.minimumsEnabled = !!body.value;
+    return flagged;
   }
   if (CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig)) {
     if (body.action === 'testFirePriceEdit') {
@@ -893,6 +969,6 @@ function pricesSetup_() {
   });
   ScriptApp.newTrigger(PRICES_CHANGE_TRIGGER).forSpreadsheet(CONFIG.pricesSheetId).onChange().create();
   ScriptApp.newTrigger(PRICES_BACKSTOP_TRIGGER).timeBased().everyHours(1).create();
-  var result = priceRun_('setup', { sanctioned: true });
+  var result = priceRun_('setup');
   console.log('prices: ' + JSON.stringify({ version: result.version, valid: result.valid, problems: result.problems }));
 }

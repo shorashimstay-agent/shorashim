@@ -329,8 +329,15 @@ export function readPriceSource(rows, opts) {
       if (id) out.removedIds.push(id);
       continue;
     }
-    if (!id || !UPDATE_ID_RE.test(id) || ids[id]) {
+    // Only a row with no id, or a copy of a valid one (a pasted row), may be given a new id. Any
+    // other text in column A (a key or header sorted down, a typo) is never overwritten: it's an
+    // invalid row the owner sees, or a structure problem.
+    if (!id || (UPDATE_ID_RE.test(id) && ids[id])) {
       out.blankIds.push(r + 1);
+      out.rowErrors.push({ row: r + 1, id: id, reason: 'id' });
+      continue;
+    }
+    if (!UPDATE_ID_RE.test(id)) {
       out.rowErrors.push({ row: r + 1, id: id, reason: 'id' });
       continue;
     }
@@ -365,6 +372,16 @@ export function readPriceSource(rows, opts) {
     out.updates.push(u);
   }
   out.conflicts = updateConflicts(out.updates);
+  // A two-night total can't apply when either of its nights needs more than two nights.
+  if (opts.minimumsEnabled && out.base) {
+    var probe = { base: out.base, updates: out.updates };
+    out.updates.forEach(function (u) {
+      if (u.twoNight == null || u.from !== u.to) return;
+      if (priceForNight(probe, u.from).minimum > 2 || priceForNight(probe, addDays(u.from, 1)).minimum > 2) {
+        out.warnings.push({ row: out.idRows[u.id], id: u.id, reason: 'twoNight_unreachable' });
+      }
+    });
+  }
   return out;
 }
 
