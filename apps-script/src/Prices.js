@@ -25,6 +25,7 @@ var PRICES_LAST_RUN_KEY = 'prices:lastRun';
 var PRICES_RETRY_KEY = 'prices:retryQueued';
 var PRICES_EMAIL_DAY_KEY = 'prices:emailDay';
 var PRICES_MINIMUMS_KEY = 'pricesMinimumsEnabled';
+var PRICES_PUBLISHED_DAY_KEY = 'prices:publishedDay';
 var PRICES_RETRY_TRIGGER = 'onPricesRetry';
 var PRICES_CHANGE_TRIGGER = 'onPricesSheetChange';
 var PRICES_BACKSTOP_TRIGGER = 'onPricesBackstop';
@@ -409,6 +410,10 @@ function priceRun_(kind, opts) {
     }
     var sheet = ss.getSheetByName(PRICES_TAB);
     var baseline = chunkedJson_(props, PRICES_BASELINE);
+    if (!sheet && kind === 'restore' && !opts.dryRun) {
+      sheet = ss.insertSheet(PRICES_TAB);
+      logEvent_('prices.source_recreated', {}, 'system');
+    }
     if (!sheet) {
       if (props.getProperty(PRICES_STATUS_KEY) !== JSON.stringify({ valid: false, problems: [PRICE_PROBLEMS_HE.source_missing] })) {
         pricesRecordEdit_([PRICE_PROBLEMS_HE.source_missing], true);
@@ -423,7 +428,6 @@ function priceRun_(kind, opts) {
     // A write intent left by a run that crashed between its write and its baseline names the content
     // it expected: only that exact result is its own write, anything else is a hand edit.
     var intent = JSON.parse(props.getProperty(PRICES_INTENT_KEY) || 'null');
-    if (intent) props.deleteProperty(PRICES_INTENT_KEY);
     if (baseline && snap.hash !== baseline.hash && !(intent && intent.expected === snap.hash)) {
       var lines = describeChanges_(baseline, snap);
       // Only an operator's sanctioned publish adopts what it finds; every other run tells the owner.
@@ -437,8 +441,16 @@ function priceRun_(kind, opts) {
     var read = readPriceSource(rows, { today: today, minimumsEnabled: minimumsEnabled, hasBaseline: !!baseline });
     var wrote = false;
     var expected = null;
+    var restored = null;
     if (kind === 'restore') {
-      wrote = restoreLayout_(sheet, rows, props) || wrote;
+      var plan = restorePlan_(sheet, rows, props);
+      if (plan.error) return { ok: false, error: plan.error };
+      if (opts.dryRun) return { ok: true, dryRun: true, summary: plan.summary };
+      expected = snapshotOf_(plan.rows);
+      props.setProperty(PRICES_INTENT_KEY, JSON.stringify({ kind: kind, expected: expected.hash }));
+      writeRestore_(sheet, rows, plan.rows);
+      restored = plan.summary;
+      wrote = true;
     } else if (kind === 'apply') {
       var planned = applyPlan_(rows, read, opts.changes || {}, today, minimumsEnabled);
       if (planned.error) return { ok: false, error: planned.error, problems: planned.problems };
@@ -483,7 +495,10 @@ function priceRun_(kind, opts) {
       return e;
     })());
     props.deleteProperty(PRICES_INTENT_KEY);
-    if (!props.getProperty(PRICES_EMAIL_BASELINE + ':n')) chunkedEntries_(props, PRICES_EMAIL_BASELINE, JSON.stringify(snap));
+    // The email describes the net change since the last email. While no hand edit awaits its email,
+    // that point moves with every run, so operator changes never reach the owner as hand edits.
+    // (An operator change made while hand edits await their email is included in that email.)
+    if (!props.getProperty(PRICES_PENDING_KEY) || !props.getProperty(PRICES_EMAIL_BASELINE + ':n')) chunkedEntries_(props, PRICES_EMAIL_BASELINE, JSON.stringify(snap));
     if (Date.now() - started > PRICES_BUDGET_MS) {
       schedulePriceRetry_();
       return { ok: true, saved: wrote, published: false, error: 'budget' };
@@ -500,11 +515,15 @@ function priceRun_(kind, opts) {
         problems = [PRICE_PROBLEMS_HE.too_large];
       }
     }
+    var previous = JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{}');
     if (!valid) {
-      var since = props.getProperty(PRICES_VERSION_KEY) ? JSON.parse(props.getProperty(PRICES_STATUS_KEY) || '{}').since || '' : '';
+      var since = props.getProperty(PRICES_VERSION_KEY) ? previous.since || '' : '';
       props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: false, problems: clipLines_(problems, 20), since: since }));
       props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
-      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '' };
+      // The site keeps the last valid list: the published tab is still checked against it.
+      var lastText = chunkedRead_(props, PRICES_COPY);
+      if (lastText) syncPublishedTab_(ss, props, lastText, false, since || new Date().toISOString());
+      return { ok: true, valid: false, problems: problems, version: props.getProperty(PRICES_VERSION_KEY) || '', restored: restored || undefined };
     }
     var text = JSON.stringify(list);
     var changed = props.getProperty(PRICES_VERSION_KEY) !== list.version;
@@ -523,35 +542,41 @@ function priceRun_(kind, opts) {
     CacheService.getScriptCache().remove(PRICES_CACHE_KEY_V2);
     // The old backend's fallback copy: deleted so a rolled-back pre-step-2 backend fails closed.
     props.deleteProperty(PRICES_LAST_GOOD_KEY);
-    var stamp = new Date().toISOString();
+    // `since` is when this version was first published, for "the site keeps the list from …".
+    var stamp = changed || !previous.valid || !previous.since ? new Date().toISOString() : previous.since;
     props.setProperty(PRICES_STATUS_KEY, JSON.stringify({ valid: true, since: stamp, version: list.version }));
+    props.setProperty(PRICES_PUBLISHED_DAY_KEY, today);
     chunkedEntries_(props, PRICES_LAST_VALID, JSON.stringify(snap));
 
-    // 6. The published tab: rewritten when its text differs from the list (a new list, or a hand
-    // edit of the hidden tab).
-    var tab = publishedTab_(ss);
-    var published = false;
-    if (tab) {
-      var current = String(tab.getRange('A1').getValue() || '');
-      if (current !== text) {
-        if (current && !changed && fnv1a(current) !== props.getProperty(PRICES_PUBLISHED_TEXT_KEY)) {
-          logEvent_('prices.published_tab_repaired', {}, 'system');
-        }
-        tab.getRange('A1:B1').setValues([[text, stamp]]);
-        SpreadsheetApp.flush();
-      }
-      props.setProperty(PRICES_PUBLISHED_TEXT_KEY, fnv1a(text));
-      props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
-      published = true;
-    } else {
-      schedulePriceRetry_();
-    }
+    // 6. The published tab.
+    var published = syncPublishedTab_(ss, props, text, changed, stamp);
     if (changed) logEvent_('prices.published', { version: list.version, kind: kind, updates: list.updates.length }, 'system');
-    return { ok: true, valid: true, version: list.version, published: published, list: kind === 'apply' ? list : undefined };
+    return { ok: true, valid: true, version: list.version, published: published, list: kind === 'apply' ? list : undefined, restored: restored || undefined };
   } finally {
     priceRunActive_ = false;
     lock.releaseLock();
   }
+}
+
+/**
+ * Step 6: the published tab must hold `text`. It is rewritten when it differs (a new list, or a hand
+ * edit of the hidden tab) and recreated when it is missing. Inside the section only.
+ */
+function syncPublishedTab_(ss, props, text, changed, stamp) {
+  var tab = publishedTab_(ss);
+  if (!tab) {
+    schedulePriceRetry_();
+    return false;
+  }
+  var current = String(tab.getRange('A1').getValue() || '');
+  if (current !== text) {
+    if (current && !changed) logEvent_('prices.published_tab_repaired', {}, 'system');
+    tab.getRange('A1:B1').setValues([[text, stamp]]);
+    SpreadsheetApp.flush();
+  }
+  props.setProperty(PRICES_PUBLISHED_TEXT_KEY, fnv1a(text));
+  props.deleteProperty(PRICES_PUBLISH_PENDING_KEY);
+  return true;
 }
 
 /** Writes the updates header at PRICES_HEADER_ROW. setup refuses if rows 21 and below hold anything. */
@@ -621,7 +646,12 @@ function applyPlan_(rows, read, changes, today, minimumsEnabled) {
       }
       next[at][0] = key;
     }
-    next[at][2] = changes.base[key] === null ? '' : changes.base[key];
+    var value = changes.base[key];
+    if (value !== null && (typeof value !== 'number' || Math.floor(value) !== value)) {
+      baseError = baseError || 'base_not_number';
+      return;
+    }
+    next[at][2] = value === null ? '' : value;
     touched.push({ row: at, key: key, base: true });
   });
   if (baseError) return { error: baseError };
@@ -688,52 +718,115 @@ function writePlan_(sheet, rows, plan) {
 }
 
 /**
- * Rebuilds the prices tab's layout from what it holds now: the base keys back in rows 2 on, every
- * update row that has an id under the header at PRICES_HEADER_ROW. What can't be found in the tab
- * comes from the last valid snapshot.
+ * "שחזור מבנה": a new layout for the prices tab, built from what it holds now. The base keys go to
+ * rows 2 on (the last copy of a duplicate key, the one the owner's email described), notes typed in
+ * the base area stay there, and every row with content in B–H that looks like an update goes under
+ * the header, with a new id where it has none or a copied one. Only keys missing from the tab, or the
+ * whole tab when it was deleted, come from the last valid snapshot. Nothing is dropped silently: the
+ * summary lists what moved, what was restored and what didn't fit.
+ * @returns {{ rows: any[][], summary: object } | { error: string }}
  */
-function restoreLayout_(sheet, rows, props) {
+function restorePlan_(sheet, rows, props) {
+  if (typeof sheet.getLastColumn === 'function' && sheet.getLastColumn() > 9) return { error: 'extra_columns' };
   var lastValid = chunkedJson_(props, PRICES_LAST_VALID);
   var baseKeys = PRICE_KEYS.concat(['thirdGuestPercent']);
+  var summary = { keys: 0, updates: 0, newIds: 0, duplicateKeys: [], notes: 0, restoredFromSnapshot: [], dropped: [] };
   var labels = {};
   var values = {};
+  var notes = [];
   var updates = [];
   var seenIds = {};
-  rows.forEach(function (row) {
-    var key = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
-    if (baseKeys.indexOf(key) >= 0 && !(key in values)) {
+  var title = ['מפתח (לא לשנות)', 'מה המחיר', 'מחיר ב־₪'];
+  var text = function (v) {
+    return v === null || v === undefined ? '' : String(v).trim();
+  };
+  rows.forEach(function (row, r) {
+    var key = text(row[0]);
+    var content = false;
+    for (var c = 1; c <= 7; c++) if (text(row[c])) content = true;
+    if (r === 0 && baseKeys.indexOf(key) < 0 && key !== 'id' && !UPDATE_ID_RE.test(key)) {
+      title = row.slice(0, 3);
+      return;
+    }
+    if (baseKeys.indexOf(key) >= 0) {
+      if (key in values) summary.duplicateKeys.push(key);
       labels[key] = row[1];
       values[key] = row[2];
-    } else if (UPDATE_ID_RE.test(key) && !seenIds[key]) {
-      seenIds[key] = true;
-      updates.push(row.slice(0, 9));
+      return;
+    }
+    if (key === 'id' || (!content && (!key || UPDATE_ID_RE.test(key)))) return;
+    var looksLikeUpdate = UPDATE_ID_RE.test(key) || !!parseSheetDate(row[2]) || !!parseSheetDate(row[3]);
+    if (looksLikeUpdate) {
+      var id = UPDATE_ID_RE.test(key) && !seenIds[key] ? key : newUpdateId_();
+      if (id !== key) summary.newIds++;
+      seenIds[id] = true;
+      var cells = row.slice(0, 9).map(text);
+      cells[0] = id;
+      updates.push(cells);
+    } else {
+      notes.push(row.slice(0, 9).map(function (v) {
+        return v === null || v === undefined ? '' : v;
+      }));
     }
   });
-  ((lastValid && lastValid.rows) || []).forEach(function (row) {
-    var key = row[0];
-    if (baseKeys.indexOf(key) >= 0 && !(key in values)) values[key] = row[1];
+  // From the last valid snapshot: keys the tab no longer has, and every update when it has none.
+  var snapRows = (lastValid && lastValid.rows) || [];
+  snapRows.forEach(function (row) {
+    if (baseKeys.indexOf(row[0]) >= 0 && !(row[0] in values)) {
+      values[row[0]] = row[1];
+      summary.restoredFromSnapshot.push(row[0]);
+    }
   });
-  var title = rows[0] && baseKeys.indexOf(String(rows[0][0]).trim()) < 0 && !UPDATE_ID_RE.test(String(rows[0][0]).trim()) && String(rows[0][0]).trim() !== 'id' ? rows[0].slice(0, 3) : ['מפתח (לא לשנות)', 'מה המחיר', 'מחיר ב־₪'];
-  var out = [title.concat(['', '', '', '', '', ''])];
+  var emptyTab = rows.every(function (row) {
+    return row.every(function (v) {
+      return text(v) === '';
+    });
+  });
+  if (emptyTab) {
+    snapRows.forEach(function (row) {
+      if (UPDATE_ID_RE.test(row[0])) {
+        var cells = row.slice(0, 8).map(text);
+        while (cells.length < 9) cells.push('');
+        updates.push(cells);
+        summary.restoredFromSnapshot.push(row[0]);
+      }
+    });
+  }
+  var blank = ['', '', '', '', '', '', '', '', ''];
+  var out = [title.concat(['', '', '', '', '', '']).slice(0, 9)];
   baseKeys.forEach(function (key) {
-    if (key in values) out.push([key, labels[key] || '', values[key], '', '', '', '', '', '']);
+    if (!(key in values)) return;
+    var n = typeof values[key] === 'number' ? values[key] : parseSheetInt(values[key]);
+    out.push([key, labels[key] || '', n === null || isNaN(n) ? text(values[key]) : n, '', '', '', '', '', '']);
+    summary.keys++;
   });
-  while (out.length < PRICES_HEADER_ROW - 1) out.push(['', '', '', '', '', '', '', '', '']);
+  notes.forEach(function (note) {
+    if (out.length < PRICES_HEADER_ROW - 2) {
+      out.push(note);
+      summary.notes++;
+    } else summary.dropped.push(note.map(text).filter(Boolean).join(' · '));
+  });
+  while (out.length < PRICES_HEADER_ROW - 1) out.push(blank.slice());
   out.push(UPDATE_HEADER.slice());
   updates.sort(function (a, b) {
-    return String(a[2]) < String(b[2]) ? -1 : 1;
+    var x = parseSheetDate(a[2]) || a[2];
+    var y = parseSheetDate(b[2]) || b[2];
+    return x < y ? -1 : x > y ? 1 : 0;
   });
   updates.forEach(function (u) {
-    out.push(u.map(function (v) {
-      return v === null || v === undefined ? '' : String(v);
-    }));
+    out.push(u);
   });
-  var height = Math.max(sheet.getLastRow(), out.length);
+  summary.updates = updates.length;
+  return { rows: out, summary: summary };
+}
+
+/** Writes a restore plan over columns A–I (columns J on are refused by restorePlan_). */
+function writeRestore_(sheet, rows, out) {
+  var height = Math.max(sheet.getLastRow(), out.length, 1);
   sheet.getRange(1, 1, height, 9).clearContent();
   sheet.getRange(PRICES_HEADER_ROW, 1, Math.max(sheet.getMaxRows() - PRICES_HEADER_ROW + 1, 1), 9).setNumberFormat('@');
   sheet.getRange(1, 3, PRICES_HEADER_ROW - 1, 1).setNumberFormat('0');
   sheet.getRange(1, 1, out.length, 9).setValues(out);
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -753,10 +846,10 @@ function schedulePriceRetry_() {
 
 /** One-off trigger queued by schedulePriceRetry_. */
 function onPricesRetry() {
-  PropertiesService.getScriptProperties().deleteProperty(PRICES_RETRY_KEY);
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() === PRICES_RETRY_TRIGGER) ScriptApp.deleteTrigger(trigger);
   });
+  PropertiesService.getScriptProperties().deleteProperty(PRICES_RETRY_KEY);
   priceRun_('backstop');
 }
 
@@ -767,6 +860,8 @@ function onPricesRetry() {
 function pricesNeedRun_() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty(PRICES_PUBLISH_PENDING_KEY)) return true;
+  // Once a day the list is rebuilt: updates that ended long ago drop out of it.
+  if (props.getProperty(PRICES_PUBLISHED_DAY_KEY) !== today_()) return true;
   var baseline = chunkedJson_(props, PRICES_BASELINE);
   if (!baseline) return true;
   var ss = SpreadsheetApp.openById(CONFIG.pricesSheetId);
@@ -882,6 +977,34 @@ function testSetPrices_(file) {
   return { ok: true, version: value.version };
 }
 
+/**
+ * The price checks of a booking request, run after reCAPTCHA and the rate limit. A page that sends
+ * pricingV2 gets `price_changed` (the server's own price and minimum) when the price it showed
+ * differs or the stay is below the minimum; an older page gets `invalid` on checkOut for a stay below
+ * the minimum. A page that showed no price never gets `price_changed`. For older pages that showed
+ * an older list, the owner's email notes it when the stay's price differs.
+ * @returns {{ response?: object, note: string }}
+ */
+function requestPriceCheck_(body, req, priced) {
+  if (!priced || !priced.prices) return { note: '' };
+  var quote = quoteStay(priced.prices, req.stayType, req.start, req.nights, req.adults);
+  if (req.stayType === 'couple' && quote.minimum > req.nights) {
+    countLogNoise_('request.minimum');
+    if (body.pricingV2) return { response: { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version }, note: '' };
+    return { response: { ok: false, error: 'invalid', fields: { checkOut: 'minimum' }, minimum: quote.minimum }, note: '' };
+  }
+  var shown = body.shownPrice;
+  if (body.pricingV2 && shown !== undefined && shown !== null && shown !== '' && Number(shown) !== Number(req.estimate)) {
+    return { response: { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version }, note: '' };
+  }
+  if (body.pricingV2 || !body.pricesVersion || body.pricesVersion === priced.version) return { note: '' };
+  var seen = priceListByVersion_(String(body.pricesVersion));
+  if (!seen) return { note: 'המחירון השתנה מאז שהאורח פתח את הדף; המחיר לפי המחירון הנוכחי' };
+  var seenPrice = estimatePrice(req.stayType, req.nights, req.adults, seen, req.start);
+  if (seenPrice === req.estimate) return { note: '' };
+  return { note: 'האורח ראה מחירון קודם (' + (seenPrice ? '₪' + Number(seenPrice).toLocaleString('en-US') : 'ללא מחיר') + '); המחיר לפי המחירון הנוכחי' };
+}
+
 // ---------------------------------------------------------------------------
 // Signed operator actions (doPost). Each has its own signing prefix covering its arguments.
 
@@ -901,12 +1024,12 @@ function pricesSignedAction_(body) {
     return consoleOnce_('applyPrices', body.requestId, function () {
       var res = priceRun_('apply', { changes: body.changes });
       // Throwing clears consoleOnce_'s key, so a retry with the same requestId runs again.
-      if (!res.ok && (res.error === 'busy' || res.error === 'moved')) throw new Error('price section ' + res.error + '; retry');
+      if (!res.ok && ['busy', 'moved', 'unreadable', 'source_missing'].indexOf(res.error) >= 0) throw new Error('price section ' + res.error + '; retry');
       return res;
     });
   }
-  if (body.action === 'restoreStructure' && validSig_('restorePrices:' + body.t, body.sig)) {
-    return priceRun_('restore');
+  if (body.action === 'restoreStructure' && validSig_('restorePrices:' + body.t + ':' + (body.dryRun ? 1 : 0), body.sig)) {
+    return priceRun_('restore', { dryRun: !!body.dryRun });
   }
   if (body.action === 'setPricesFlag' && validSig_('pricesFlag:' + body.t + ':' + (body.value ? 1 : 0), body.sig)) {
     var flagProps = PropertiesService.getScriptProperties();
@@ -955,8 +1078,18 @@ function pricesSetup_() {
   ss.setSpreadsheetTimeZone('Asia/Jerusalem');
   var sheet = ss.getSheetByName(PRICES_TAB);
   if (!sheet) throw new Error('The prices spreadsheet has no tab ' + PRICES_TAB);
+  // A percentage typed as "35%" holds 0.35: written as 35 before the plain number format would hide it.
+  var keys = sheet.getRange(1, 1, PRICES_HEADER_ROW - 1, 3).getValues();
+  keys.forEach(function (row, r) {
+    if (String(row[0]).trim() === 'thirdGuestPercent' && typeof row[2] === 'number' && row[2] > 0 && row[2] < 1) {
+      sheet.getRange(r + 1, 3).setValue(Math.round(row[2] * 100));
+    }
+  });
   sheet.getRange(1, 3, PRICES_HEADER_ROW - 1, 1).setNumberFormat('0');
-  var tab = publishedTab_(ss, false);
+  // The first run (under the lock) writes the header, creates the published tab and publishes.
+  var result = priceRun_('setup');
+  console.log('prices: ' + JSON.stringify({ version: result.version, valid: result.valid, problems: result.problems }));
+  var tab = findPublishedTab_(ss);
   if (tab) {
     tab.hideSheet();
     tab.getRange('A1:B1').setNumberFormat('@');
@@ -969,6 +1102,4 @@ function pricesSetup_() {
   });
   ScriptApp.newTrigger(PRICES_CHANGE_TRIGGER).forSpreadsheet(CONFIG.pricesSheetId).onChange().create();
   ScriptApp.newTrigger(PRICES_BACKSTOP_TRIGGER).timeBased().everyHours(1).create();
-  var result = priceRun_('setup');
-  console.log('prices: ' + JSON.stringify({ version: result.version, valid: result.valid, problems: result.problems }));
 }
