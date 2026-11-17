@@ -87,6 +87,22 @@ export const webApp = (cfg: BackendConfig) => ({
     const t = String(Date.now());
     return call(cfg, { body: { action: 'testResetPrices', t, sig: sign(cfg, 'test:' + t) } }, (j) => 'ok' in j);
   },
+  /** The signed operator action that writes price changes (Prices.js applyPriceChanges). */
+  applyPrices: (changes: unknown, requestId: string, dryRun = false) => {
+    const t = String(Date.now());
+    const sig = sign(cfg, `applyPrices:${t}:${requestId}:${dryRun ? 1 : 0}:${JSON.stringify(changes)}`);
+    return call(cfg, { body: { action: 'applyPriceChanges', changes, requestId, dryRun, t, sig } }, (j) => 'ok' in j);
+  },
+  /** The signed operator action that rebuilds the prices tab's layout; dryRun only reports. */
+  restorePrices: (dryRun: boolean) => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'restoreStructure', dryRun, t, sig: sign(cfg, `restorePrices:${t}:${dryRun ? 1 : 0}`) } }, (j) => 'ok' in j);
+  },
+  /** The signed operator action that turns minimum nights on or off. */
+  setPricesFlag: (value: boolean) => {
+    const t = String(Date.now());
+    return call(cfg, { body: { action: 'setPricesFlag', value, t, sig: sign(cfg, `pricesFlag:${t}:${value ? 1 : 0}`) } }, (j) => 'minimumsEnabled' in j);
+  },
   /** Staging only: the published version, the sheet's status and the pending hand edits. */
   priceState: () => {
     const t = String(Date.now());

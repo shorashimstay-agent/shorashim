@@ -20,7 +20,7 @@ import {
   waitFor,
   webApp,
 } from './lib/backend';
-import { e2e, pricesCsvUrl, runTag, staging as cfg } from './lib/env';
+import { e2e, pricesCsvUrl, runId, runTag, staging as cfg } from './lib/env';
 import { parseCsv } from '../../src/lib/csv';
 import { buildPriceList, checkPriceList, estimatePrice, quoteStay } from '../../shared/rules.js';
 import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, pickInBar, recaptchaToken, submitBooking } from './lib/site';
@@ -585,6 +585,50 @@ test('G15: a deleted published tab comes back under the same gid, and gviz serve
     expect(tab.hidden).toBe(true);
     await waitFor('gviz serves the recreated tab', async () => (await cellOf()).includes(start.version), 120_000, 10_000);
   } finally {
+    await api.resetPrices();
+    await api.setPrices(pricesFile);
+  }
+});
+
+test('G16: the operator actions write and publish through real Google: apply (dry run, run, replay, remove), restore, minimums', async ({ request }) => {
+  test.skip(!cfg.pricesSheetId || !cfg.pricesPublishedGid, 'staging has no prices sheet or published gid');
+  const publishedList = async () => {
+    const cell = parseCsv(await (await request.get(pricesCsvUrl(cfg))).text())[0]?.[0];
+    const checked = cell ? checkPriceList(JSON.parse(cell)) : { ok: false as const };
+    return checked.ok ? checked.list : null;
+  };
+  await api.setPrices(null);
+  const start = await api.resetPrices();
+  expect(start).toMatchObject({ ok: true, valid: true });
+  const id = `ue2e${runId.toLowerCase()}`;
+  const from = addDays(israelToday(), 300);
+  const update = { id, name: `E2E ${runTag}`, from, to: addDays(from, 2), weekday: 1234, weekend: 1432 };
+  const before = await owner.values(cfg.pricesSheetId!, 'מחירים!A1:I60');
+  try {
+    const dry = await api.applyPrices({ upserts: [update] }, `e2e-dry-${runId}`, true);
+    expect(dry).toMatchObject({ ok: true, dryRun: true });
+    expect(dry.list.updates.some((u: { id: string }) => u.id === id)).toBe(true);
+    expect(await owner.values(cfg.pricesSheetId!, 'מחירים!A1:I60'), 'a dry run writes nothing').toEqual(before);
+    const rid = `e2e-apply-${runId}`;
+    const real = await api.applyPrices({ upserts: [update] }, rid);
+    expect(real).toMatchObject({ ok: true, valid: true });
+    expect(real.version).toBe(dry.list.version);
+    expect((await api.diag()).pricesVersion).toBe(real.version);
+    await waitFor('the site sees the update', async () => (await publishedList())?.updates.some((u) => u.id === id) ?? false, 120_000, 10_000);
+    const replay = await api.applyPrices({ upserts: [update] }, rid);
+    expect(replay.version, 'a replay is a no-op').toBe(real.version);
+    const rows = await owner.values(cfg.pricesSheetId!, 'מחירים!A1:I60');
+    expect(rows.filter((r) => r[0] === id)).toHaveLength(1);
+    expect(rows.find((r) => r[0] === id)?.[4], 'written as text, as the RAW write keeps it').toBe('1234');
+    const removed = await api.applyPrices({ removes: [id] }, `e2e-remove-${runId}`);
+    expect(removed).toMatchObject({ ok: true, valid: true, version: start.version });
+    expect(await api.restorePrices(true)).toMatchObject({ ok: true, dryRun: true });
+    expect(await api.setPricesFlag(true)).toMatchObject({ minimumsEnabled: true });
+    expect(await api.setPricesFlag(false)).toMatchObject({ minimumsEnabled: false });
+    expect((await api.priceState()).pending, 'operator changes are not hand edits').toBeNull();
+  } finally {
+    await api.setPricesFlag(false);
+    await api.applyPrices({ removes: [id] }, `e2e-cleanup-${runId}`).catch(() => undefined);
     await api.resetPrices();
     await api.setPrices(pricesFile);
   }
