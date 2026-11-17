@@ -125,13 +125,17 @@ console (O9); emails sent before that open this page, so it stays covered.
   it ⌛ expired, and it can still be approved while its nights are free.
 - G8: wedding stay (`bride_day` on day D) holds D-1 → D+1, two nights, and the request carries the day participants chosen in the form.
 - G9: requests are priced from the prices the web app is given, not from code. The suite builds the
-  test site with its test prices (`tests/e2e/fixtures/prices.json`) and pins the staging web app to
-  them (signed `testSetPrices`). G9 swaps in changed prices, checks `diag` reports their version,
-  that an out-of-range price is refused, and that a request's stored estimate follows the changed
-  prices (weekend nights included). It restores the test prices afterwards.
-- G10: the web app reads the staging prices sheet: with the pin cleared, `diag` reports the sheet's
-  version; after the suite edits a price in the sheet, `diag` reports the new version within about
-  a minute, with no deploy. The edit is undone afterwards.
+  test site with its test price list (`tests/e2e/fixtures/prices.json`, a published list) and pins
+  the staging web app to it (signed `testSetPrices`). G9 swaps in a changed list, checks `diag`
+  reports its version, that an out-of-range price is refused, and that a request's stored estimate
+  follows the changed list (weekend nights, Thursday to Saturday, included). It restores the test
+  prices afterwards.
+- G10: the web app publishes the staging prices sheet: with the pin cleared, `diag` and the
+  published tab (read through gviz by its gid, hidden, as the site reads it) report the same
+  version. A hand edit in the sheet (the suite writes it through the Sheets API and fires the
+  change handler, `testFirePriceEdit`) is published at once and recorded for the owner's email; an
+  invalid edit keeps the last valid list and marks the sheet invalid. Undone afterwards
+  (`testResetPrices`).
 - G11: `bride_day_wedding_night` on day D is one night from 08:00 (its event D-1 → D+1 keeps the
   night before from guests; `nights` is 1), carries 3
   overnight guests and 5 day participants, is priced at its own test price, and its owner text gives

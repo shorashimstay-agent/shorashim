@@ -15,8 +15,8 @@ const PORT = 4173;
 // E2E_CHROME (set in .env) when given, else the bundled browser.
 // The test site reads these test prices instead of a prices sheet: a CSV like the sheet's, as a data
 // URL. tests/e2e/booking.spec.ts pins the staging web app to the same prices.
-const testPrices = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8')).prices as Record<string, number>;
-const testPricesCsv = Object.entries(testPrices).map(([key, price]) => `"${key}","","${price}"`).join('\n');
+// The fixture is a published price list; the site reads it as the published tab's one cell.
+const testPricesCsv = `"${fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8').replace(/"/g, '""')}",""`;
 
 const executablePath = process.env.E2E_CHROME || undefined;
 

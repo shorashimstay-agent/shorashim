@@ -20,8 +20,9 @@ import {
   waitFor,
   webApp,
 } from './lib/backend';
-import { e2e, runTag, staging as cfg } from './lib/env';
-import { estimatePrice, pricesFromRows, pricesVersionOf } from '../../shared/rules.js';
+import { e2e, pricesCsvUrl, runTag, staging as cfg } from './lib/env';
+import { parseCsv } from '../../src/lib/csv';
+import { buildPriceList, checkPriceList, estimatePrice, quoteStay } from '../../shared/rules.js';
 import { decisionFrame, isSelectable, openDecision, isShownBooked, openBooking, pickInBar, recaptchaToken, submitBooking } from './lib/site';
 
 const api = webApp(cfg);
@@ -425,7 +426,7 @@ test('G11: the prep day + wedding night package is one night from 08:00, keeps t
   expect([ev.start.date, ev.end.date]).toEqual([addDays(wedding, -1), addDays(wedding, 1)]);
   expect(JSON.parse(ev.extendedProperties!.shared!.request)).toMatchObject({
     ref, stayType: 'bride_day_wedding_night', checkIn: wedding, checkOut: addDays(wedding, 1), nights: 1, adults: 3, participants: 5,
-    estimate: pricesFile.prices.bride_day_wedding_night,
+    estimate: pricesFile.base.bride_day_wedding_night,
   });
   expect(ev.description).toContain('עד 13:00 (למחרת החתונה, לילה אחד)');
   expect(ev.description).toContain('מ-08:00 (יום החתונה');
@@ -519,40 +520,59 @@ test('G13: taken dates the page still shows as free are caught by the live check
   }
 });
 
-test('G10: the web app reads its prices from the prices sheet, and picks up an edit', async () => {
-  test.skip(!cfg.pricesSheetId, 'staging has no pricesSheetId');
-  const range = 'מחירים!A1:C20';
-  const rows = await owner.values(cfg.pricesSheetId!, range);
-  const original = pricesFromRows(rows);
-  if (!original.ok) throw new Error(`the staging prices sheet fails the checks: ${original.error}`);
+test('G10: the web app publishes the prices sheet, and follows a hand edit', async ({ request }) => {
+  test.skip(!cfg.pricesSheetId || !cfg.pricesPublishedGid, 'staging has no prices sheet or published gid');
   await api.setPrices(null);
+  // What every page reads: the published tab's one cell, through gviz, with the tab hidden.
+  const publishedList = async () => {
+    const cell = parseCsv(await (await request.get(pricesCsvUrl(cfg))).text())[0]?.[0];
+    const checked = cell ? checkPriceList(JSON.parse(cell)) : { ok: false as const };
+    return checked.ok ? checked.list : null;
+  };
+  const start = await api.resetPrices();
+  expect(start).toMatchObject({ ok: true, valid: true });
+  const rows = await owner.values(cfg.pricesSheetId!, 'מחירים!A1:C20');
   const row = rows.findIndex((r) => r[0] === 'perNight') + 1;
+  const original = Number(rows[row - 1][2]);
   try {
-    expect((await api.diag(original.version)).pricesVersion).toBe(original.version);
-    // The owner (or the front agent) edits the sheet; a page that asks for the new version gets it
-    // once the one-a-minute re-read allows, with no deploy.
-    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight + 7]]);
-    const wanted = pricesVersionOf({ ...original.prices, perNight: original.prices.perNight + 7 });
-    await waitFor('web app sees the edited price', async () => (await api.diag(wanted)).pricesVersion === wanted, 150_000, 10_000);
+    expect((await api.diag()).pricesVersion).toBe(start.version);
+    await waitFor('the published tab serves the web app\'s version', async () => (await publishedList())?.version === start.version, 120_000, 10_000);
+    // The owner edits the sheet by hand. Sheets API writes may not fire the change trigger, so the
+    // test fires it as the Sheets UI would; a real trigger run as well does no harm.
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original + 7]]);
+    const edited = await api.firePriceEdit();
+    expect(edited.version).not.toBe(start.version);
+    expect((await api.diag()).pricesVersion).toBe(edited.version);
+    await waitFor('the published tab follows the edit', async () => (await publishedList())?.base.perNight === original + 7, 120_000, 10_000);
+    const state = await api.priceState();
+    expect(state.status).toMatchObject({ valid: true });
+    expect(state.pending.items.length, 'a hand edit is recorded for the owner\'s email').toBeGreaterThan(0);
+    // An invalid hand edit keeps the last valid list.
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [['לא מספר']]);
+    const broken = await api.firePriceEdit();
+    expect(broken.version).toBe(edited.version);
+    expect((await api.priceState()).status).toMatchObject({ valid: false });
   } finally {
-    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original.prices.perNight]]);
+    await owner.setValues(cfg.pricesSheetId!, `מחירים!C${row}`, [[original]]);
+    await api.resetPrices();
     await api.setPrices(pricesFile);
   }
 });
 
 test('G9: the web app prices requests from the prices it is given, not from its own code', async ({ page }) => {
-  const changed = { version: `e2e-${runTag}`, prices: { ...pricesFile.prices, perNight: pricesFile.prices.perNight + 111 } };
+  const changed = buildPriceList({ ...pricesFile.base, perNight: pricesFile.base.perNight + 111 }, pricesFile.updates, '', false);
   expect(await api.setPrices(changed)).toMatchObject({ ok: true, version: changed.version });
   try {
-    expect((await api.diag(changed.version)).pricesVersion).toBe(changed.version);
-    expect(await api.setPrices({ ...changed, prices: { ...changed.prices, bride_day: 5 } })).toMatchObject({ ok: false });
+    expect((await api.diag()).pricesVersion).toBe(changed.version);
+    expect(await api.setPrices({ ...changed, base: { ...changed.base, bride_day: 5 } })).toMatchObject({ ok: false });
     const name = guestName('מחיר');
     const [checkIn, checkOut] = [slot(10), addDays(slot(10), 2)];
     await openBooking(page);
     expect(await postRequest(page, { stayType: 'couple', checkIn, checkOut, adults: 2, name, phone: randomPhone(), pricesVersion: changed.version })).toMatchObject({ ok: true });
     const ev = await onlyRequestEvent(name);
-    // The dates are random, so they may include Friday or Saturday nights.
-    expect(JSON.parse(ev.extendedProperties!.shared!.request).estimate).toBe(estimatePrice('couple', 2, 2, changed.prices, checkIn));
+    // The dates are random, so they may include weekend nights (Thursday to Saturday).
+    expect(JSON.parse(ev.extendedProperties!.shared!.request).estimate).toBe(estimatePrice('couple', 2, 2, changed, checkIn));
+    expect(quoteStay(changed, 'couple', checkIn, 2, 3).price).toBe(estimatePrice('couple', 2, 3, changed, checkIn));
     expect(await api.decide('decline', ev.iCalUID)).toMatchObject({ ok: true });
   } finally {
     await api.setPrices(pricesFile);

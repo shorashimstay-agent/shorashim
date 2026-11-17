@@ -1,4 +1,4 @@
-import type { Prices } from '../lib/prices';
+import type { PriceList } from '../lib/prices';
 import { NIGHT_BEFORE_CHECK_IN, PREP_FRIDAY_START, PREP_START } from '../../shared/rules.js';
 export type StayType = 'couple' | 'bride_day' | 'bride_night_day' | 'wedding_night' | 'bride_day_wedding_night';
 export interface StayPackage {
@@ -18,8 +18,11 @@ export const STAY_PACKAGES: Record<StayType, StayPackage> = {
   bride_day_wedding_night: { id: 'bride_day_wedding_night', title: 'יום התארגנות + ליל כלולות', description: 'התארגנות ביום החתונה וחזרה ללינה אחרי האירוע, לילה אחד', hours: `הגעה ${PREP_START} ביום החתונה (בשישי אפשר גם ${PREP_FRIDAY_START}, בתיאום) · יציאה עד 13:00 למחרת החתונה`, capacity: 'עד 3 ללינה · עד 5 משתתפים ביום כולל הכלה ואנשי מקצוע' },
 };
 const shekels = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
-/** The couple-stay price note, from the live prices. */
-export const couplePriceNote = (p: Prices) =>
-  `מחירי הרצה: ${shekels(p.perNight)} ללילה באמצע השבוע · ${shekels(p.weekendPerNight)} ללילות שישי ושבת · אורח שלישי בתוספת ${shekels(p.thirdGuestPerNight)} ללילה.`;
+/**
+ * The couple-stay price note, from the live prices. The base prices are the regular price, not a
+ * "from" price: dated prices (December, for one) can be lower, so the exact price is the form's.
+ */
+export const couplePriceNote = (p: PriceList) =>
+  `מחיר רגיל: ${shekels(p.base.perNight)} ללילה א׳–ד׳ · ${shekels(p.base.weekendPerNight)} ללילה ה׳–ש׳ · אורח שלישי: תוספת ${p.base.thirdGuestPercent}%. המחיר המדויק מחושב לפי התאריכים בטופס.`;
 export const PRICE_NOTE = 'המחיר הוא עבור האירוח שבחרתם, בהתאם לתאריכים ולמספר האורחים. ההזמנה כפופה לאישור זמינות.';
 export const CANCELLATION_POLICY = 'אין צורך במקדמה; התשלום בתחילת האירוח. ביטול לפחות 14 ימים לפני תחילת האירוח: ללא חיוב. ביטול כשנותרו לפחות 7 ימים ופחות מ־14 ימים: 50% ממחיר ההזמנה. ביטול פחות מ־7 ימים מראש או אי־הגעה: 100% ממחיר ההזמנה. המועדים נספרים לפי שעת תחילת האירוח שסוכמה, בשעון ישראל; בחבילות עם לילה לפני — מתחילת הלינה. שינוי מועד אחד ללא דמי שינוי בהודעה של לפחות 14 ימים, בכפוף לזמינות ולהפרש מחיר. אם התאריך הוזמן מחדש באותו מחיר, יוחזרו דמי הביטול שנגבו. אם המארחים מבטלים או איסור רשמי מונע את האירוח, יינתן החזר מלא או שינוי מועד לבחירת האורחים. זכויות ביטול והחזר לפי הדין, לרבות זכויות מיטיבות, גוברות על מדיניות זו. התאריך נשמר רק לאחר אישור מפורש של המארחים והאורחים ב־WhatsApp הכולל מסלול, תאריך, מחיר ותנאי ביטול. ללא מקדמה אין פירושו פטור מדמי ביטול.';

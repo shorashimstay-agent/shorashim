@@ -10,6 +10,8 @@
  *
  * @typedef {'couple' | 'wedding_night' | 'bride_day' | 'bride_night_day' | 'bride_day_wedding_night'} StayType
  * @typedef {{ allDay: boolean, start: string, end: string }} CalendarEvent
+ * @typedef {{ id: string, name: string, from: string, to: string, weekday?: number, weekend?: number, minimum?: number, twoNight?: number }} PriceUpdate
+ * @typedef {{ version: string, base: Record<string, number>, updates: PriceUpdate[] }} PriceList
  */
 
 export var CHECK_IN_MINUTES = 15 * 60;
@@ -413,7 +415,8 @@ export function buildPriceList(base, updates, today, minimumsEnabled) {
 /**
  * Checks a published price list, as the site and the web app read it. Unknown fields are ignored,
  * so a newer web app can add one without failing an older page.
- * @returns {{ ok: true, list: object } | { ok: false, error: string }}
+ * @param {unknown} value
+ * @returns {{ ok: true, list: PriceList } | { ok: false, error: string }}
  */
 export function checkPriceList(value) {
   if (!value || typeof value !== 'object') return { ok: false, error: 'not an object' };
@@ -818,6 +821,7 @@ export var ALTERNATIVE_SEARCH_DAYS = 30;
  * @param {string} from @param {string} to the covered window (to exclusive)
  * @param {string} firstNight the earliest night a stay may start (today)
  * @param {number} [limit] at most this many, MAX_ALTERNATIVES by default
+ * @param {PriceList} [list] a price list: alternatives must then meet its minimums
  * @returns {{ checkIn: string, checkOut: string }[]}
  */
 export function findAlternatives(busy, checkIn, nights, from, to, firstNight, limit, list) {

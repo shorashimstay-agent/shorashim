@@ -16,8 +16,6 @@
 var TZ = 'Asia/Jerusalem';
 var AVAILABILITY_CACHE_KEY = 'availability:v2';
 var PRICES_TAB = 'מחירים';
-var PRICES_CACHE_KEY = 'prices:v1';
-var PRICES_REFETCH_KEY = 'prices:refetched';
 var PRICES_LAST_GOOD_KEY = 'pricesLastGood';
 var PRICES_OVERRIDE_KEY = 'pricesOverride';
 var ADDRESS = 'משק פויזנר, המייסדים 71, זכרון יעקב';
@@ -59,6 +57,10 @@ function doPost(e) {
     if (body.action === 'testFireSheetEdit' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       return json_(testFireSheetEdit_(body.row));
     }
+    // Signed price actions (Prices.js): publishPrices, applyPriceChanges, restoreStructure,
+    // setPricesFlag, and the staging test hooks.
+    var priced = pricesSignedAction_(body);
+    if (priced) return json_(priced);
     if (body.action === 'console') return json_(consoleRequest_(body));
     if (body.action === 'testResetConsoleLock' && CONFIG.testHooks === true && validSig_('test:' + body.t, body.sig) && Math.abs(Date.now() - Number(body.t)) < 300000) {
       CacheService.getScriptCache().remove(CONSOLE_FAILS_KEY);
@@ -156,68 +158,7 @@ function invalidateAvailability_() {
   cache.put(CHECK_GENERATION_KEY, String(Date.now()) + Math.random(), 21600);
 }
 
-/**
- * The prices in force: { version, prices }, from the owner's prices spreadsheet (CONFIG.pricesSheetId),
- * kept in the cache for 10 minutes. The site reads the same sheet as a public CSV; a request that
- * carries another version (the page saw a newer edit) triggers a re-read, at most once a minute. When
- * the sheet cannot be read or fails checkPrices, the last good copy is used; before any copy exists
- * there are no prices ({ version: 'none', prices: null }) and requests carry no estimate.
- * @param {string} wantedVersion the version the caller expects, or '' for any
- */
-function currentPrices_(wantedVersion) {
-  var props = PropertiesService.getScriptProperties();
-  if (CONFIG.testHooks === true) {
-    var override = props.getProperty(PRICES_OVERRIDE_KEY);
-    if (override) return JSON.parse(override);
-  }
-  var cache = CacheService.getScriptCache();
-  var cached = cache.get(PRICES_CACHE_KEY);
-  if (cached) {
-    var current = JSON.parse(cached);
-    if (!wantedVersion || current.version === wantedVersion || cache.get(PRICES_REFETCH_KEY)) return current;
-  }
-  cache.put(PRICES_REFETCH_KEY, '1', 60);
-  var fetched = readPricesSheet_();
-  if (fetched) {
-    var text = JSON.stringify(fetched);
-    cache.put(PRICES_CACHE_KEY, text, 600);
-    if (props.getProperty(PRICES_LAST_GOOD_KEY) !== text) props.setProperty(PRICES_LAST_GOOD_KEY, text);
-    return fetched;
-  }
-  var lastGood = props.getProperty(PRICES_LAST_GOOD_KEY);
-  if (lastGood) {
-    cache.put(PRICES_CACHE_KEY, lastGood, 60);
-    return JSON.parse(lastGood);
-  }
-  return { version: 'none', prices: null };
-}
-
-/** Reads and checks the prices tab of the prices spreadsheet; null on any failure. */
-function readPricesSheet_() {
-  if (!CONFIG.pricesSheetId) {
-    console.warn('no pricesSheetId in the config');
-    return null;
-  }
-  try {
-    var sheet = SpreadsheetApp.openById(CONFIG.pricesSheetId).getSheetByName(PRICES_TAB);
-    if (!sheet) {
-      console.warn('prices sheet has no tab ' + PRICES_TAB);
-      countLogNoise_('prices.no_tab');
-      return null;
-    }
-    var checked = pricesFromRows(sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 3).getValues());
-    if (!checked.ok) {
-      console.warn('prices sheet rejected: ' + checked.error);
-      countLogNoise_('prices.rejected');
-      return null;
-    }
-    return { version: checked.version, prices: checked.prices };
-  } catch (err) {
-    console.warn('prices sheet unreadable', err);
-    countLogNoise_('prices.unreadable');
-    return null;
-  }
-}
+// The prices: Prices.js (currentPrices_, priceRun_ and the signed price actions).
 
 // ---------------------------------------------------------------------------
 // Calendar REST API. CalendarApp needs a round trip per event and per tag; the REST API creates an
@@ -759,6 +700,12 @@ function onCalendarChange() {
 function onSnapshotTimer() {
   try {
     keepWarm_();
+    // Cheap when nothing is pending: one property read (Prices.js).
+    try {
+      pricesEmailDue_();
+    } catch (err) {
+      console.error('price email failed', err);
+    }
     var reason;
     try {
       reason = mirrorsNeedRefresh_();
@@ -768,7 +715,6 @@ function onSnapshotTimer() {
     }
     if (!reason) return stampSnapshot_();
     console.log('rebuilding: ' + reason);
-    currentPrices_('');
     refreshMirrors_(reason);
   } finally {
     // Last, so a slow Firestore can never delay the rebuild; it never throws.
@@ -796,12 +742,12 @@ function setup() {
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     ScriptApp.deleteTrigger(trigger);
   });
-  console.log('1/4 old triggers removed');
+  console.log('1/5 old triggers removed');
 
   if (CONFIG.adminSheetId) {
     prepareAdminSheet_();
     ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(CONFIG.adminSheetId).onEdit().create();
-    console.log('2/4 spreadsheet formatted, edit trigger installed');
+    console.log('2/5 spreadsheet formatted, edit trigger installed');
   }
 
   // Calendar change triggers make Saray's own calendar edits show up at once. Google does not allow
@@ -817,10 +763,15 @@ function setup() {
   });
   var minutes = calendarTriggers === 3 ? 10 : 5;
   ScriptApp.newTrigger('onSnapshotTimer').timeBased().everyMinutes(minutes).create();
-  console.log('3/4 calendar triggers: ' + calendarTriggers + ' of 3; timer every ' + minutes + ' minutes');
+  console.log('3/5 calendar triggers: ' + calendarTriggers + ' of 3; timer every ' + minutes + ' minutes');
+
+  // The prices spreadsheet: locale and time zone, the updates table, the published tab, warning-only
+  // protections, its change and hourly triggers, and a first publish (Prices.js).
+  pricesSetup_();
+  console.log('4/5 prices: triggers installed, published');
 
   refreshMirrors_('setup');
-  console.log('4/4 tabs written. Setup done.');
+  console.log('5/5 tabs written. Setup done.');
 }
 
 // ---------------------------------------------------------------------------
@@ -1374,6 +1325,7 @@ function validSession_(token) {
  */
 function consoleOverview_() {
   var data = adminData_();
+  var overviewPrices = currentPrices_('');
   var now = Date.now();
   var fixed = data.lists.bookings.concat(data.lists.channels).map(itemSpanEvent_);
   var holds = data.lists.requests.filter(function (item) {
@@ -1400,7 +1352,10 @@ function consoleOverview_() {
     // uses to suggest a phone booking's price (the backend stores whatever price is entered).
     blockReasons: BLOCK_REASONS,
     holdChoices: HOLD_CHOICES,
-    prices: currentPrices_('').prices,
+    // `prices` stays the flat key → price map (the console live before a merge reads it); the
+    // console prices with `priceList` (shared/rules.js quoteStay).
+    prices: overviewPrices.prices ? overviewPrices.prices.base : null,
+    priceList: overviewPrices.prices,
     requests: data.requests,
     decisions: data.decisions,
     bookings: data.bookings,
@@ -1408,28 +1363,12 @@ function consoleOverview_() {
     health: {
       staging: CONFIG.testHooks === true,
       mirrorsRefreshedAt: props.getProperty(MIRRORS_REFRESHED_KEY) || '',
-      pricesVersion: currentPrices_('').version,
+      pricesVersion: overviewPrices.version,
       triggers: ScriptApp.getProjectTriggers().map(function (tr) {
         return tr.getHandlerFunction();
       }),
     },
   };
-}
-
-/**
- * Staging only (CONFIG.testHooks): pins the web app to the suite's test prices, the same ones its
- * site is built with, instead of the staging prices sheet; null clears it.
- */
-function testSetPrices_(file) {
-  var props = PropertiesService.getScriptProperties();
-  if (file === null) {
-    props.deleteProperty(PRICES_OVERRIDE_KEY);
-    return { ok: true, cleared: true };
-  }
-  var checked = checkPrices(file);
-  if (!checked.ok) return { ok: false, error: checked.error };
-  props.setProperty(PRICES_OVERRIDE_KEY, JSON.stringify({ version: checked.version, prices: checked.prices }));
-  return { ok: true, version: checked.version };
 }
 
 /**
@@ -1923,7 +1862,9 @@ function createRequestOnce_(body) {
     last = now;
   }
 
-  var check = validateRequest(body, today_(), currentPrices_(String(body.pricesVersion || '')).prices);
+  // The current list, never a re-read on the caller's say: sheet reads only after reCAPTCHA.
+  var priced = currentPrices_('');
+  var check = validateRequest(body, today_(), priced.prices);
   if (!check.ok) {
     countLogNoise_('request.invalid');
     return { ok: false, error: 'invalid', fields: check.errors };
@@ -1942,6 +1883,29 @@ function createRequestOnce_(body) {
   }
   mark('rateLimit');
 
+  // Minimums and changed prices, after reCAPTCHA and the rate limit. A page that sends pricingV2
+  // can show `price_changed` (the server's own price and minimum); older pages get the existing
+  // `invalid` answer for a stay below the minimum. The server always prices the request itself.
+  var priceNote = '';
+  if (priced.prices) {
+    var quote = quoteStay(priced.prices, req.stayType, req.start, req.nights, req.adults);
+    if (req.stayType === 'couple' && quote.minimum > req.nights) {
+      countLogNoise_('request.minimum');
+      if (body.pricingV2) return { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version };
+      return { ok: false, error: 'invalid', fields: { checkOut: 'minimum' }, minimum: quote.minimum };
+    }
+    var shown = body.shownPrice;
+    if (body.pricingV2 && shown !== undefined && shown !== null && shown !== '' && Number(shown) !== Number(req.estimate)) {
+      return { ok: false, error: 'price_changed', price: req.estimate, minimum: quote.minimum, version: priced.version };
+    }
+    if (!body.pricingV2 && body.pricesVersion && body.pricesVersion !== priced.version) {
+      var seen = priceListByVersion_(String(body.pricesVersion));
+      var seenPrice = seen ? estimatePrice(req.stayType, req.nights, req.adults, seen, req.start) : null;
+      if (!seen) priceNote = 'המחירון השתנה מאז שהאורח פתח את הדף; המחיר לפי המחירון הנוכחי';
+      else if (seenPrice !== req.estimate) priceNote = 'האורח ראה מחירון קודם (' + (seenPrice ? '₪' + Number(seenPrice).toLocaleString('en-US') : 'ללא מחיר') + '); המחיר לפי המחירון הנוכחי';
+    }
+  }
+
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   mark('lockWait');
@@ -1955,7 +1919,7 @@ function createRequestOnce_(body) {
     eventId = calendarCall_(
       calendarRequest_('requests', 'post', '', { fields: 'iCalUID' }, {
         summary: '⏳ ' + req.name + ' · ' + STAY_TYPES[req.stayType].label,
-        description: ownerLines_(req, check.campaign).join('\n'),
+        description: ownerLines_(req, check.campaign, priceNote).join('\n'),
         start: { date: req.start },
         end: { date: req.end },
         // The campaign tag is its own property, so it never grows the request's.
@@ -1973,7 +1937,7 @@ function createRequestOnce_(body) {
   scheduleMirrorRefresh_();
   mark('scheduleRefresh');
   try {
-    notifyOwner_(eventId, req, check.campaign);
+    notifyOwner_(eventId, req, check.campaign, priceNote);
   } catch (err) {
     console.error('owner notification failed', err);
   }
@@ -2068,7 +2032,7 @@ function requestProps_(req, campaign) {
   return props;
 }
 
-function ownerLines_(req, campaign) {
+function ownerLines_(req, campaign, priceNote) {
   var lines = stayLines_(req);
   if (STAY_TYPES[req.stayType].wedding) {
     var span = requestSpan(req);
@@ -2078,6 +2042,7 @@ function ownerLines_(req, campaign) {
     lines.push(held);
   }
   lines.push('הערכת מחיר: ' + (req.estimate ? '₪' + Number(req.estimate).toLocaleString('en-US') : 'לא חושבה (אין מחירים זמינים) — לתמחר ידנית'));
+  if (priceNote) lines.push(priceNote);
   lines.push('שם: ' + req.name);
   lines.push('טלפון: ' + req.phone);
   if (req.email) lines.push('אימייל: ' + req.email);
@@ -2128,8 +2093,8 @@ function consoleRequestUrl_(eventId, ref) {
   return CONSOLE_URL + '?request=' + encodeURIComponent(eventId) + '&ref=' + encodeURIComponent(ref);
 }
 
-function notifyOwner_(eventId, req, campaign) {
-  var rows = ownerLines_(req, campaign)
+function notifyOwner_(eventId, req, campaign, priceNote) {
+  var rows = ownerLines_(req, campaign, priceNote)
     .map(function (line) {
       return '<div>' + esc_(line) + '</div>';
     })
@@ -2147,7 +2112,7 @@ function notifyOwner_(eventId, req, campaign) {
   MailApp.sendEmail({
     to: CONFIG.notifyEmail || CONFIG.ownerEmail,
     subject: 'בקשת הזמנה ' + req.ref + ': ' + stayDatesShort_(req) + ' · ' + req.name,
-    body: ownerLines_(req, campaign).join('\n') + '\n\nלאישור או דחייה: ' + consoleRequestUrl_(eventId, req.ref),
+    body: ownerLines_(req, campaign, priceNote).join('\n') + '\n\nלאישור או דחייה: ' + consoleRequestUrl_(eventId, req.ref),
     htmlBody: html,
     name: 'שורשים – הזמנות',
   });
