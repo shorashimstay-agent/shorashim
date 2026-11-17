@@ -243,9 +243,9 @@ export function updateProblem(u, opts) {
 }
 
 /**
- * Pairs of updates that contradict each other: two single-date updates on the same date, or two
- * ranges that overlap without one containing the other (or of equal length), when both set the same
- * field. A range nested inside a longer one is fine: the shorter one wins (priceForNight).
+ * Pairs of updates that contradict each other: two single-date updates on the same date (whatever
+ * they set), or two ranges that overlap without one containing the other (or of equal length) when
+ * both set the same field. A range nested inside a longer one is fine: the shorter one wins (priceForNight).
  * @param {object[]} updates @returns {{ a: string, b: string, field: string }[]}
  */
 export function updateConflicts(updates) {
@@ -258,6 +258,11 @@ export function updateConflicts(updates) {
       var singleA = a.from === a.to;
       var singleB = b.from === b.to;
       if (singleA !== singleB) continue;
+      // Two single-date rows for one date always conflict, whatever fields they set: one date, one row.
+      if (singleA) {
+        out.push({ a: a.id, b: b.id, field: 'date' });
+        continue;
+      }
       if (!singleA) {
         var lenA = daysBetween(a.from, a.to);
         var lenB = daysBetween(b.from, b.to);
