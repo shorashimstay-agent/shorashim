@@ -1509,6 +1509,8 @@
   }
 
   function restorePrices() {
+    if (state.prestoring) return;
+    state.prestoring = true;
     call('restorePrices', { args: { dryRun: true } }).then(function (dry) {
       if (!dry.ok) return priceMessage('לא ניתן לשחזר את המבנה: ' + (PRICE_SAVE_ERRORS[dry.error] || dry.error), true);
       var s = dry.summary;
@@ -1523,7 +1525,7 @@
         priceMessage(res.valid ? 'המבנה שוחזר, והמחירון באתר עודכן.' : 'המבנה שוחזר, אבל נשארו שורות לתיקון.', !res.valid);
         return loadPrices();
       });
-    }, function () { priceMessage(PRICE_SAVE_ERRORS.busy, true); });
+    }, function () { priceMessage(PRICE_SAVE_ERRORS.busy, true); }).then(function () { state.prestoring = false; });
   }
 
   function renderPriceBase(p) {
@@ -1551,7 +1553,7 @@
     var c = state.pcheck || (state.pcheck = { from: '', to: '', adults: 2 });
     var html = '<div class="pgrid"><div><label for="pc-from">הגעה</label><input id="pc-from" type="date" value="' + esc(c.from) + '"></div>' +
       '<div><label for="pc-to">עזיבה</label><input id="pc-to" type="date" value="' + esc(c.to) + '"></div></div>' +
-      '<label>אורחים</label><div class="choices" role="group" aria-label="אורחים"><button type="button" data-adults="2" aria-pressed="' + (c.adults === 2) + '">זוג</button><button type="button" data-adults="3" aria-pressed="' + (c.adults === 3) + '">3 אורחים</button></div>' +
+      '<p class="label" style="font-size:11px;letter-spacing:.16em;color:var(--accent);margin:14px 0 6px">אורחים</p><div class="choices" role="group" aria-label="אורחים"><button type="button" data-adults="2" aria-pressed="' + (c.adults === 2) + '">זוג</button><button type="button" data-adults="3" aria-pressed="' + (c.adults === 3) + '">3 אורחים</button></div>' +
       '<div id="pc-out" class="pquote" aria-live="polite"></div>';
     $('prices-check').innerHTML = html;
     $('prices-check').onsubmit = function (e) { e.preventDefault(); };
@@ -1633,7 +1635,7 @@
     var bad = (p.invalidRows || []).map(function (r) {
       return '<article class="ucard bad" data-row="' + r.row + '"><h4>שורה ' + r.row + ': ' + esc(r.cells[1] || r.cells[0] || '(ללא שם)') + '</h4>' +
         '<p class="when">' + esc(r.reason) + '</p><p class="hint">' + esc(r.cells.slice(1).filter(Boolean).join(' · ')) + '</p>' +
-        '<div class="acts">' + (/^u[a-z0-9]{6,12}$/.test(r.id) ? '<button type="button" class="btn quiet" data-fix="' + r.row + '">תיקון</button><button type="button" class="btn danger" data-remove="' + esc(r.id) + '">הסרה</button>' : '<span class="hint">אפשר לתקן בשחזור מבנה או בגיליון.</span>') + '</div></article>';
+        '<div class="acts">' + (r.code === 'id' ? '<span class="hint">' + (p.structure ? 'אפשר לתקן בשחזור מבנה.' : 'המזהה של השורה יתוקן אוטומטית תוך כדקה. רעננו את המסך.') + '</span>' : /^u[a-z0-9]{6,12}$/.test(r.id) ? '<button type="button" class="btn quiet" data-fix="' + r.row + '">תיקון</button><button type="button" class="btn danger" data-remove="' + esc(r.id) + '">הסרה</button>' : '<span class="hint">אפשר לתקן בשחזור מבנה או בגיליון.</span>') + '</div></article>';
     }).join('');
     $('price-updates').innerHTML = bad + (current.length ? current.map(function (u) { return card(u, false); }).join('') : '<p class="empty">אין עדכונים פעילים. המחירים לפי מחירי הבסיס.</p>') +
       (past.length ? '<details style="margin-top:12px"><summary class="hint">עדכונים שהסתיימו (' + past.length + ')</summary>' + past.map(function (u) { return card(u, true); }).join('') + '</details>' : '');
@@ -1663,7 +1665,9 @@
     u = u || {};
     var single = u.from && u.from === u.to;
     var nightPrice = single ? (isWeekendNight(u.from) ? (u.weekend != null ? u.weekend : u.weekday) : (u.weekday != null ? u.weekday : u.weekend)) : null;
+    var wrongColumn = single && (isWeekendNight(u.from) ? u.weekend == null && u.weekday != null : u.weekday == null && u.weekend != null);
     state.pform = {
+      wrongColumn: wrongColumn,
       id: u.id || '', name: u.name || '', from: u.from || '', to: u.to || '',
       weekday: u.weekday == null ? '' : u.weekday, weekend: u.weekend == null ? '' : u.weekend, night: nightPrice == null ? '' : nightPrice,
       twoNight: u.twoNight == null ? '' : u.twoNight, minimum: u.minimum == null ? '' : u.minimum,
@@ -1718,6 +1722,7 @@
       var wk = isWeekendNight(f.from);
       html += '<label for="pf-night">מחיר ללילה (₪)</label><input id="pf-night" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.night) + '">' +
         '<p class="hint">' + heFull(f.from) + ' הוא ' + dayName(f.from) + ': המחיר נשמר בעמודת ' + (wk ? 'ה׳–ש׳' : 'א׳–ד׳') + '.</p>' +
+        (f.wrongColumn ? '<p class="fielderr">בגיליון המחיר רשום בעמודה השנייה, ולכן היום הוא לא חל. שמירה תפעיל אותו.</p>' : '') +
         '<label for="pf-two">מחיר כולל לשני לילות (₪, לא חובה)</label><input id="pf-two" type="number" inputmode="numeric" min="0" step="1" value="' + esc(f.twoNight) + '">' +
         '<p class="hint">הגעה ב־' + heFull(f.from) + ', עזיבה ב־' + heFull(addDays(f.from, 2)) + ' (' + dayName(addDays(f.from, 2)) + ').</p>';
     } else {
@@ -1728,7 +1733,7 @@
     if (p.minimumsEnabled) {
       html += '<label for="pf-min">מינימום לילות (לא חובה)</label><input id="pf-min" type="number" inputmode="numeric" min="1" max="14" step="1" value="' + esc(f.minimum) + '">';
     } else if (f.inactiveMinimum != null) {
-      html += '<label>מינימום לילות</label><p class="hint">בגיליון רשום מינימום ' + f.inactiveMinimum + ' לילות, אבל מינימום עוד לא פעיל באתר.</p>' +
+      html += '<p class="hint" style="margin-top:14px">מינימום לילות: בגיליון רשום מינימום ' + f.inactiveMinimum + ' לילות, אבל מינימום עוד לא פעיל באתר.</p>' +
         '<label style="letter-spacing:0;color:var(--ink);font-size:15px"><input id="pf-clearmin" type="checkbox" style="width:auto;min-height:0;margin-inline-end:8px"' + (f.clearMinimum ? ' checked' : '') + '>להסיר את המינימום</label>';
     } else {
       html += '<label for="pf-min">מינימום לילות</label><input id="pf-min" type="number" disabled placeholder="זמין בקרוב">';
@@ -1739,10 +1744,12 @@
     var bind = function (id, key, rerender) {
       var el = $(id);
       if (!el) return;
-      el.oninput = function () { f[key] = el.value; previewForm(); };
+      // Any change is a new save: a cached answer for the old values must not come back.
+      if (!rerender) el.oninput = function () { f[key] = el.value; f.requestId = requestId(); previewForm(); };
       if (rerender) el.onchange = function () {
         var wasSingle = f.from && f.from === f.to;
         f[key] = el.value;
+        f.requestId = requestId();
         if (key === 'from' && f.from && (!f.to || f.to < f.from)) f.to = f.from;
         var single = f.from && f.from === f.to;
         // Switching between one night and a range keeps the prices typed so far.
@@ -1795,7 +1802,7 @@
       if (firstWeekday) lines.push('לילה ב־' + heFull(firstWeekday) + ' (א׳–ד׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekday, 1, 2).price) + '</b>');
       if (firstWeekend) lines.push('לילה ב־' + heFull(firstWeekend) + ' (ה׳–ש׳): <b>' + shekel(quoteStay(list, 'couple', firstWeekend, 1, 2).price) + '</b>');
     }
-    el.innerHTML = '<span class="hint">תצוגה מקדימה, לפני שמירה:</span><br>' + lines.join('<br>');
+    el.innerHTML = '<span class="hint">' + (state.prices.valid === false ? 'תצוגה מקדימה לפי הגיליון כפי שהוא עכשיו (חלקו עוד לא באתר), לפני שמירה:' : 'תצוגה מקדימה, לפני שמירה:') + '</span><br>' + lines.join('<br>');
     quoteCheck();
   }
 
@@ -1844,10 +1851,14 @@
       // A refusal needs a new request next time (consoleOnce_ keeps the answer for its id).
       if (!res.ok && state.pform) state.pform.requestId = requestId();
       // After the reload has closed the form: focus "הוספת עדכון", where the next step starts.
-      return loadPrices().then(function () { if (closed && $('price-add')) $('price-add').focus(); });
+      return loadPrices().then(function () {
+        if (closed && $('price-add')) $('price-add').focus();
+        else if ($('prices-msg')) $('prices-msg').focus();
+      });
     }, function (err) {
       if (err && err.message === 'unauthorized') return;
       priceMessage(PRICE_SAVE_ERRORS.busy, true);
+      if ($('prices-msg')) $('prices-msg').focus();
     }).then(function () {
       state.psaving = false;
       setPriceButtons(false);

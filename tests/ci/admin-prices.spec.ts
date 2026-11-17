@@ -14,11 +14,13 @@ const DECEMBER = { id: 'udec2026', name: 'דצמבר 2026', from: '2026-12-01', 
 type Update = { id: string; name: string; from: string; to: string; weekday?: number; weekend?: number; minimum?: number; twoNight?: number };
 
 /** A fake backend for the console: the overview and the price operations, kept in memory. */
-async function fakeConsole(page: Page, { stale = false } = {}) {
+async function fakeConsole(page: Page, { stale = false, copiedId = false } = {}) {
   const state = { base: { ...BASE } as Record<string, number>, updates: [DECEMBER] as Update[], saves: [] as unknown[], token: 1 };
   const prices = () => ({
-    ok: true, today: TODAY, minimumsEnabled: false, token: `t${state.token}`, base: state.base, updates: state.updates, invalidRows: [],
-    problems: [], warnings: [], valid: true, structure: '', status: { valid: true }, notice: null,
+    ok: true, today: TODAY, minimumsEnabled: false, token: `t${state.token}`, base: state.base, updates: state.updates,
+    // copiedId: a pasted row that kept the id of December's row.
+    invalidRows: copiedId ? [{ row: 24, id: 'udec2026', code: 'id', reason: 'מזהה שורה חסר או כפול', cells: ['udec2026', 'ינואר', '2027-01-05', '2027-01-10', '900', '', '', ''] }] : [],
+    problems: copiedId ? ['שורה 24: מזהה שורה חסר או כפול'] : [], warnings: [], valid: !copiedId, structure: '', status: { valid: true }, notice: null,
     published: buildPriceList(state.base, state.updates, TODAY, false),
   });
   await page.addInitScript((url) => {
@@ -180,4 +182,31 @@ test('a double tap saves once, and typing in the form asks for availability only
   await page.getByRole('button', { name: 'שמירת מחירי בסיס' }).dblclick();
   await expect(page.locator('#prices-msg')).toContainText('נשמר');
   expect(state.saves.filter((x: any) => x.op === 'saveBase')).toHaveLength(1);
+});
+
+test('switching between one night and a range keeps the price, and a refused save keeps focus on its message', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeConsole(page, { stale: true });
+  await openPrices(page);
+  await page.getByRole('button', { name: '＋ הוספת עדכון' }).click();
+  await page.locator('#pf-name').fill('אביב');
+  await page.locator('#pf-from').fill('2027-03-01');
+  await page.locator('#pf-from').blur();
+  await page.locator('#pf-night').fill('900');
+  await page.locator('#pf-to').fill('2027-03-03');
+  await page.locator('#pf-to').blur();
+  await expect(page.locator('#pf-weekday'), '1.3.2027 is a Monday: its price moves to א׳–ד׳').toHaveValue('900');
+  await page.getByRole('button', { name: 'שמירה' }).click();
+  await expect(page.locator('#prices-msg')).toContainText('המחירון השתנה');
+  await expect(page.locator('#prices-msg')).toBeFocused();
+  await expect(page.locator('#pf-weekday'), 'the form keeps the values').toHaveValue('900');
+});
+
+test('a row whose id was copied offers no buttons that would act on the original', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeConsole(page, { copiedId: true });
+  await openPrices(page);
+  const bad = page.locator('.ucard.bad');
+  await expect(bad).toContainText('המזהה של השורה יתוקן אוטומטית');
+  await expect(bad.getByRole('button')).toHaveCount(0);
 });

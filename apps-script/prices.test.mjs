@@ -867,3 +867,13 @@ test('"ראיתי" clears only what the screen showed; restore runs only on the 
   e.source.cells[3][2] = 160; // changed after the dry run
   assert.equal(consoleOp(e, 'restorePrices', { token: dry.token }).error, 'stale');
 });
+
+test('a pasted row with a copied id is reported with the code the screen uses to offer no buttons', () => {
+  const e = env({ cells: sourceCells([['udec2026', 'דצמבר', '2026-12-01', '2026-12-31', '850', '1050', '', '', '']]) });
+  e.ctx.priceRun_('setup');
+  e.source.cells.push(['udec2026', 'ינואר', '2027-01-05', '2027-01-10', '900', '', '', '', '']);
+  const screen = consoleOp(e, 'prices');
+  const row = screen.invalidRows.find((r) => r.cells[1] === 'ינואר');
+  assert.equal(row.code, 'id');
+  assert.ok(screen.updates.some((u) => u.id === 'udec2026' && u.name === 'דצמבר'), 'the original stays a normal card');
+});
