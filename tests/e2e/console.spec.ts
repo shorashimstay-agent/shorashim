@@ -1,4 +1,4 @@
-// Owner console (/admin, public/admin/index.html) against the staging backend. Scenario IDs match
+// Owner console (/admin, admin/index.html) against the staging backend. Scenario IDs match
 // tests/e2e/PLAN.md §4 (O). The page is served by the staging build of the site and pointed at the
 // staging web app; it logs in with the staging console password, as the owner does in production.
 import { expect, test, type Page } from '@playwright/test';

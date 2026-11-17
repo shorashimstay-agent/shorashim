@@ -299,7 +299,10 @@
   </nav>
 </div>
 
-<script>
+<script type="module">
+  // Built by Vite (vite.config.ts), so the console prices with the same shared rules as the website
+  // and the web app: one place for the price logic.
+  import { estimatePrice } from '../shared/rules.js';
   // The data comes from the booking web app (apps-script/), which checks the session on every call.
   var state = { data: null, tab: 'requests', month: null, day: null, confirming: null, busy: {}, results: [], block: null, dayConfirm: null, dayBusy: null, cancel: null };
   // The owner email's button opens /admin/?request=<event id>&ref=<reference>: that request is shown
@@ -834,20 +837,15 @@
     return f;
   }
 
-  /** A price suggestion for a phone booking, the way the website estimates (shared/rules.js estimatePrice). */
+  /**
+   * A price suggestion for a phone booking: the website's own estimate (shared/rules.js), so the two
+   * never disagree. No estimate (no prices yet, or a package whose price row is missing) gives no
+   * suggestion: 0.
+   */
   function suggestPrice(f, start, end) {
-    var p = state.data.prices;
-    if (!p) return 0;
-    // A package whose price row is not in the sheet yet has no suggestion, rather than a nightly one.
-    if (f.stayType === 'bride_day_wedding_night') return p[f.stayType] || 0;
-    if (p[f.stayType] && f.stayType !== 'couple') return p[f.stayType];
-    var total = 0, nights = 0;
-    for (var n = start; n < end; n = addDays(n, 1)) {
-      var dow = parse(n).getDay();
-      total += dow === 5 || dow === 6 ? (p.weekendPerNight || p.perNight) : p.perNight;
-      nights++;
-    }
-    return total + (Number(f.adults) === 3 ? p.thirdGuestPerNight * nights : 0);
+    var nights = 0;
+    for (var n = start; n < end; n = addDays(n, 1)) nights++;
+    return estimatePrice(f.stayType, nights, Number(f.adults), state.data.prices || null, start) || 0;
   }
 
   function startBlock() {

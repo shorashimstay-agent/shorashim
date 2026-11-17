@@ -8,7 +8,7 @@
 # Backend, its shared rules, and the owner's console
 /apps-script/ @shorashimstay-agent @am-consulting-code-agent
 /shared/ @shorashimstay-agent @am-consulting-code-agent
-/public/admin/ @shorashimstay-agent @am-consulting-code-agent
+/admin/ @shorashimstay-agent @am-consulting-code-agent
 
 # The booking engine: behaviour, API, reCAPTCHA, prices, packages and the policy text
 /src/booking/ @shorashimstay-agent @am-consulting-code-agent

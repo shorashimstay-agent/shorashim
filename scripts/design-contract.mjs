@@ -79,7 +79,7 @@ function contractProblems() {
   }
 
   // Tracking runs only behind the cookie banner, from the owner's loader.
-  const trackerFiles = [...sourceFiles('src'), ...sourceFiles('public').filter((f) => !f.startsWith('public/admin/')), ...sourceFiles('bride'), 'index.html'];
+  const trackerFiles = [...sourceFiles('src'), ...sourceFiles('public'), ...sourceFiles('bride'), 'index.html'];
   for (const file of trackerFiles) {
     if (file === 'src/lib/metaPixel.ts') continue;
     const host = TRACKER_HOSTS.find((h) => read(file).includes(h));
