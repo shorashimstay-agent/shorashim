@@ -125,6 +125,8 @@ test('New Year\'s Eve as one update: the night price in its weekday column, the 
   await expect(page.getByRole('button', { name: '3 אורחים' })).toBeFocused();
   await expect(page.locator('#pc-out')).toContainText('₪2,835');
   await expect(page.locator('#pc-out')).toContainText('התאריכים פנויים');
+  // Screen readers hear the price and the availability once the owner has changed the check.
+  await expect(page.locator('#status')).toContainText('התאריכים פנויים');
 });
 
 test('a conflicting range is shown before saving, and a stale screen is refused', async ({ page }) => {
