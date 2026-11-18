@@ -1,4 +1,3 @@
-import { addDays, buildPriceList } from './shared/rules.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,20 +13,9 @@ const PORT = 4174;
 export const FAKE_API = 'https://booking-api.test/exec';
 export const FAKE_SITE_KEY = 'ci-recaptcha-site-key';
 
-// The fixture is a published price list; the site reads it as the published tab's one cell. CI adds a
-// minimum of 2 nights on one date far ahead (MIN_DATE), for tests/ci/booking-minimum.spec.ts.
-const israelToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
-export const MIN_DATE = addDays(israelToday, 330);
-// And on the coming New Year's Eve, for a stay picked across the year boundary.
-const thisNye = `${israelToday.slice(0, 4)}-12-31`;
-export const NYE_DATE = thisNye > addDays(israelToday, 2) ? thisNye : `${Number(israelToday.slice(0, 4)) + 1}-12-31`;
-const fixture = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8'));
-export const CI_PRICE_LIST = buildPriceList(fixture.base, [
-  ...fixture.updates,
-  { id: 'umin00001', name: 'מינימום', from: MIN_DATE, to: MIN_DATE, minimum: 2 },
-  { id: 'umin00002', name: 'סילבסטר', from: NYE_DATE, to: NYE_DATE, minimum: 2 },
-], '', true);
-const testPricesCsv = `"${JSON.stringify(CI_PRICE_LIST).replace(/"/g, '""')}",""`;
+// The fixture is a published price list; the site reads it as the published tab's one cell. It has
+// no minimums: tests/ci/booking-minimum.spec.ts serves its own list with minimums to its pages only.
+const testPricesCsv = `"${fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8').replace(/"/g, '""')}",""`;
 
 // Locally (WSL) the bundled Chromium never runs IntersectionObserver; see playwright.config.ts.
 // CI always uses the bundled browser.

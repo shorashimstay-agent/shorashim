@@ -34,18 +34,21 @@ export function priceListFromCsv(text: string): PriceList | null {
 }
 
 let loading: Promise<void> | null = null;
+// Each load's number: a slower, older fetch never replaces the list a newer one brought.
+let generation = 0;
 
 /** Reads the price list once per page. Any failure leaves the prices null. */
 export function loadLivePrices(): Promise<void> {
   if (!PRICES_CSV_URL) return Promise.resolve();
   loading ??= (async () => {
+    const mine = ++generation;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
     try {
       const res = await fetch(PRICES_CSV_URL, { cache: 'no-store', signal: controller.signal });
       if (!res.ok) return;
       const list = priceListFromCsv(await res.text());
-      if (!list) return;
+      if (!list || mine !== generation) return;
       current = list;
       listeners.forEach((listener) => listener());
     } catch {

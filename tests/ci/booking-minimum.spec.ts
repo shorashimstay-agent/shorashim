@@ -1,16 +1,40 @@
 // The booking form with minimum nights and a changed price (the pricing plan's step 4), against a fake
 // backend. The CI site's price list has a minimum of 2 nights on MIN_DATE (playwright.ci.config.ts).
 import { expect, test, type Page } from '@playwright/test';
-import { CI_PRICE_LIST, FAKE_API, MIN_DATE, NYE_DATE } from '../../playwright.ci.config';
-import { addDays, daysBetween, estimatePrice } from '../../shared/rules.js';
+import fs from 'node:fs';
+import { FAKE_API } from '../../playwright.ci.config';
+import { addDays, buildPriceList, daysBetween, estimatePrice } from '../../shared/rules.js';
 import { openBooking, showMonthOf } from '../e2e/lib/site';
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+
+// This spec's own price list: the CI fixture plus a minimum of 2 nights on MIN_DATE and on the coming
+// New Year's Eve. Only this spec's pages get it (fakeBackend), so the other specs' dates never meet a
+// minimum. MIN_DATE keeps clear of New Year's Eve, so its neighbours never carry that minimum.
+const today = israelToday();
+const thisNye = `${today.slice(0, 4)}-12-31`;
+const NYE_DATE = thisNye > addDays(today, 2) ? thisNye : `${Number(today.slice(0, 4)) + 1}-12-31`;
+const nearNye = (d: string) => Math.abs(daysBetween(d, NYE_DATE)) < 10 || Math.abs(daysBetween(d, addDays(NYE_DATE, -365))) < 10;
+const MIN_DATE = nearNye(addDays(today, 320)) ? addDays(today, 345) : addDays(today, 320);
+const fixture = JSON.parse(fs.readFileSync('tests/e2e/fixtures/prices.json', 'utf8'));
+const CI_PRICE_LIST = buildPriceList(fixture.base, [
+  ...fixture.updates,
+  { id: 'umin00001', name: 'מינימום', from: MIN_DATE, to: MIN_DATE, minimum: 2 },
+  { id: 'umin00002', name: 'סילבסטר', from: NYE_DATE, to: NYE_DATE, minimum: 2 },
+], '', true);
+const PRICES_CSV = `"${JSON.stringify(CI_PRICE_LIST).replace(/"/g, '""')}",""`;
 
 /** Availability and the live check say free; requests answer `answers` in turn, then success. */
 async function fakeBackend(page: Page, answers: Record<string, unknown>[] = [], { delayMs = 0 } = {}) {
   const posts: Record<string, any>[] = [];
   const checks: string[] = [];
+  // The CI site reads its prices from a data: URL, which routes can't intercept: this page's fetch
+  // answers it with this spec's list instead.
+  await page.addInitScript((csv) => {
+    const real = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input instanceof Request ? input.url : input).startsWith('data:text/csv') ? Promise.resolve(new Response(csv, { status: 200 })) : real(input, init);
+  }, PRICES_CSV);
   await page.route('https://www.google.com/recaptcha/**', (route) =>
     route.fulfill({ contentType: 'text/javascript', body: 'window.grecaptcha = { ready: (f) => f(), execute: () => Promise.resolve("ci-token") };' })
   );
@@ -107,7 +131,8 @@ test('a double tap on "שליחה במחיר המעודכן" sends once, and the
 });
 
 test('on a phone, through the booking bar: a minimum on New Year\'s Eve, picked across the year boundary', async ({ page }) => {
-  // From 29 to 31 December the coming New Year's Eve stay ends beyond the bookable year.
+  // Around the turn of the year (late December, early January) the coming New Year's Eve stay ends
+  // too close to, or beyond, the end of the bookable year.
   test.skip(daysBetween(israelToday(), NYE_DATE) + 2 > 360, 'the coming year boundary is outside the bookable window today');
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeBackend(page);
