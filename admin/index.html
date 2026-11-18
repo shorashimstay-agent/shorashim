@@ -1862,13 +1862,13 @@
     if (el) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'pf-error'); }
   }
 
-  /** One save; the answer says whether it reached the site. */
   /** Pending announcements of a form that is going away are dropped. */
   function stopPriceSpeech() {
     clearTimeout(state.ppreviewTimer);
     clearTimeout(state.pquoteTimer);
   }
 
+  /** One save; the answer says whether it reached the site. */
   function savePrice(op, args) {
     stopPriceSpeech();
     var p = state.prices;
@@ -1964,7 +1964,7 @@
       });
       document.querySelectorAll('.screen').forEach(function (s) { s.hidden = s.id !== 'screen-' + state.tab; });
       // The prices screen reads the sheet fresh every time it opens.
-      if (typeof stopPriceSpeech === 'function') stopPriceSpeech();
+      stopPriceSpeech();
       if (state.tab === 'prices') { state.pmsg = null; loadPrices(); }
       window.scrollTo(0, 0);
       var h = document.querySelector('#screen-' + state.tab + ' h2');
