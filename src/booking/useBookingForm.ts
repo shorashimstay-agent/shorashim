@@ -501,6 +501,8 @@ export function useBookingForm(initialStayType: StayType = 'couple') {
     if (result.error === 'invalid' && result.fields) {
       const mapped: FieldErrors = {};
       Object.keys(result.fields).forEach((key) => {
+        // A defence: this page sends pricingV2, so the server answers a minimum with price_changed;
+        // `invalid` with checkOut 'minimum' is for pages without it.
         const [field, message] = key === 'checkOut' && result.fields?.checkOut === 'minimum'
           ? (['dates', `בתאריכים האלה אפשר להזמין לפחות ${result.minimum ?? 2} לילות.`] as [Field, string])
           : SERVER_FIELD_ERRORS[key] ?? ['dates', 'חלק מהפרטים אינם תקינים'];

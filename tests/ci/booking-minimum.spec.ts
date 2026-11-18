@@ -90,6 +90,7 @@ test('a minimum the server knows of offers to extend the stay, and checks the lo
   await page.locator('#submit-booking-request').click();
   const gate = page.locator('.booking-gate');
   await expect(gate).toContainText('אפשר להזמין לפחות 3 לילות');
+  await expect(gate).toContainText('מינימום לילות בתאריכים האלה');
   expect(posts[0]).toMatchObject({ pricingV2: true });
   await gate.getByRole('button', { name: 'להאריך ל־3 לילות' }).click();
   await expect.poll(() => checks).toContain(`${checkIn}..${addDays(checkIn, 3)}`);

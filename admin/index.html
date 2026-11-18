@@ -1605,16 +1605,21 @@
       '<br><span id="pc-avail" class="hint">בודקים זמינות…</span>';
     out.innerHTML = html;
     // Screen readers hear the price once the typing pauses, not on every keystroke.
+    var spoken = '';
     if (speak) {
       // Spoken once the typing pauses, and only after the owner changed the check.
       clearTimeout(state.pquoteTimer);
-      var spoken = 'מחיר: ' + shekel(q.price) + ' ל' + nightsText(nights) + (q.minimum > 1 ? ', מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ', השהייה קצרה מדי' : '') : '');
+      spoken = 'מחיר: ' + shekel(q.price) + ' ל' + nightsText(nights) + (q.minimum > 1 ? ', מינימום ' + q.minimum + ' לילות' + (q.minimum > nights ? ', השהייה קצרה מדי' : '') : '');
       state.pquoteTimer = setTimeout(function () { announce(spoken); }, 900);
     }
     // Availability is asked once per pair of dates, not on every keystroke in the form.
     var key = c.from + '|' + c.to;
     if (state.pavail && state.pavail.key === key) {
-      if (state.pavail.text) $('pc-avail').textContent = state.pavail.text;
+      if (state.pavail.text) {
+        $('pc-avail').textContent = state.pavail.text;
+        // Availability is part of what the owner asked: spoken with the price.
+        if (speak) { clearTimeout(state.pquoteTimer); state.pquoteTimer = setTimeout(function () { announce(spoken + '. ' + state.pavail.text); }, 900); }
+      }
       return;
     }
     state.pavail = { key: key, text: '' };
@@ -1623,6 +1628,7 @@
       if (!state.pavail || state.pavail.key !== key) return;
       state.pavail.text = text;
       if ($('pc-avail')) $('pc-avail').textContent = text;
+      if (speak) { clearTimeout(state.pquoteTimer); state.pquoteTimer = setTimeout(function () { announce(spoken + '. ' + text); }, 300); }
     }, function () {
       if (state.pavail && state.pavail.key === key) state.pavail = null;
       if ($('pc-avail')) $('pc-avail').textContent = 'לא ניתן לבדוק זמינות כרגע';

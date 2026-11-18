@@ -293,7 +293,7 @@ export default function BookingSection({ stayType, onStayTypeChange }: BookingSe
               </>
             ) : (
               <>
-                <h3 id="booking-gate-heading" className="font-serif text-2xl">יש לבחור תאריכים פנויים לפני שממשיכים</h3>
+                <h3 id="booking-gate-heading" className="font-serif text-2xl">{gate.state === 'dates' && gate.extendTo ? 'מינימום לילות בתאריכים האלה' : 'יש לבחור תאריכים פנויים לפני שממשיכים'}</h3>
                 <p id="booking-gate-text">{gate.state === 'dates' && gate.reason ? gate.reason : form.wedding ? 'בחרי את תאריך החתונה ביומן.' : 'בחרו תאריך כניסה ותאריך יציאה ביומן.'}</p>
               </>
             )}
